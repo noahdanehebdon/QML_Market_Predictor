@@ -35,6 +35,7 @@ from pathlib import Path
 
 import pandas as pd
 import requests
+import yaml
 from dotenv import load_dotenv
 
 
@@ -49,88 +50,10 @@ BLS_RAW_OUTPUT_PATH = RAW_DIR / "bls_macro.parquet"
 FED_RAW_OUTPUT_PATH = RAW_DIR / "fed_macro.parquet"
 COMBINED_RAW_OUTPUT_PATH = RAW_DIR / "macro_sources.parquet"
 PROCESSED_OUTPUT_PATH = PROCESSED_DIR / "macro.parquet"
+DEFAULT_CONFIG_PATH = Path("configs/data_sources.yaml")
 
-
-# ---------------------------------------------------------------------
-# BLS configuration
-# ---------------------------------------------------------------------
 
 BLS_URL = "https://api.bls.gov/publicAPI/v2/timeseries/data/"
-
-BLS_SERIES = {
-    "cpi_all_items_sa": "CUSR0000SA0",
-    "unemployment_rate": "LNS14000000",
-}
-
-
-# ---------------------------------------------------------------------
-# Federal Reserve DDP configuration
-# ---------------------------------------------------------------------
-
-FED_DDP_SERIES = {
-    "treasury_10y": {
-        "series_id": "RIFLGFCY10_N.B",
-        "url": (
-            "https://www.federalreserve.gov/datadownload/Output.aspx"
-            "?rel=H15"
-            "&series=bf17364827e38702b42a58cf8eaa3f78"
-            "&lastObs="
-            "&from="
-            "&to="
-            "&filetype=csv"
-            "&label=include"
-            "&layout=seriescolumn"
-        ),
-        "source": "federal_reserve_h15",
-    },
-    "treasury_2y": {
-        "series_id": "RIFLGFCY02_N.B",
-        "url": (
-            "https://www.federalreserve.gov/datadownload/Output.aspx"
-            "?rel=H15"
-            "&series=bf17364827e38702b42a58cf8eaa3f78"
-            "&lastObs="
-            "&from="
-            "&to="
-            "&filetype=csv"
-            "&label=include"
-            "&layout=seriescolumn"
-        ),
-        "source": "federal_reserve_h15",
-    },
-    "fed_funds": {
-        "series_id": "RIFSPFF_N.B",
-        "url": (
-            "https://www.federalreserve.gov/datadownload/Output.aspx"
-            "?rel=H15"
-            "&series=646250c87b1afd04cc6774796fc0cec8"
-            "&lastObs="
-            "&from="
-            "&to="
-            "&filetype=csv"
-            "&label=include"
-            "&layout=seriescolumn"
-        ),
-        "source": "federal_reserve_h15",
-    },
-    "industrial_production": {
-        "series_id": "IP.B50001.S",
-        "url": (
-            "https://www.federalreserve.gov/datadownload/Output.aspx"
-            "?rel=G17"
-            "&series=403cc340ea3a19566b30770b9e4793ab"
-            "&lastObs="
-            "&from="
-            "&to="
-            "&filetype=csv"
-            "&label=include"
-            "&layout=seriescolumn"
-            "&type=package"
-        ),
-        "source": "federal_reserve_g17",
-    },
-}
-
 
 EXPECTED_COLUMNS = [
     "treasury_10y",
@@ -175,6 +98,61 @@ def safe_numeric(value) -> float | None:
 def ensure_output_dirs() -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def load_macro_config(config_path: Path = DEFAULT_CONFIG_PATH) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
+    """Load macro series definitions from configs/data_sources.yaml."""
+    if not config_path.exists():
+        raise FileNotFoundError(f"Macro data source config not found: {config_path}")
+
+    with config_path.open("r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    macro = config.get("macro")
+    if not isinstance(macro, dict):
+        raise ValueError(f"Missing 'macro' section in {config_path}")
+
+    bls_series: dict[str, str] = {}
+    for item in macro.get("bls_api", {}).values():
+        column = item.get("column")
+        series_id = item.get("series_id")
+        if column and series_id:
+            bls_series[column] = series_id
+
+    fed_series: dict[str, dict[str, str]] = {}
+    fed_config = macro.get("federal_reserve_ddp", {})
+    for release, release_series in fed_config.items():
+        for item in release_series.values():
+            column = item.get("column")
+            series_id = item.get("series_id")
+            url = item.get("url")
+            source = item.get("source", f"federal_reserve_{release}")
+
+            if column and series_id and url:
+                fed_series[column] = {
+                    "series_id": series_id,
+                    "url": url,
+                    "source": source,
+                }
+
+    missing_columns = [
+        column
+        for column in EXPECTED_COLUMNS
+        if column not in bls_series and column not in fed_series
+    ]
+    if missing_columns:
+        raise ValueError(
+            "Macro config is missing expected columns: "
+            + ", ".join(missing_columns)
+        )
+
+    if not bls_series:
+        raise ValueError(f"No BLS macro series configured in {config_path}")
+
+    if not fed_series:
+        raise ValueError(f"No Federal Reserve DDP macro series configured in {config_path}")
+
+    return bls_series, fed_series
 
 
 # ---------------------------------------------------------------------
@@ -436,11 +414,11 @@ def fetch_fed_ddp_series(
     return pd.DataFrame(rows)
 
 
-def fetch_fed_history(start_year: int) -> pd.DataFrame:
+def fetch_fed_history(series_map: dict[str, dict[str, str]], start_year: int) -> pd.DataFrame:
     """Fetch all configured Federal Reserve series."""
     frames = []
 
-    for column, info in FED_DDP_SERIES.items():
+    for column, info in series_map.items():
         frame = fetch_fed_ddp_series(
             column=column,
             series_id=info["series_id"],
@@ -539,6 +517,13 @@ def parse_args() -> argparse.Namespace:
         help="Final year of BLS data to pull.",
     )
 
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=DEFAULT_CONFIG_PATH,
+        help="Path to YAML data-source configuration.",
+    )
+
     return parser.parse_args()
 
 
@@ -546,14 +531,15 @@ def main() -> None:
     args = parse_args()
 
     print(f"Starting macro pull for {args.start_year}-{args.end_year}...\n")
+    bls_series, fed_series = load_macro_config(args.config)
 
     bls_raw = fetch_bls_history(
-        series_map=BLS_SERIES,
+        series_map=bls_series,
         start_year=args.start_year,
         end_year=args.end_year,
     )
 
-    fed_raw = fetch_fed_history(start_year=args.start_year)
+    fed_raw = fetch_fed_history(series_map=fed_series, start_year=args.start_year)
 
     combined_raw = pd.concat([bls_raw, fed_raw], ignore_index=True)
     combined_raw = combined_raw.drop_duplicates(
