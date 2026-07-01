@@ -1,0 +1,14 @@
+target:
+  name: "forward_return_5d"
+  horizon_trading_days: 5
+  benchmark: "SPY"
+
+models:
+  classical:
+    - logistic_regression
+    - random_forest
+    - gradient_boosting
+  qml:
+    - vqc
+    - qsvm
+    - qcnn

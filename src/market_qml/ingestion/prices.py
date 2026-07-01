@@ -221,6 +221,12 @@ def save_raw_pages(pages: list[dict[str, Any]], output_path: str | Path) -> None
         json.dump(pages, f, indent=2)
 
 
+def save_raw_bars(pages: list[dict[str, Any]], output_path: str | Path) -> None:
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    _normalize_bar_pages(pages).to_parquet(output_path, index=False)
+
+
 def save_prices(df: pd.DataFrame, output_path: str | Path) -> None:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
