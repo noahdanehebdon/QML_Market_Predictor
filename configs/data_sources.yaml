@@ -14,33 +14,43 @@ macro:
       treasury_10y:
         series_id: "RIFLGFCY10_N.B"
         column: "treasury_10y"
+        source: "federal_reserve_h15"
+        url: "https://www.federalreserve.gov/datadownload/Output.aspx?rel=H15&series=bf17364827e38702b42a58cf8eaa3f78&lastObs=&from=&to=&filetype=csv&label=include&layout=seriescolumn"
         description: "10-year Treasury constant maturity yield"
 
       treasury_2y:
         series_id: "RIFLGFCY02_N.B"
         column: "treasury_2y"
+        source: "federal_reserve_h15"
+        url: "https://www.federalreserve.gov/datadownload/Output.aspx?rel=H15&series=bf17364827e38702b42a58cf8eaa3f78&lastObs=&from=&to=&filetype=csv&label=include&layout=seriescolumn"
         description: "2-year Treasury constant maturity yield"
 
       fed_funds:
         series_id: "RIFSPFF_N.B"
         column: "fed_funds"
+        source: "federal_reserve_h15"
+        url: "https://www.federalreserve.gov/datadownload/Output.aspx?rel=H15&series=646250c87b1afd04cc6774796fc0cec8&lastObs=&from=&to=&filetype=csv&label=include&layout=seriescolumn"
         description: "Federal funds effective rate"
 
     g17:
       industrial_production:
         series_id: "IP.B50001.S"
         column: "industrial_production"
+        source: "federal_reserve_g17"
+        url: "https://www.federalreserve.gov/datadownload/Output.aspx?rel=G17&series=403cc340ea3a19566b30770b9e4793ab&lastObs=&from=&to=&filetype=csv&label=include&layout=seriescolumn&type=package"
         description: "Industrial production total index, seasonally adjusted"
 
   bls_api:
     cpi:
       series_id: "CUSR0000SA0"
       column: "cpi_all_items_sa"
+      source: "bls_api"
       description: "CPI-U all items, seasonally adjusted"
 
     unemployment:
       series_id: "LNS14000000"
       column: "unemployment_rate"
+      source: "bls_api"
       description: "Unemployment rate, seasonally adjusted"
 
 sec:
