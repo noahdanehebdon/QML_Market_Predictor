@@ -6,9 +6,42 @@ alpaca:
   raw_prices_path: "data/raw/alpaca_bars.parquet"
   processed_prices_path: "data/processed/prices.parquet"
 
-fred:
-  enabled: true
-  series: []
+macro:
+  start_date: "2000-01-01"
+
+  federal_reserve_ddp:
+    h15:
+      treasury_10y:
+        series_id: "RIFLGFCY10_N.B"
+        column: "treasury_10y"
+        description: "10-year Treasury constant maturity yield"
+
+      treasury_2y:
+        series_id: "RIFLGFCY02_N.B"
+        column: "treasury_2y"
+        description: "2-year Treasury constant maturity yield"
+
+      fed_funds:
+        series_id: "RIFSPFF_N.B"
+        column: "fed_funds"
+        description: "Federal funds effective rate"
+
+    g17:
+      industrial_production:
+        series_id: "IP.B50001.S"
+        column: "industrial_production"
+        description: "Industrial production total index, seasonally adjusted"
+
+  bls_api:
+    cpi:
+      series_id: "CUSR0000SA0"
+      column: "cpi_all_items_sa"
+      description: "CPI-U all items, seasonally adjusted"
+
+    unemployment:
+      series_id: "LNS14000000"
+      column: "unemployment_rate"
+      description: "Unemployment rate, seasonally adjusted"
 
 sec:
   enabled: true
