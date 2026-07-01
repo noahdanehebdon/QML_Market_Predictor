@@ -1,0 +1,21 @@
+universe:
+  name: initial_large_cap_test
+  benchmark: SPY
+  symbols:
+    - AAPL
+    - MSFT
+    - NVDA
+    - AMZN
+    - GOOGL
+    - META
+    - JPM
+    - SPY
+
+dates:
+  start: "2020-01-01"
+  end: null
+
+alpaca:
+  timeframe: "1Day"
+  adjustment: "all"
+  feed: null
