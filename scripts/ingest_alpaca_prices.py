@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
@@ -11,8 +12,10 @@ from market_qml.ingestion.prices import (
     PriceRequest,
     fetch_alpaca_bars,
     save_prices,
-    save_raw_pages,
+    save_raw_bars,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _clean_feed(value: object) -> str | None:
@@ -27,6 +30,7 @@ def _clean_feed(value: object) -> str | None:
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     load_dotenv()
 
     config_path = Path("configs/universe.yaml")
@@ -52,32 +56,28 @@ def main() -> None:
         feed=_clean_feed(alpaca.get("feed")),
     )
 
-    print(f"Fetching Alpaca bars for {len(request.symbols)} symbols...")
-    print(f"Symbols: {', '.join(request.symbols)}")
-    print(f"Start: {request.start}")
-    print(f"End: {request.end}")
-    print(f"Feed: {request.feed or 'account default'}")
+    LOGGER.info("Fetching Alpaca bars for %s symbols.", len(request.symbols))
+    LOGGER.info("Symbols: %s", ", ".join(request.symbols))
+    LOGGER.info("Start: %s", request.start)
+    LOGGER.info("End: %s", request.end)
+    LOGGER.info("Feed: %s", request.feed or "account default")
 
     prices, raw_pages = fetch_alpaca_bars(request)
 
     if prices.empty:
-        print("No bars returned. Check symbols, date range, feed, and account permissions.")
+        LOGGER.warning("No bars returned. Check symbols, date range, feed, and account permissions.")
         return
 
-    raw_path = Path("data/raw/alpaca_bars_raw.json")
+    raw_path = Path("data/raw/alpaca_bars.parquet")
     processed_path = Path("data/processed/prices.parquet")
 
-    save_raw_pages(raw_pages, raw_path)
+    save_raw_bars(raw_pages, raw_path)
     save_prices(prices, processed_path)
 
-    print(f"Saved raw response pages to: {raw_path}")
-    print(f"Saved normalized prices to: {processed_path}")
-    print()
-    print("Preview:")
-    print(prices.head())
-    print()
-    print("Rows:", len(prices))
-    print("Symbols:", sorted(prices["symbol"].unique()))
+    LOGGER.info("Saved raw bars to: %s", raw_path)
+    LOGGER.info("Saved normalized prices to: %s", processed_path)
+    LOGGER.info("Rows: %s", len(prices))
+    LOGGER.info("Symbols: %s", sorted(prices["symbol"].unique()))
 
 
 if __name__ == "__main__":
