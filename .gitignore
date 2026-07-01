@@ -40,3 +40,9 @@ wandb/
 *.pt
 *.pth
 *.onnx
+
+# Python cache/build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+src/*.egg-info/
