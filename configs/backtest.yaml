@@ -1,0 +1,12 @@
+backtest:
+  benchmark: "SPY"
+  rebalance_frequency: "daily"
+  initial_capital: 100000
+  transaction_cost_bps: 5
+  long_short:
+    enabled: false
+
+walk_forward:
+  train_window_days: 756
+  validation_window_days: 126
+  test_window_days: 63
