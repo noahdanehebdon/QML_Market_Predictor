@@ -259,6 +259,8 @@ def normalize_submissions(
             )
         )
 
+    frames = [frame for frame in frames if not frame.empty]
+
     if not frames:
         return pd.DataFrame(
             columns=[
@@ -397,6 +399,8 @@ def normalize_fundamentals(
                 concept_map=concept_map,
             )
         )
+
+    frames = [frame for frame in frames if not frame.empty]
 
     if not frames:
         return pd.DataFrame(
