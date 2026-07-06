@@ -13,7 +13,22 @@ import requests
 
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_URL_TEMPLATE = "https://data.sec.gov/submissions/CIK{cik}.json"
+SEC_COMPANY_FACTS_URL_TEMPLATE = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
 SEC_SUBMISSION_FORMS = {"10-K", "10-Q", "8-K"}
+SEC_FUNDAMENTAL_CONCEPTS = {
+    "revenue": [
+        "Revenues",
+        "SalesRevenueNet",
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+    ],
+    "net_income": ["NetIncomeLoss"],
+    "assets": ["Assets"],
+    "liabilities": ["Liabilities"],
+    "stockholders_equity": [
+        "StockholdersEquity",
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+    ],
+}
 
 
 def _sec_user_agent() -> str:
@@ -110,6 +125,24 @@ def fetch_company_submission(
     session: requests.Session | None = None,
 ) -> dict[str, Any]:
     """Fetch the SEC submissions JSON for one company CIK."""
+    cik_padded = format_cik(cik)
+    client = session or requests.Session()
+    response = client.get(
+        url_template.format(cik=cik_padded),
+        headers=_headers(user_agent),
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_company_facts(
+    cik: object,
+    url_template: str = SEC_COMPANY_FACTS_URL_TEMPLATE,
+    user_agent: str | None = None,
+    session: requests.Session | None = None,
+) -> dict[str, Any]:
+    """Fetch the SEC companyfacts JSON for one company CIK."""
     cik_padded = format_cik(cik)
     client = session or requests.Session()
     response = client.get(
@@ -243,6 +276,154 @@ def normalize_submissions(
     return pd.concat(frames, ignore_index=True)
 
 
+def normalize_company_facts(
+    symbol: str,
+    cik: object,
+    payload: dict[str, Any],
+    *,
+    concept_map: dict[str, list[str]] | None = None,
+    taxonomy: str = "us-gaap",
+) -> pd.DataFrame:
+    """Normalize selected SEC companyfacts concepts into long-format rows."""
+    concepts = concept_map or SEC_FUNDAMENTAL_CONCEPTS
+    facts = payload.get("facts", {})
+    taxonomy_facts = facts.get(taxonomy, {}) if isinstance(facts, dict) else {}
+
+    columns = [
+        "symbol",
+        "ticker",
+        "cik",
+        "cik_padded",
+        "fiscal_year",
+        "fiscal_period",
+        "filing_date",
+        "form",
+        "concept",
+        "taxonomy",
+        "sec_concept",
+        "value",
+        "unit",
+        "start_date",
+        "end_date",
+        "accession_number",
+        "frame",
+    ]
+
+    if not isinstance(taxonomy_facts, dict):
+        return pd.DataFrame(columns=columns)
+
+    rows: list[dict[str, object]] = []
+    cik_padded = format_cik(cik)
+    normalized_symbol = _normalize_ticker(symbol)
+
+    for concept, sec_concepts in concepts.items():
+        for sec_concept in sec_concepts:
+            fact = taxonomy_facts.get(sec_concept)
+            if not isinstance(fact, dict):
+                continue
+
+            units = fact.get("units", {})
+            if not isinstance(units, dict):
+                continue
+
+            for unit, observations in units.items():
+                if not isinstance(observations, list):
+                    continue
+
+                for observation in observations:
+                    if not isinstance(observation, dict):
+                        continue
+
+                    value = observation.get("val")
+                    if value is None:
+                        continue
+
+                    rows.append(
+                        {
+                            "symbol": normalized_symbol,
+                            "ticker": normalized_symbol,
+                            "cik": int(cik),
+                            "cik_padded": cik_padded,
+                            "fiscal_year": observation.get("fy"),
+                            "fiscal_period": observation.get("fp"),
+                            "filing_date": observation.get("filed"),
+                            "form": observation.get("form"),
+                            "concept": concept,
+                            "taxonomy": taxonomy,
+                            "sec_concept": sec_concept,
+                            "value": value,
+                            "unit": unit,
+                            "start_date": observation.get("start"),
+                            "end_date": observation.get("end"),
+                            "accession_number": observation.get("accn"),
+                            "frame": observation.get("frame"),
+                        }
+                    )
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    df = pd.DataFrame(rows, columns=columns)
+    df["filing_date"] = pd.to_datetime(df["filing_date"], errors="coerce")
+    df["start_date"] = pd.to_datetime(df["start_date"], errors="coerce")
+    df["end_date"] = pd.to_datetime(df["end_date"], errors="coerce")
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+    df = df.dropna(subset=["value"])
+    return df.sort_values(
+        ["symbol", "concept", "filing_date", "fiscal_year", "fiscal_period"]
+    ).reset_index(drop=True)
+
+
+def normalize_fundamentals(
+    company_facts: dict[str, dict[str, Any]],
+    ticker_cik_lookup: pd.DataFrame,
+    *,
+    concept_map: dict[str, list[str]] | None = None,
+) -> pd.DataFrame:
+    """Normalize companyfacts payloads for all symbols in a lookup table."""
+    frames: list[pd.DataFrame] = []
+
+    for row in ticker_cik_lookup.itertuples(index=False):
+        symbol = str(row.symbol)
+        payload = company_facts.get(symbol)
+        if payload is None:
+            continue
+
+        frames.append(
+            normalize_company_facts(
+                symbol=symbol,
+                cik=getattr(row, "cik_padded", row.cik),
+                payload=payload,
+                concept_map=concept_map,
+            )
+        )
+
+    if not frames:
+        return pd.DataFrame(
+            columns=[
+                "symbol",
+                "ticker",
+                "cik",
+                "cik_padded",
+                "fiscal_year",
+                "fiscal_period",
+                "filing_date",
+                "form",
+                "concept",
+                "taxonomy",
+                "sec_concept",
+                "value",
+                "unit",
+                "start_date",
+                "end_date",
+                "accession_number",
+                "frame",
+            ]
+        )
+
+    return pd.concat(frames, ignore_index=True)
+
+
 def lookup_ciks(
     symbols: list[str],
     company_tickers: pd.DataFrame,
@@ -303,6 +484,20 @@ def save_raw_submission(payload: dict[str, Any], output_path: str | Path) -> Non
 
 
 def save_submissions(df: pd.DataFrame, output_path: str | Path) -> None:
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(output_path, index=False)
+
+
+def save_raw_company_facts(payload: dict[str, Any], output_path: str | Path) -> None:
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+
+def save_fundamentals(df: pd.DataFrame, output_path: str | Path) -> None:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)

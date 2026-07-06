@@ -1,10 +1,13 @@
 import pytest
+import pandas as pd
 
 from market_qml.ingestion.sec import (
     format_cik,
     lookup_ciks,
+    normalize_company_facts,
     normalize_company_submissions,
     normalize_company_tickers,
+    normalize_fundamentals,
     normalize_submissions,
 )
 
@@ -98,3 +101,142 @@ def test_normalize_submissions_combines_lookup_payloads():
 
     assert df["symbol"].tolist() == ["AAPL", "MSFT"]
     assert df["form"].tolist() == ["10-K", "10-K"]
+
+
+def test_normalize_company_facts_extracts_target_concepts_and_aliases():
+    payload = {
+        "facts": {
+            "us-gaap": {
+                "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                    "units": {
+                        "USD": [
+                            {
+                                "fy": 2024,
+                                "fp": "FY",
+                                "filed": "2024-10-31",
+                                "form": "10-K",
+                                "val": 391035000000,
+                                "start": "2023-10-01",
+                                "end": "2024-09-28",
+                                "accn": "0000320193-24-000123",
+                                "frame": "CY2024",
+                            }
+                        ]
+                    }
+                },
+                "NetIncomeLoss": {
+                    "units": {
+                        "USD": [
+                            {
+                                "fy": 2024,
+                                "fp": "FY",
+                                "filed": "2024-10-31",
+                                "form": "10-K",
+                                "val": 93736000000,
+                                "end": "2024-09-28",
+                                "accn": "0000320193-24-000123",
+                            }
+                        ]
+                    }
+                },
+                "Assets": {
+                    "units": {
+                        "USD": [
+                            {
+                                "fy": 2024,
+                                "fp": "FY",
+                                "filed": "2024-10-31",
+                                "form": "10-K",
+                                "val": 364980000000,
+                                "end": "2024-09-28",
+                            }
+                        ]
+                    }
+                },
+                "Liabilities": {
+                    "units": {
+                        "USD": [
+                            {
+                                "fy": 2024,
+                                "fp": "FY",
+                                "filed": "2024-10-31",
+                                "form": "10-K",
+                                "val": 308030000000,
+                                "end": "2024-09-28",
+                            }
+                        ]
+                    }
+                },
+                "StockholdersEquity": {
+                    "units": {
+                        "USD": [
+                            {
+                                "fy": 2024,
+                                "fp": "FY",
+                                "filed": "2024-10-31",
+                                "form": "10-K",
+                                "val": 56950000000,
+                                "end": "2024-09-28",
+                            }
+                        ]
+                    }
+                },
+            }
+        }
+    }
+
+    df = normalize_company_facts("aapl", 320193, payload)
+
+    assert set(df["concept"]) == {
+        "revenue",
+        "net_income",
+        "assets",
+        "liabilities",
+        "stockholders_equity",
+    }
+    revenue = df.loc[df["concept"] == "revenue"].iloc[0]
+    assert revenue["symbol"] == "AAPL"
+    assert revenue["ticker"] == "AAPL"
+    assert revenue["cik_padded"] == "0000320193"
+    assert revenue["fiscal_period"] == "FY"
+    assert revenue["filing_date"] == pd.Timestamp("2024-10-31")
+    assert revenue["form"] == "10-K"
+    assert revenue["sec_concept"] == "RevenueFromContractWithCustomerExcludingAssessedTax"
+    assert revenue["value"] == 391035000000
+    assert revenue["unit"] == "USD"
+
+
+def test_normalize_fundamentals_combines_lookup_payloads():
+    lookup = normalize_company_tickers(
+        [
+            {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."},
+            {"cik_str": 789019, "ticker": "MSFT", "title": "Microsoft Corp"},
+        ]
+    ).rename(columns={"ticker": "symbol"})
+    payload = {
+        "facts": {
+            "us-gaap": {
+                "Assets": {
+                    "units": {
+                        "USD": [
+                            {
+                                "fy": 2024,
+                                "fp": "FY",
+                                "filed": "2024-10-31",
+                                "form": "10-K",
+                                "val": 100,
+                                "end": "2024-09-28",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+
+    df = normalize_fundamentals({"AAPL": payload, "MSFT": payload}, lookup)
+
+    assert df["symbol"].tolist() == ["AAPL", "MSFT"]
+    assert df["ticker"].tolist() == ["AAPL", "MSFT"]
+    assert df["concept"].tolist() == ["assets", "assets"]
+    assert df["value"].tolist() == [100, 100]
