@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+import requests
 import yaml
 from dotenv import load_dotenv
 
@@ -132,10 +133,20 @@ def main() -> None:
     for row in lookup.itertuples(index=False):
         symbol = str(row.symbol)
         LOGGER.info("Fetching SEC companyfacts for %s.", symbol)
-        payload = fetch_company_facts(
-            cik=row.cik_padded,
-            url_template=url_template,
-        )
+        try:
+            payload = fetch_company_facts(
+                cik=row.cik_padded,
+                url_template=url_template,
+            )
+        except requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                LOGGER.warning(
+                    "Skipping SEC companyfacts for %s; endpoint returned 404.",
+                    symbol,
+                )
+                continue
+            raise
+
         save_raw_company_facts(payload, args.raw_dir / f"{symbol}_companyfacts.json")
         company_facts[symbol] = payload
 
