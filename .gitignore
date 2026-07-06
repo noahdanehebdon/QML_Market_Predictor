@@ -12,9 +12,11 @@ env/
 data/raw/*
 data/processed/*
 data/features/*
+data/labels/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/features/.gitkeep
+!data/labels/.gitkeep
 
 # Data file formats
 *.parquet
