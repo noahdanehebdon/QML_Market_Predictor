@@ -3,7 +3,9 @@ import pytest
 from market_qml.ingestion.sec import (
     format_cik,
     lookup_ciks,
+    normalize_company_submissions,
     normalize_company_tickers,
+    normalize_submissions,
 )
 
 
@@ -49,3 +51,50 @@ def test_format_cik_rejects_invalid_values():
 
     with pytest.raises(ValueError, match="Invalid CIK value"):
         format_cik("not-a-cik")
+
+
+def test_normalize_company_submissions_keeps_target_forms():
+    payload = {
+        "filings": {
+            "recent": {
+                "accessionNumber": ["0001", "0002", "0003", "0004"],
+                "filingDate": ["2024-01-02", "2024-02-03", "2024-03-04", "2024-04-05"],
+                "reportDate": ["2023-12-31", "2024-01-31", "", "2024-03-31"],
+                "form": ["10-K", "S-1", "8-K", "10-Q"],
+                "primaryDocument": ["aapl-10k.htm", "aapl-s1.htm", "aapl-8k.htm", "aapl-10q.htm"],
+            }
+        }
+    }
+
+    df = normalize_company_submissions("aapl", 320193, payload)
+
+    assert df["symbol"].tolist() == ["AAPL", "AAPL", "AAPL"]
+    assert set(df["form"]) == {"10-K", "10-Q", "8-K"}
+    assert df["cik_padded"].unique().tolist() == ["0000320193"]
+    assert df["accession_number"].tolist() == ["0001", "0003", "0004"]
+    assert df["primary_document"].tolist() == ["aapl-10k.htm", "aapl-8k.htm", "aapl-10q.htm"]
+
+
+def test_normalize_submissions_combines_lookup_payloads():
+    lookup = normalize_company_tickers(
+        [
+            {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."},
+            {"cik_str": 789019, "ticker": "MSFT", "title": "Microsoft Corp"},
+        ]
+    ).rename(columns={"ticker": "symbol"})
+    payload = {
+        "filings": {
+            "recent": {
+                "accessionNumber": ["0001"],
+                "filingDate": ["2024-01-02"],
+                "reportDate": ["2023-12-31"],
+                "form": ["10-K"],
+                "primaryDocument": ["filing.htm"],
+            }
+        }
+    }
+
+    df = normalize_submissions({"AAPL": payload, "MSFT": payload}, lookup)
+
+    assert df["symbol"].tolist() == ["AAPL", "MSFT"]
+    assert df["form"].tolist() == ["10-K", "10-K"]

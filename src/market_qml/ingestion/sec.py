@@ -1,7 +1,8 @@
-"""SEC ticker-to-CIK lookup helpers."""
+"""SEC ingestion helpers."""
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,8 @@ import requests
 
 
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
+SEC_SUBMISSIONS_URL_TEMPLATE = "https://data.sec.gov/submissions/CIK{cik}.json"
+SEC_SUBMISSION_FORMS = {"10-K", "10-Q", "8-K"}
 
 
 def _sec_user_agent() -> str:
@@ -29,7 +32,6 @@ def _headers(user_agent: str | None = None) -> dict[str, str]:
     return {
         "User-Agent": user_agent or _sec_user_agent(),
         "Accept-Encoding": "gzip, deflate",
-        "Host": "www.sec.gov",
     }
 
 
@@ -101,6 +103,146 @@ def fetch_company_tickers(
     return normalize_company_tickers(response.json())
 
 
+def fetch_company_submission(
+    cik: object,
+    url_template: str = SEC_SUBMISSIONS_URL_TEMPLATE,
+    user_agent: str | None = None,
+    session: requests.Session | None = None,
+) -> dict[str, Any]:
+    """Fetch the SEC submissions JSON for one company CIK."""
+    cik_padded = format_cik(cik)
+    client = session or requests.Session()
+    response = client.get(
+        url_template.format(cik=cik_padded),
+        headers=_headers(user_agent),
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _recent_filings(payload: dict[str, Any]) -> dict[str, list[Any]]:
+    filings = payload.get("filings", {})
+    if not isinstance(filings, dict):
+        return {}
+
+    recent = filings.get("recent", {})
+    if not isinstance(recent, dict):
+        return {}
+
+    return {
+        key: value
+        for key, value in recent.items()
+        if isinstance(value, list)
+    }
+
+
+def normalize_company_submissions(
+    symbol: str,
+    cik: object,
+    payload: dict[str, Any],
+    *,
+    forms: set[str] | None = None,
+) -> pd.DataFrame:
+    """Normalize one company's recent SEC submissions into filing rows."""
+    allowed_forms = forms or SEC_SUBMISSION_FORMS
+    recent = _recent_filings(payload)
+
+    columns = [
+        "symbol",
+        "cik",
+        "cik_padded",
+        "form",
+        "filing_date",
+        "report_date",
+        "accession_number",
+        "primary_document",
+    ]
+
+    if not recent:
+        return pd.DataFrame(columns=columns)
+
+    row_count = max((len(values) for values in recent.values()), default=0)
+    rows: list[dict[str, object]] = []
+    cik_padded = format_cik(cik)
+    normalized_symbol = _normalize_ticker(symbol)
+
+    for index in range(row_count):
+        form = _value_at(recent, "form", index)
+        if form not in allowed_forms:
+            continue
+
+        rows.append(
+            {
+                "symbol": normalized_symbol,
+                "cik": int(cik),
+                "cik_padded": cik_padded,
+                "form": form,
+                "filing_date": _value_at(recent, "filingDate", index),
+                "report_date": _value_at(recent, "reportDate", index),
+                "accession_number": _value_at(recent, "accessionNumber", index),
+                "primary_document": _value_at(recent, "primaryDocument", index),
+            }
+        )
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    df = pd.DataFrame(rows, columns=columns)
+    df["filing_date"] = pd.to_datetime(df["filing_date"], errors="coerce")
+    df["report_date"] = pd.to_datetime(df["report_date"], errors="coerce")
+    return df.sort_values(["symbol", "filing_date", "accession_number"]).reset_index(drop=True)
+
+
+def _value_at(values_by_name: dict[str, list[Any]], name: str, index: int) -> Any:
+    values = values_by_name.get(name, [])
+    if index >= len(values):
+        return None
+
+    return values[index]
+
+
+def normalize_submissions(
+    submissions: dict[str, dict[str, Any]],
+    ticker_cik_lookup: pd.DataFrame,
+    *,
+    forms: set[str] | None = None,
+) -> pd.DataFrame:
+    """Normalize submissions payloads for all symbols in a lookup table."""
+    frames: list[pd.DataFrame] = []
+
+    for row in ticker_cik_lookup.itertuples(index=False):
+        symbol = str(row.symbol)
+        payload = submissions.get(symbol)
+        if payload is None:
+            continue
+
+        frames.append(
+            normalize_company_submissions(
+                symbol=symbol,
+                cik=getattr(row, "cik_padded", row.cik),
+                payload=payload,
+                forms=forms,
+            )
+        )
+
+    if not frames:
+        return pd.DataFrame(
+            columns=[
+                "symbol",
+                "cik",
+                "cik_padded",
+                "form",
+                "filing_date",
+                "report_date",
+                "accession_number",
+                "primary_document",
+            ]
+        )
+
+    return pd.concat(frames, ignore_index=True)
+
+
 def lookup_ciks(
     symbols: list[str],
     company_tickers: pd.DataFrame,
@@ -147,6 +289,20 @@ def save_company_tickers(df: pd.DataFrame, output_path: str | Path) -> None:
 
 
 def save_ticker_cik_lookup(df: pd.DataFrame, output_path: str | Path) -> None:
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(output_path, index=False)
+
+
+def save_raw_submission(payload: dict[str, Any], output_path: str | Path) -> None:
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+
+def save_submissions(df: pd.DataFrame, output_path: str | Path) -> None:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
