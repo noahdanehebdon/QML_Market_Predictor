@@ -1,0 +1,355 @@
+# Feature Set
+
+This document describes the modeling feature table produced by the project.
+The canonical feature table is written to:
+
+```text
+data/features/feature_table.parquet
+```
+
+Labels are intentionally stored separately at:
+
+```text
+data/labels/forward_return_labels.parquet
+```
+
+Every feature-table row represents one symbol on one trading date and is keyed
+by:
+
+```text
+symbol, date
+```
+
+## Build Order
+
+Run the pipeline from the repository root after configuring `.env` and the YAML
+files under `configs/`.
+
+```powershell
+python -m scripts.ingest_alpaca_prices
+python -m scripts.pull_macro
+python -m scripts.build_macro_daily --prices data/processed/prices.parquet
+python -m scripts.build_sec_ticker_cik_lookup
+python -m scripts.ingest_sec_submissions
+python -m scripts.ingest_sec_company_facts
+python -m scripts.build_price_return_features
+python -m scripts.build_price_volatility_features
+python -m scripts.build_price_volume_features
+python -m scripts.build_benchmark_relative_features
+python -m scripts.build_macro_features
+python -m scripts.build_fundamental_features
+python -m scripts.build_filing_event_features
+python -m scripts.build_feature_table
+python -m scripts.build_forward_return_labels
+```
+
+`scripts.ingest_sec_company_facts` skips symbols whose SEC companyfacts endpoint
+returns `404`. This can happen for non-operating entities such as ETFs. Those
+symbols remain in the market feature table with missing fundamental values.
+
+## Price Columns
+
+The canonical table keeps the original daily OHLCV-style market columns:
+
+- `timestamp`
+- `open`
+- `high`
+- `low`
+- `close`
+- `volume`
+- `trade_count`
+- `vwap`
+
+These columns preserve the base market state used to derive technical features.
+Keeping them in the canonical table gives later modeling and analysis steps the
+option to use raw price, liquidity, or execution context directly.
+
+## Return Features
+
+Backward-looking return features are computed by symbol:
+
+- `return_1d`
+- `return_5d`
+- `return_10d`
+- `return_20d`
+- `return_60d`
+
+Each return is computed as:
+
+```text
+close[t] / close[t - window] - 1
+```
+
+These features capture short-term and medium-term momentum. They use only past
+and current prices.
+
+Missing values are expected at the start of each symbol history when there is
+not enough lookback history.
+
+## Volatility Features
+
+Rolling realized volatility features are computed from `return_1d`:
+
+- `realized_vol_5d`
+- `realized_vol_20d`
+- `realized_vol_60d`
+
+These are annualized rolling standard deviations through the current row. They
+capture recent risk and turbulence over roughly weekly, monthly, and quarterly
+windows.
+
+Missing values are expected until each symbol has enough observations for the
+requested window.
+
+## Volume And Liquidity Features
+
+Volume features include:
+
+- `dollar_volume`
+- `avg_volume_5d`
+- `volume_shock_5d`
+- `avg_dollar_volume_5d`
+- `avg_volume_20d`
+- `volume_shock_20d`
+- `avg_dollar_volume_20d`
+- `avg_volume_60d`
+- `volume_shock_60d`
+- `avg_dollar_volume_60d`
+
+These features describe trading activity, liquidity, and unusual volume
+conditions. Volume shock compares current volume with its rolling average.
+
+Missing values are expected at the start of each rolling window.
+
+## Benchmark-Relative Features
+
+Benchmark-relative features compare each symbol with the configured benchmark,
+currently `SPY`:
+
+- `excess_return_1d_vs_spy`
+- `excess_return_5d_vs_spy`
+- `excess_return_20d_vs_spy`
+- `excess_return_60d_vs_spy`
+- `rolling_corr_20d_vs_spy`
+- `rolling_beta_20d_vs_spy`
+- `relative_vol_20d_vs_spy`
+- `relative_momentum_20d_vs_spy`
+- `rolling_corr_60d_vs_spy`
+- `rolling_beta_60d_vs_spy`
+- `relative_vol_60d_vs_spy`
+- `relative_momentum_60d_vs_spy`
+
+These features provide market-relative context. The project predicts equity
+outperformance, so relative behavior versus the benchmark is often more useful
+than standalone price movement.
+
+The `excess_return_*_vs_spy` columns are backward-looking feature columns. They
+are distinct from the forward-looking label columns, which live only in the
+label table.
+
+## Macro Features
+
+Macro level features include:
+
+- `treasury_10y`
+- `treasury_2y`
+- `fed_funds`
+- `cpi_all_items_sa`
+- `unemployment_rate`
+- `industrial_production`
+- `yield_spread_10y_2y`
+
+Macro change features include:
+
+- `treasury_10y_change_5d`
+- `treasury_2y_change_5d`
+- `fed_funds_change_5d`
+- `yield_spread_10y_2y_change_5d`
+- `treasury_10y_change_20d`
+- `treasury_2y_change_20d`
+- `fed_funds_change_20d`
+- `yield_spread_10y_2y_change_20d`
+- `treasury_10y_change_60d`
+- `treasury_2y_change_60d`
+- `fed_funds_change_60d`
+- `yield_spread_10y_2y_change_60d`
+- `cpi_inflation_21d`
+- `unemployment_rate_change_21d`
+- `industrial_production_growth_21d`
+- `cpi_inflation_63d`
+- `unemployment_rate_change_63d`
+- `industrial_production_growth_63d`
+- `cpi_inflation_252d`
+- `unemployment_rate_change_252d`
+- `industrial_production_growth_252d`
+
+These features capture the interest-rate environment, inflation, labor-market
+conditions, and industrial activity.
+
+Daily rate observations are aligned to trading dates with an as-of merge. The
+macro daily builder also supports `--lag-daily-rates` for a more conservative
+setup where same-day rate observations are not available until the following
+calendar day.
+
+Monthly macro observations are shifted forward by one month before daily
+alignment. This conservative availability assumption avoids using same-month
+macro values before they would have been known.
+
+Missing values can occur near the start of the series, before conservative
+monthly availability dates, or when a source has not yet published the latest
+observation.
+
+## SEC Fundamental Features
+
+Fundamental metadata columns include:
+
+- `cik`
+- `cik_padded`
+- `fiscal_year`
+- `fiscal_period`
+- `filing_date`
+- `form`
+- `end_date`
+- `accession_number`
+
+Fundamental value and ratio features include:
+
+- `fundamental_revenue`
+- `fundamental_net_income`
+- `fundamental_assets`
+- `fundamental_liabilities`
+- `fundamental_stockholders_equity`
+- `revenue_growth`
+- `net_income_margin`
+- `liability_ratio`
+- `equity_ratio`
+- `filing_recency_days`
+
+These features describe company scale, profitability, balance-sheet structure,
+growth, and how stale the most recent known filing is.
+
+Fundamentals are merged by `symbol/date` using filing-date-aware as-of
+alignment. A market row only receives a fundamental value after the corresponding
+SEC filing date.
+
+Missing values are expected for symbols without available SEC companyfacts, for
+periods before the first known filing, and for filings that do not contain a
+specific concept.
+
+## SEC Filing Event Features
+
+Recent filing metadata features include:
+
+- `sec_last_filing_cik`
+- `sec_last_filing_cik_padded`
+- `sec_last_filing_form`
+- `sec_last_filing_date`
+- `sec_last_filing_report_date`
+- `sec_last_filing_accession_number`
+- `sec_last_filing_primary_document`
+- `sec_days_since_last_filing`
+- `sec_recent_filing_30d`
+
+Form-specific event features include:
+
+- `sec_last_10k_filing_date`
+- `sec_last_10k_accession_number`
+- `sec_days_since_last_10k`
+- `sec_recent_10k_90d`
+- `sec_last_filing_is_10k`
+- `sec_last_10q_filing_date`
+- `sec_last_10q_accession_number`
+- `sec_days_since_last_10q`
+- `sec_recent_10q_90d`
+- `sec_last_filing_is_10q`
+- `sec_last_8k_filing_date`
+- `sec_last_8k_accession_number`
+- `sec_days_since_last_8k`
+- `sec_recent_8k_30d`
+- `sec_last_filing_is_8k`
+
+These features capture corporate information events and filing recency. They are
+based on SEC submissions metadata and are merged with filing-date-aware as-of
+alignment.
+
+Missing values are expected before a symbol's first relevant SEC filing and for
+symbols without applicable SEC submissions in the normalized source table.
+
+## Labels
+
+Labels are separate from the canonical feature table. The default label table
+contains:
+
+- `symbol`
+- `date`
+- `label_horizon_days`
+- `forward_return_5d`
+- `spy_forward_return_5d`
+- `forward_excess_return_5d`
+- `outperform_spy_5d`
+
+The binary target is:
+
+```text
+outperform_spy_5d = 1 if forward_excess_return_5d > 0 else 0
+```
+
+The continuous ranking target is:
+
+```text
+forward_excess_return_5d
+```
+
+The label table drops rows where the forward horizon is incomplete. With a
+5-trading-day horizon, the last five trading rows for each symbol do not have
+complete labels.
+
+## Modeling Dataset Constructor
+
+The modeling dataset constructor joins the canonical feature table and label
+table by `symbol/date` only when preparing model inputs. It returns:
+
+- `X`: numeric and boolean feature matrix
+- `y`: target label vector
+- `metadata`: row identifiers and non-feature context
+
+By default, label columns are excluded from `X`. Date columns, filing forms,
+accession numbers, and other non-numeric identifiers remain in metadata unless a
+modeling step explicitly encodes them later.
+
+## Leakage Precautions
+
+The project includes dedicated tests for leakage-sensitive behavior:
+
+- Return features use past prices only.
+- Volatility features use past and current returns only.
+- Monthly macro values are unavailable before conservative availability dates.
+- Daily macro rate values can be lagged for stricter no-lookahead assumptions.
+- SEC fundamentals are known only after `filing_date`.
+- SEC filing events are known only after `filing_date`.
+- Label columns are excluded from feature matrices.
+- The canonical feature table rejects label-like columns.
+
+These tests live in:
+
+```text
+tests/test_feature_leakage.py
+```
+
+## Missing Value Handling
+
+Missing values are not globally imputed during feature construction. They are
+preserved so modeling and preprocessing steps can make explicit decisions.
+
+Common missing-value sources include:
+
+- insufficient rolling-window history
+- unavailable macro observations
+- conservative macro availability lags
+- symbols without SEC companyfacts
+- SEC filings that do not report a specific concept
+- dates before a symbol's first known SEC filing
+
+The modeling dataset constructor can optionally drop rows with too many missing
+features using `max_missing_feature_fraction`. Later preprocessing steps should
+handle remaining missing values in a model-specific way.
