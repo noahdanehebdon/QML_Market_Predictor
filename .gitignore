@@ -31,12 +31,12 @@ data/labels/*
 *.csv
 
 # Model artifacts and experiment outputs
-models/
-artifacts/
-checkpoints/
-runs/
-mlruns/
-wandb/
+/models/
+/artifacts/
+/checkpoints/
+/runs/
+/mlruns/
+/wandb/
 *.pkl
 *.joblib
 *.pt
