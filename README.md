@@ -4,9 +4,9 @@ A market prediction platform comparing classical ML, standard QML models, and a 
 
 ## Project Status
 
-Milestone 1 of 5 is complete.
+Milestones 1 and 2 of 5 are complete.
 
-Milestone 1 implements the core data-ingestion layer for market prices, macroeconomic data, SEC filings metadata, and SEC company fundamentals. Generated raw and processed data files are stored locally and excluded from version control.
+Milestone 1 implements the core data-ingestion layer for market prices, macroeconomic data, SEC filings metadata, and SEC company fundamentals. Milestone 2 builds the canonical modeling feature table, forward-return labels, modeling dataset constructor, and leakage-focused tests. Generated raw, processed, feature, and label data files are stored locally and excluded from version control.
 
 ## Local Environment
 
@@ -66,6 +66,56 @@ data/processed/
 ```
 
 These generated data files are excluded from version control.
+
+## Milestone 2: Features and Labels
+
+Milestone 2 implements:
+
+- Technical price, return, volatility, volume, and liquidity features
+- Benchmark-relative features versus `SPY`
+- Daily market-aligned macro features
+- SEC fundamental features aligned by filing date
+- SEC filing event features aligned by filing date
+- Canonical feature table construction
+- Forward return label construction
+- Modeling dataset construction
+- Feature leakage tests
+
+Key scripts:
+
+```powershell
+python -m scripts.build_macro_daily --prices data/processed/prices.parquet
+python -m scripts.build_price_return_features
+python -m scripts.build_price_volatility_features
+python -m scripts.build_price_volume_features
+python -m scripts.build_benchmark_relative_features
+python -m scripts.build_macro_features
+python -m scripts.build_fundamental_features
+python -m scripts.build_filing_event_features
+python -m scripts.build_feature_table
+python -m scripts.build_forward_return_labels
+```
+
+Generated outputs are written under:
+
+```text
+data/features/
+data/labels/
+```
+
+The canonical modeling feature table is:
+
+```text
+data/features/feature_table.parquet
+```
+
+The default forward-return label table is:
+
+```text
+data/labels/forward_return_labels.parquet
+```
+
+See [docs/features.md](docs/features.md) for the feature set, leakage precautions, and missing-value handling.
 
 ## Testing
 
