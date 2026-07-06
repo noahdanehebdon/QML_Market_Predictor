@@ -127,40 +127,46 @@ python -m pytest
 
 The ingestion test suite includes mock API responses for Alpaca, BLS, Federal Reserve DDP, and SEC EDGAR so tests can run without live API calls or real API keys.
 
-## Data Sources and Usage Notes
+## Data Sources and Disclaimers
 
-This project pulls macroeconomic, market, filing, and fundamentals data from third-party and public data sources. Raw and processed data files are generated locally and are excluded from version control.
-
-This repository is for research and model-development workflows. Nothing in this repository constitutes financial, investment, legal, or tax advice.
+This project is intended for research, education, feature engineering, backtesting, and model-development purposes only. It does not provide financial, investment, trading, legal, accounting, or tax advice. Model outputs, forecasts, signals, metrics, and backtests should not be interpreted as recommendations to buy, sell, or hold any security or financial instrument. Past performance and backtested performance do not guarantee future results.
 
 ### Federal Reserve Board Data
 
-Selected interest-rate and industrial-production series are retrieved from Federal Reserve Board public data releases through the Federal Reserve Board Data Download Program, including H.15 Selected Interest Rates and G.17 Industrial Production and Capacity Utilization.
+Selected interest-rate and industrial-production series may be retrieved from public data releases of the Board of Governors of the Federal Reserve System, including H.15 Selected Interest Rates and G.17 Industrial Production and Capacity Utilization.
 
-Federal Reserve Board data are used as inputs to derived macroeconomic features for modeling. This project is not sponsored, endorsed, or certified by the Board of Governors of the Federal Reserve System. The Federal Reserve Board does not endorse this project, its models, its outputs, or any investment-related interpretation derived from the data.
+Federal Reserve Board data are used as inputs to derived macroeconomic features for local research and modeling workflows. This project is not sponsored, endorsed, certified, or approved by the Board of Governors of the Federal Reserve System. The Board of Governors of the Federal Reserve System does not endorse this project, its models, its outputs, or any investment-related interpretation derived from the data.
 
 Source: Board of Governors of the Federal Reserve System.
 
 ### Bureau of Labor Statistics Data
 
-CPI and unemployment data are retrieved from the U.S. Bureau of Labor Statistics Public Data API.
+CPI and unemployment data may be retrieved from the U.S. Bureau of Labor Statistics Public Data API.
 
-BLS data are used as inputs to derived macroeconomic features for modeling. BLS.gov cannot vouch for the data or analyses derived from these data after the data have been retrieved from BLS.gov. This project is not sponsored, endorsed, or certified by the U.S. Bureau of Labor Statistics.
+BLS data are used as inputs to derived macroeconomic features for local research and modeling workflows. Users should record and cite the date on which BLS data were accessed or retrieved.
+
+“BLS.gov cannot vouch for the data or analyses derived from these data after the data have been retrieved from BLS.gov.”
+
+This project is not sponsored, endorsed, certified, or approved by the U.S. Bureau of Labor Statistics. The BLS.gov logo is not used in this project.
 
 Source: U.S. Bureau of Labor Statistics.
 
 ### Alpaca Market Data
 
-Equity market data may be retrieved from Alpaca’s Market Data API using the user’s own Alpaca API credentials.
+Equity market data may be retrieved from Alpaca’s Market Data API using the user’s own Alpaca API credentials, account permissions, market-data subscription, and applicable exchange data permissions.
 
-This project does not redistribute Alpaca market data. Raw and processed Alpaca data files are generated locally and are excluded from version control. Users are responsible for complying with Alpaca’s Terms & Conditions, Customer Agreement, applicable market-data subscription terms, and any exchange data agreements that apply to their account or data plan.
+This project does not redistribute Alpaca market data. Raw and processed Alpaca-derived market data files are generated locally by the user and are excluded from version control. Users are solely responsible for complying with Alpaca’s Terms & Conditions, Customer Agreement, applicable market-data subscription terms, exchange data agreements, and any restrictions associated with their Alpaca account or data plan.
 
-Alpaca market data are used only as inputs to local research, backtesting, and model-development workflows. This project is not sponsored, endorsed, or certified by Alpaca.
+Users should not reproduce, distribute, sell, publicly display, commercially exploit, or otherwise redistribute Alpaca market data unless they have the required permissions. Alpaca market data are used only as inputs to local research, backtesting, and model-development workflows.
+
+This project is not sponsored, endorsed, certified, or approved by Alpaca, Alpaca Securities LLC, AlpacaDB, Inc., any exchange, or any third-party market-data provider. Nothing in this project should be interpreted as investment advice, a trading recommendation, or a representation by Alpaca or any third-party market-data provider.
 
 ### SEC EDGAR Data
 
-SEC company ticker mappings, submissions metadata, and XBRL companyfacts are retrieved from SEC EDGAR public APIs.
+SEC company ticker mappings, submissions metadata, and XBRL companyfacts may be retrieved from SEC EDGAR public APIs.
 
-SEC data are used as inputs to local research, feature engineering, and modeling workflows. This project is not sponsored, endorsed, or certified by the U.S. Securities and Exchange Commission. Users are responsible for following SEC fair access guidelines, including use of a descriptive `SEC_USER_AGENT`.
+SEC EDGAR data are used as inputs to local research, feature engineering, and modeling workflows. Government-created content on SEC.gov and public EDGAR filing content are generally free to access and reuse. Users are responsible for following SEC access guidance, including efficient scripting, downloading only what is needed, respecting SEC fair-access limits, and declaring a descriptive User-Agent header through the `SEC_USER_AGENT` environment variable.
+
+This project is not sponsored, endorsed, certified, or approved by the U.S. Securities and Exchange Commission. The SEC does not endorse this project, its models, its outputs, or any investment-related interpretation derived from EDGAR data.
 
 Source: U.S. Securities and Exchange Commission EDGAR.
