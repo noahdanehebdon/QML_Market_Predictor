@@ -13,7 +13,8 @@ dependencies = [
     "requests>=2.31",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
-    "pytest>=8.0"
+    "pytest>=8.0",
+    "scikit-learn>=1.7"
 ]
 
 [tool.setuptools.packages.find]
