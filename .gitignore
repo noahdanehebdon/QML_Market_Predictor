@@ -35,6 +35,7 @@ data/labels/*
 /artifacts/
 /checkpoints/
 /runs/
+/reports/
 /mlruns/
 /wandb/
 *.pkl

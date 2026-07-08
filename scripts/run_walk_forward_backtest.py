@@ -35,6 +35,11 @@ from market_qml.models.gradient_boosting import (
     MODEL_NAME as GRADIENT_BOOSTING_MODEL_NAME,
     train_gradient_boosting,
 )
+from market_qml.models.huber_regression import (
+    DEFAULT_TARGET_COLUMN as HUBER_TARGET_COLUMN,
+    MODEL_NAME as HUBER_REGRESSION_MODEL_NAME,
+    train_huber_regression,
+)
 from market_qml.models.logistic_regression import (
     MODEL_NAME as LOGISTIC_REGRESSION_MODEL_NAME,
     train_logistic_regression,
@@ -72,6 +77,10 @@ MODEL_REGISTRY = {
     RIDGE_REGRESSION_MODEL_NAME: ModelSpec(
         target_column=RIDGE_TARGET_COLUMN,
         train=train_ridge_regression,
+    ),
+    HUBER_REGRESSION_MODEL_NAME: ModelSpec(
+        target_column=HUBER_TARGET_COLUMN,
+        train=train_huber_regression,
     ),
     RANDOM_FOREST_MODEL_NAME: ModelSpec(
         target_column=DEFAULT_TARGET_COLUMN,
