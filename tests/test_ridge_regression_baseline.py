@@ -4,6 +4,7 @@ from sklearn.linear_model import Ridge
 
 from market_qml.models.dataset import ModelingDataset, TrainValidationDatasets
 from market_qml.models.preprocessing import fit_transform_train_validation
+from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
 from market_qml.models.ridge_regression import (
     MODEL_NAME,
     save_predictions,
@@ -26,6 +27,8 @@ def _dataset(
             {
                 "symbol": symbols,
                 "date": pd.to_datetime([start] * len(X)),
+                "forward_return_5d": [0.02, -0.01, 0.03, 0.01][: len(X)],
+                "forward_excess_return_5d": y,
             }
         ),
     )
@@ -59,20 +62,14 @@ def _preprocessed() -> TrainValidationDatasets:
     )
 
 
-def test_train_ridge_regression_outputs_scores_and_rankings():
+def test_train_ridge_regression_outputs_standard_prediction_table():
     result = train_ridge_regression(_preprocessed())
 
     assert isinstance(result.model, Ridge)
-    assert list(result.predictions.columns) == [
-        "symbol",
-        "date",
-        "y_true",
-        "y_score",
-        "rank",
-        "model",
-    ]
-    assert result.predictions["model"].unique().tolist() == [MODEL_NAME]
-    assert result.predictions["rank"].tolist() == [1.0, 2.0, 3.0]
+    assert list(result.predictions.columns) == REQUIRED_PREDICTION_COLUMNS
+    assert result.predictions["model_name"].unique().tolist() == [MODEL_NAME]
+    assert result.predictions["split_id"].unique().tolist() == [0]
+    assert result.predictions["forward_excess_return"].tolist() == [-0.03, 0.03, 0.0]
     assert result.predictions["y_score"].dtype.kind == "f"
 
 

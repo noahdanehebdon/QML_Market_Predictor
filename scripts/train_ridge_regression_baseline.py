@@ -114,7 +114,11 @@ def main() -> None:
         validation_end_date=split["validation_end_date"],
     )
     preprocessed = fit_transform_train_validation(datasets)
-    result = train_ridge_regression(preprocessed, alpha=args.alpha)
+    result = train_ridge_regression(
+        preprocessed,
+        split_id=args.split_id,
+        alpha=args.alpha,
+    )
 
     save_preprocessor(preprocessed.preprocessor, args.preprocessor_output)
     save_ridge_regression_model(result.model, args.model_output)

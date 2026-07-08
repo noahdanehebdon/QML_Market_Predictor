@@ -9,6 +9,8 @@ import pickle
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 
+from market_qml.models.predictions import build_prediction_table
+from market_qml.models.predictions import save_predictions as save_prediction_table
 from market_qml.models.preprocessing import PreprocessedTrainValidation
 
 
@@ -29,6 +31,7 @@ def train_logistic_regression(
     data: PreprocessedTrainValidation,
     *,
     model_name: str = MODEL_NAME,
+    split_id: int = 0,
     max_iter: int = 1000,
     random_state: int = 42,
 ) -> LogisticRegressionResult:
@@ -50,11 +53,12 @@ def train_logistic_regression(
     positive_class_index = list(model.classes_).index(1)
     y_score = model.predict_proba(data.validation.X)[:, positive_class_index]
 
-    predictions = _prediction_frame(
+    predictions = build_prediction_table(
         metadata=data.validation.metadata,
         y_true=data.validation.y,
         y_score=y_score,
         model_name=model_name,
+        split_id=split_id,
     )
     return LogisticRegressionResult(model=model, predictions=predictions)
 
@@ -76,30 +80,4 @@ def save_predictions(
     output_path: str | Path = DEFAULT_PREDICTION_PATH,
 ) -> None:
     """Save validation predictions to parquet."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    predictions.to_parquet(output_path, index=False)
-
-
-def _prediction_frame(
-    *,
-    metadata: pd.DataFrame,
-    y_true: pd.Series,
-    y_score,
-    model_name: str,
-) -> pd.DataFrame:
-    required_metadata = {"symbol", "date"}
-    missing_metadata = required_metadata - set(metadata.columns)
-    if missing_metadata:
-        raise ValueError(
-            "Validation metadata is missing required columns: "
-            + ", ".join(sorted(missing_metadata))
-        )
-
-    result = metadata[["symbol", "date"]].copy()
-    result["date"] = pd.to_datetime(result["date"], errors="coerce").dt.normalize()
-    result["y_true"] = pd.to_numeric(y_true, errors="coerce").astype("Int64").to_numpy()
-    result["y_score"] = y_score
-    result["model"] = model_name
-
-    return result.sort_values(["symbol", "date"]).reset_index(drop=True)
+    save_prediction_table(predictions, output_path)
