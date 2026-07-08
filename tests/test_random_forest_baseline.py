@@ -11,6 +11,7 @@ from market_qml.models.random_forest import (
     save_random_forest_model,
     train_random_forest,
 )
+from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
 
 
 def _dataset(
@@ -26,6 +27,17 @@ def _dataset(
             {
                 "symbol": ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META"][: len(X)],
                 "date": pd.date_range(start, periods=len(X), freq="D"),
+                "forward_return_5d": [0.02, -0.01, 0.03, 0.01, -0.02, 0.04][
+                    : len(X)
+                ],
+                "forward_excess_return_5d": [
+                    0.01,
+                    -0.02,
+                    0.02,
+                    0.0,
+                    -0.03,
+                    0.03,
+                ][: len(X)],
             }
         ),
     )
@@ -67,14 +79,9 @@ def test_train_random_forest_outputs_required_prediction_columns():
     )
 
     assert isinstance(result.model, RandomForestClassifier)
-    assert list(result.predictions.columns) == [
-        "symbol",
-        "date",
-        "y_true",
-        "y_score",
-        "model",
-    ]
-    assert result.predictions["model"].unique().tolist() == [MODEL_NAME]
+    assert list(result.predictions.columns) == REQUIRED_PREDICTION_COLUMNS
+    assert result.predictions["model_name"].unique().tolist() == [MODEL_NAME]
+    assert result.predictions["split_id"].unique().tolist() == [0]
     assert result.predictions["y_true"].tolist() == [0, 1]
     assert result.predictions["y_score"].between(0, 1).all()
 

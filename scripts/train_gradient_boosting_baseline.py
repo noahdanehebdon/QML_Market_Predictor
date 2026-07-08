@@ -155,6 +155,7 @@ def main() -> None:
     preprocessed = fit_transform_train_validation(datasets)
     result = train_gradient_boosting(
         preprocessed,
+        split_id=args.split_id,
         learning_rate=args.learning_rate,
         max_iter=args.max_iter,
         max_leaf_nodes=args.max_leaf_nodes,

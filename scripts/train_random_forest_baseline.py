@@ -134,6 +134,7 @@ def main() -> None:
     preprocessed = fit_transform_train_validation(datasets)
     result = train_random_forest(
         preprocessed,
+        split_id=args.split_id,
         n_estimators=args.n_estimators,
         max_depth=None if args.max_depth == 0 else args.max_depth,
         min_samples_leaf=args.min_samples_leaf,

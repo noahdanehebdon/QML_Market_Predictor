@@ -17,6 +17,8 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
+from market_qml.models.predictions import build_prediction_table
+from market_qml.models.predictions import save_predictions as save_prediction_table
 from market_qml.models.preprocessing import PreprocessedTrainValidation
 
 
@@ -41,6 +43,7 @@ def train_gradient_boosting(
     data: PreprocessedTrainValidation,
     *,
     model_name: str = MODEL_NAME,
+    split_id: int = 0,
     learning_rate: float = 0.05,
     max_iter: int = 300,
     max_leaf_nodes: int = 31,
@@ -82,11 +85,12 @@ def train_gradient_boosting(
     positive_class_index = list(model.classes_).index(1)
     y_score = model.predict_proba(data.validation.X)[:, positive_class_index]
 
-    predictions = _prediction_frame(
+    predictions = build_prediction_table(
         metadata=data.validation.metadata,
         y_true=data.validation.y,
         y_score=y_score,
         model_name=model_name,
+        split_id=split_id,
     )
     metrics = _metrics_frame(
         y_true=predictions["y_true"],
@@ -119,9 +123,7 @@ def save_predictions(
     output_path: str | Path = DEFAULT_PREDICTION_PATH,
 ) -> None:
     """Save validation predictions to parquet."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    predictions.to_parquet(output_path, index=False)
+    save_prediction_table(predictions, output_path)
 
 
 def save_metrics(
@@ -142,30 +144,6 @@ def save_model_parameters(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(parameters, indent=2, sort_keys=True), encoding="utf-8")
-
-
-def _prediction_frame(
-    *,
-    metadata: pd.DataFrame,
-    y_true: pd.Series,
-    y_score,
-    model_name: str,
-) -> pd.DataFrame:
-    required_metadata = {"symbol", "date"}
-    missing_metadata = required_metadata - set(metadata.columns)
-    if missing_metadata:
-        raise ValueError(
-            "Validation metadata is missing required columns: "
-            + ", ".join(sorted(missing_metadata))
-        )
-
-    result = metadata[["symbol", "date"]].copy()
-    result["date"] = pd.to_datetime(result["date"], errors="coerce").dt.normalize()
-    result["y_true"] = pd.to_numeric(y_true, errors="coerce").astype("Int64").to_numpy()
-    result["y_score"] = y_score
-    result["model"] = model_name
-
-    return result.sort_values(["symbol", "date"]).reset_index(drop=True)
 
 
 def _metrics_frame(
@@ -190,7 +168,7 @@ def _metrics_frame(
     return pd.DataFrame(
         [
             {
-                "model": model_name,
+                "model_name": model_name,
                 "rows": len(y_true_int),
                 "positive_labels": int(y_true_int.sum()),
                 "positive_rate": float(y_true_int.mean()),
