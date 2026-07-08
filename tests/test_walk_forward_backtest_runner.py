@@ -1,5 +1,6 @@
 import pandas as pd
 
+import scripts.run_walk_forward_backtest as runner
 from scripts.run_walk_forward_backtest import run_walk_forward_backtest
 
 
@@ -112,3 +113,36 @@ def test_run_walk_forward_backtest_respects_max_splits(tmp_path):
     predictions = pd.read_parquet(outputs["predictions"])
 
     assert predictions["split_id"].unique().tolist() == [0]
+
+
+def test_run_walk_forward_backtest_can_log_mlflow_run(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_log_walk_forward_backtest_run(**kwargs):
+        calls.append(kwargs)
+        return "run-123"
+
+    monkeypatch.setattr(
+        runner,
+        "log_walk_forward_backtest_run",
+        fake_log_walk_forward_backtest_run,
+    )
+
+    outputs = run_walk_forward_backtest(
+        features=_features(),
+        labels=_labels(),
+        splits=_splits(),
+        model_names=["logistic_regression"],
+        output_dir=tmp_path,
+        enable_mlflow=True,
+        mlflow_experiment="test-experiment",
+        mlflow_run_name="test-run",
+        mlflow_tracking_uri="file:mlruns",
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["output_paths"] == outputs
+    assert calls[0]["model_names"] == ["logistic_regression"]
+    assert calls[0]["experiment_name"] == "test-experiment"
+    assert calls[0]["run_name"] == "test-run"
+    assert calls[0]["tracking_uri"] == "file:mlruns"
