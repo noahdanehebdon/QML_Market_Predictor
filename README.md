@@ -170,3 +170,13 @@ SEC EDGAR data are used as inputs to local research, feature engineering, and mo
 This project is not sponsored, endorsed, certified, or approved by the U.S. Securities and Exchange Commission. The SEC does not endorse this project, its models, its outputs, or any investment-related interpretation derived from EDGAR data.
 
 Source: U.S. Securities and Exchange Commission EDGAR.
+
+## Next Steps 
+
+The best next confidence upgrades would be:
+- Add GitHub Actions so tests run automatically on every PR.
+- Add a small end-to-end smoke workflow from raw/sample data to final report.
+- Add “golden output” tests for a tiny known dataset.
+- Add report validation tests: expected models present, expected task types, expected metric columns.
+- Add more leakage tests around labels, macro release timing, SEC filing timing, and split boundaries.
+- Add documented commands for reproducing the current backtest outputs.
