@@ -35,16 +35,27 @@ def _predictions(model_name: str = "model_a") -> pd.DataFrame:
     )
 
 
-def test_run_portfolio_backtest_selects_top_k_and_computes_cumulative_returns():
-    result = run_portfolio_backtest(_predictions(), top_k=2)
+def test_run_portfolio_backtest_selects_top_k_and_computes_gross_net_returns():
+    result = run_portfolio_backtest(
+        _predictions(),
+        top_k=2,
+        transaction_cost_bps=10,
+    )
 
     assert list(result.columns) == PORTFOLIO_RETURN_COLUMNS
     assert result["selected_count"].tolist() == [2, 2]
-    assert result["portfolio_return"].tolist() == pytest.approx([0.035, 0.04])
+    assert result["turnover"].tolist() == pytest.approx([1.0, 0.5])
+    assert result["transaction_cost"].tolist() == pytest.approx([0.001, 0.0005])
+    assert result["gross_return"].tolist() == pytest.approx([0.035, 0.04])
+    assert result["net_return"].tolist() == pytest.approx([0.034, 0.0395])
     assert result["benchmark_return"].tolist() == pytest.approx([0.01, 0.01])
-    assert result["excess_return"].tolist() == pytest.approx([0.025, 0.03])
-    assert result["cumulative_return"].iloc[-1] == pytest.approx(
+    assert result["gross_excess_return"].tolist() == pytest.approx([0.025, 0.03])
+    assert result["net_excess_return"].tolist() == pytest.approx([0.024, 0.0295])
+    assert result["cumulative_gross_return"].iloc[-1] == pytest.approx(
         (1.035 * 1.04) - 1
+    )
+    assert result["cumulative_net_return"].iloc[-1] == pytest.approx(
+        (1.034 * 1.0395) - 1
     )
     assert result["benchmark_cumulative_return"].iloc[-1] == pytest.approx(
         (1.01 * 1.01) - 1
@@ -55,8 +66,9 @@ def test_run_portfolio_backtest_supports_top_fraction():
     result = run_portfolio_backtest(_predictions(), top_fraction=0.25)
 
     assert result["selected_count"].tolist() == [1, 1]
-    assert result["portfolio_return"].tolist() == pytest.approx([0.04, 0.05])
-    assert result["excess_return"].tolist() == pytest.approx([0.03, 0.04])
+    assert result["gross_return"].tolist() == pytest.approx([0.04, 0.05])
+    assert result["net_return"].tolist() == pytest.approx([0.04, 0.05])
+    assert result["gross_excess_return"].tolist() == pytest.approx([0.03, 0.04])
 
 
 def test_run_portfolio_backtest_supports_multiple_models():
@@ -78,6 +90,9 @@ def test_run_portfolio_backtest_supports_multiple_models():
 def test_run_portfolio_backtest_rejects_invalid_selection():
     with pytest.raises(ValueError, match="top_k"):
         run_portfolio_backtest(_predictions(), top_k=0)
+
+    with pytest.raises(ValueError, match="transaction_cost_bps"):
+        run_portfolio_backtest(_predictions(), transaction_cost_bps=-1)
 
 
 def test_load_prediction_tables_and_save_portfolio_returns(tmp_path):
