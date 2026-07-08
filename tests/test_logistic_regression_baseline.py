@@ -9,6 +9,7 @@ from market_qml.models.logistic_regression import (
     save_predictions,
     train_logistic_regression,
 )
+from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
 from market_qml.models.preprocessing import fit_transform_train_validation
 
 
@@ -25,6 +26,8 @@ def _dataset(
             {
                 "symbol": ["AAPL", "MSFT", "NVDA", "AMZN"][: len(X)],
                 "date": pd.date_range(start, periods=len(X), freq="D"),
+                "forward_return_5d": [0.02, -0.01, 0.03, 0.01][: len(X)],
+                "forward_excess_return_5d": [0.01, -0.02, 0.02, 0.0][: len(X)],
             }
         ),
     )
@@ -60,14 +63,9 @@ def test_train_logistic_regression_outputs_required_prediction_columns():
     result = train_logistic_regression(_preprocessed())
 
     assert isinstance(result.model, LogisticRegression)
-    assert list(result.predictions.columns) == [
-        "symbol",
-        "date",
-        "y_true",
-        "y_score",
-        "model",
-    ]
-    assert result.predictions["model"].unique().tolist() == [MODEL_NAME]
+    assert list(result.predictions.columns) == REQUIRED_PREDICTION_COLUMNS
+    assert result.predictions["model_name"].unique().tolist() == [MODEL_NAME]
+    assert result.predictions["split_id"].unique().tolist() == [0]
     assert result.predictions["y_true"].tolist() == [0, 1]
     assert result.predictions["y_score"].between(0, 1).all()
 

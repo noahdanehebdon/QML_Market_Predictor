@@ -13,6 +13,7 @@ from market_qml.models.gradient_boosting import (
     save_predictions,
     train_gradient_boosting,
 )
+from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
 from market_qml.models.preprocessing import fit_transform_train_validation
 
 
@@ -29,6 +30,17 @@ def _dataset(
             {
                 "symbol": ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META"][: len(X)],
                 "date": pd.date_range(start, periods=len(X), freq="D"),
+                "forward_return_5d": [0.02, -0.01, 0.03, 0.01, -0.02, 0.04][
+                    : len(X)
+                ],
+                "forward_excess_return_5d": [
+                    0.01,
+                    -0.02,
+                    0.02,
+                    0.0,
+                    -0.03,
+                    0.03,
+                ][: len(X)],
             }
         ),
     )
@@ -70,14 +82,9 @@ def test_train_gradient_boosting_outputs_required_prediction_columns():
     )
 
     assert isinstance(result.model, HistGradientBoostingClassifier)
-    assert list(result.predictions.columns) == [
-        "symbol",
-        "date",
-        "y_true",
-        "y_score",
-        "model",
-    ]
-    assert result.predictions["model"].unique().tolist() == [MODEL_NAME]
+    assert list(result.predictions.columns) == REQUIRED_PREDICTION_COLUMNS
+    assert result.predictions["model_name"].unique().tolist() == [MODEL_NAME]
+    assert result.predictions["split_id"].unique().tolist() == [0]
     assert result.predictions["y_true"].tolist() == [0, 1]
     assert result.predictions["y_score"].between(0, 1).all()
 
@@ -91,7 +98,7 @@ def test_train_gradient_boosting_outputs_metrics_and_parameters():
     )
 
     assert list(result.metrics.columns) == [
-        "model",
+        "model_name",
         "rows",
         "positive_labels",
         "positive_rate",
@@ -100,7 +107,7 @@ def test_train_gradient_boosting_outputs_metrics_and_parameters():
         "accuracy_at_0_5",
         "brier_score",
     ]
-    assert result.metrics.loc[0, "model"] == MODEL_NAME
+    assert result.metrics.loc[0, "model_name"] == MODEL_NAME
     assert result.metrics.loc[0, "rows"] == 2
     assert result.metrics.loc[0, "positive_labels"] == 1
     assert result.metrics.loc[0, "roc_auc"] >= 0

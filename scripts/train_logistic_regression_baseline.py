@@ -107,7 +107,11 @@ def main() -> None:
         validation_end_date=split["validation_end_date"],
     )
     preprocessed = fit_transform_train_validation(datasets)
-    result = train_logistic_regression(preprocessed, max_iter=args.max_iter)
+    result = train_logistic_regression(
+        preprocessed,
+        split_id=args.split_id,
+        max_iter=args.max_iter,
+    )
 
     save_preprocessor(preprocessed.preprocessor, args.preprocessor_output)
     save_logistic_regression_model(result.model, args.model_output)
