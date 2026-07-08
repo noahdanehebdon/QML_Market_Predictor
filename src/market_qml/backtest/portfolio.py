@@ -29,6 +29,32 @@ PORTFOLIO_RETURN_COLUMNS = [
     "cumulative_net_excess_return",
 ]
 
+PORTFOLIO_RISK_COLUMNS = [
+    "model_name",
+    "scope",
+    "split_id",
+    "rows",
+    "cumulative_gross_return",
+    "cumulative_net_return",
+    "benchmark_cumulative_return",
+    "cumulative_net_excess_return",
+    "gross_volatility",
+    "net_volatility",
+    "benchmark_volatility",
+    "net_excess_volatility",
+    "gross_sharpe",
+    "net_sharpe",
+    "benchmark_sharpe",
+    "net_excess_sharpe",
+    "gross_max_drawdown",
+    "net_max_drawdown",
+    "benchmark_max_drawdown",
+    "hit_rate",
+    "excess_hit_rate",
+    "average_turnover",
+    "total_transaction_cost",
+]
+
 
 def run_portfolio_backtest(
     predictions: pd.DataFrame,
@@ -117,6 +143,55 @@ def save_portfolio_returns(portfolio_returns: pd.DataFrame, output_path: str | P
     portfolio_returns.to_parquet(output_path, index=False)
 
 
+def summarize_portfolio_risk(
+    portfolio_returns: pd.DataFrame,
+    *,
+    periods_per_year: int = 252,
+) -> pd.DataFrame:
+    """Summarize risk-adjusted performance by split and overall."""
+    _validate_portfolio_returns(portfolio_returns)
+    if periods_per_year <= 0:
+        raise ValueError("periods_per_year must be positive.")
+
+    rows = []
+    for (model_name, split_id), group in portfolio_returns.groupby(
+        ["model_name", "split_id"],
+        sort=True,
+    ):
+        rows.append(
+            _risk_row(
+                group,
+                model_name=str(model_name),
+                scope="split",
+                split_id=int(split_id),
+                periods_per_year=periods_per_year,
+            )
+        )
+
+    for model_name, group in portfolio_returns.groupby("model_name", sort=True):
+        rows.append(
+            _risk_row(
+                group,
+                model_name=str(model_name),
+                scope="overall",
+                split_id=pd.NA,
+                periods_per_year=periods_per_year,
+            )
+        )
+
+    return pd.DataFrame(rows, columns=PORTFOLIO_RISK_COLUMNS)
+
+
+def save_portfolio_risk_metrics(
+    risk_metrics: pd.DataFrame,
+    output_path: str | Path,
+) -> None:
+    """Save portfolio risk summary metrics to parquet."""
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    risk_metrics.to_parquet(output_path, index=False)
+
+
 def _select_names(
     predictions: pd.DataFrame,
     *,
@@ -149,6 +224,73 @@ def _portfolio_turnover(
     )
 
 
+def _risk_row(
+    portfolio_returns: pd.DataFrame,
+    *,
+    model_name: str,
+    scope: str,
+    split_id,
+    periods_per_year: int,
+) -> dict:
+    ordered = portfolio_returns.sort_values(["split_id", "date"])
+    gross = ordered["gross_return"]
+    net = ordered["net_return"]
+    benchmark = ordered["benchmark_return"]
+    net_excess = ordered["net_excess_return"]
+
+    return {
+        "model_name": model_name,
+        "scope": scope,
+        "split_id": split_id,
+        "rows": len(ordered),
+        "cumulative_gross_return": _cumulative_return(gross),
+        "cumulative_net_return": _cumulative_return(net),
+        "benchmark_cumulative_return": _cumulative_return(benchmark),
+        "cumulative_net_excess_return": _cumulative_return(net)
+        - _cumulative_return(benchmark),
+        "gross_volatility": _annualized_volatility(gross, periods_per_year),
+        "net_volatility": _annualized_volatility(net, periods_per_year),
+        "benchmark_volatility": _annualized_volatility(benchmark, periods_per_year),
+        "net_excess_volatility": _annualized_volatility(net_excess, periods_per_year),
+        "gross_sharpe": _annualized_sharpe(gross, periods_per_year),
+        "net_sharpe": _annualized_sharpe(net, periods_per_year),
+        "benchmark_sharpe": _annualized_sharpe(benchmark, periods_per_year),
+        "net_excess_sharpe": _annualized_sharpe(net_excess, periods_per_year),
+        "gross_max_drawdown": _max_drawdown(gross),
+        "net_max_drawdown": _max_drawdown(net),
+        "benchmark_max_drawdown": _max_drawdown(benchmark),
+        "hit_rate": float((net > 0).mean()),
+        "excess_hit_rate": float((net_excess > 0).mean()),
+        "average_turnover": float(ordered["turnover"].mean()),
+        "total_transaction_cost": float(ordered["transaction_cost"].sum()),
+    }
+
+
+def _cumulative_return(returns: pd.Series) -> float:
+    return float((1 + returns).prod() - 1)
+
+
+def _annualized_volatility(returns: pd.Series, periods_per_year: int):
+    if len(returns) < 2:
+        return pd.NA
+    return float(returns.std(ddof=1) * math.sqrt(periods_per_year))
+
+
+def _annualized_sharpe(returns: pd.Series, periods_per_year: int):
+    if len(returns) < 2:
+        return pd.NA
+    volatility = returns.std(ddof=1)
+    if volatility == 0:
+        return pd.NA
+    return float((returns.mean() / volatility) * math.sqrt(periods_per_year))
+
+
+def _max_drawdown(returns: pd.Series) -> float:
+    wealth = (1 + returns).cumprod()
+    drawdown = wealth / wealth.cummax() - 1
+    return float(drawdown.min())
+
+
 def _validate_prediction_table(predictions: pd.DataFrame) -> None:
     _validate_prediction_columns(predictions)
     if predictions.empty:
@@ -158,6 +300,17 @@ def _validate_prediction_table(predictions: pd.DataFrame) -> None:
     numeric = predictions[numeric_columns].apply(pd.to_numeric, errors="coerce")
     if numeric.isna().any().any():
         raise ValueError("Portfolio backtest requires numeric, non-missing scores and returns.")
+
+
+def _validate_portfolio_returns(portfolio_returns: pd.DataFrame) -> None:
+    missing_columns = set(PORTFOLIO_RETURN_COLUMNS) - set(portfolio_returns.columns)
+    if missing_columns:
+        raise ValueError(
+            "Portfolio returns table is missing required columns: "
+            + ", ".join(sorted(missing_columns))
+        )
+    if portfolio_returns.empty:
+        raise ValueError("Portfolio returns table is empty.")
 
 
 def _validate_prediction_columns(predictions: pd.DataFrame) -> None:
