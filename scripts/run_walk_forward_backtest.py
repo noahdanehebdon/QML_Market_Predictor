@@ -31,6 +31,11 @@ from market_qml.models.dataset import (
     DEFAULT_TARGET_COLUMN,
     build_train_validation_datasets,
 )
+from market_qml.models.elastic_net import (
+    DEFAULT_TARGET_COLUMN as ELASTIC_NET_TARGET_COLUMN,
+    MODEL_NAME as ELASTIC_NET_MODEL_NAME,
+    train_elastic_net,
+)
 from market_qml.models.gradient_boosting import (
     MODEL_NAME as GRADIENT_BOOSTING_MODEL_NAME,
     train_gradient_boosting,
@@ -73,6 +78,10 @@ MODEL_REGISTRY = {
     LOGISTIC_REGRESSION_MODEL_NAME: ModelSpec(
         target_column=DEFAULT_TARGET_COLUMN,
         train=train_logistic_regression,
+    ),
+    ELASTIC_NET_MODEL_NAME: ModelSpec(
+        target_column=ELASTIC_NET_TARGET_COLUMN,
+        train=train_elastic_net,
     ),
     RIDGE_REGRESSION_MODEL_NAME: ModelSpec(
         target_column=RIDGE_TARGET_COLUMN,
