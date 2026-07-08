@@ -49,6 +49,8 @@ from market_qml.models.ridge_regression import (
     MODEL_NAME as RIDGE_REGRESSION_MODEL_NAME,
     train_ridge_regression,
 )
+from market_qml.utils.mlflow_tracking import DEFAULT_EXPERIMENT_NAME
+from market_qml.utils.mlflow_tracking import log_walk_forward_backtest_run
 
 
 DEFAULT_OUTPUT_DIR = Path("reports/backtests")
@@ -153,6 +155,26 @@ def parse_args() -> argparse.Namespace:
         default=252,
         help="Annualization periods used for volatility and Sharpe ratio.",
     )
+    parser.add_argument(
+        "--mlflow-experiment",
+        default=DEFAULT_EXPERIMENT_NAME,
+        help="MLflow experiment name for tracking backtest runs.",
+    )
+    parser.add_argument(
+        "--mlflow-run-name",
+        default=None,
+        help="Optional MLflow run name.",
+    )
+    parser.add_argument(
+        "--mlflow-tracking-uri",
+        default=None,
+        help="Optional MLflow tracking URI.",
+    )
+    parser.add_argument(
+        "--disable-mlflow",
+        action="store_true",
+        help="Skip MLflow logging for this run.",
+    )
     return parser.parse_args()
 
 
@@ -170,6 +192,10 @@ def main() -> None:
         transaction_cost_bps=args.transaction_cost_bps,
         rebalance_frequency=args.rebalance_frequency,
         periods_per_year=args.periods_per_year,
+        enable_mlflow=not args.disable_mlflow,
+        mlflow_experiment=args.mlflow_experiment,
+        mlflow_run_name=args.mlflow_run_name,
+        mlflow_tracking_uri=args.mlflow_tracking_uri,
     )
 
     print(f"Saved walk-forward backtest outputs to {args.output_dir}")
@@ -190,6 +216,10 @@ def run_walk_forward_backtest(
     transaction_cost_bps: float = 0.0,
     rebalance_frequency: int = 5,
     periods_per_year: int = 252,
+    enable_mlflow: bool = False,
+    mlflow_experiment: str = DEFAULT_EXPERIMENT_NAME,
+    mlflow_run_name: str | None = None,
+    mlflow_tracking_uri: str | None = None,
 ) -> dict[str, Path]:
     """Train selected models over walk-forward splits and save report outputs."""
     if max_splits is not None and max_splits <= 0:
@@ -245,6 +275,27 @@ def run_walk_forward_backtest(
         portfolio_risk_metrics,
         output_paths["portfolio_risk_metrics"],
     )
+    if enable_mlflow:
+        log_walk_forward_backtest_run(
+            output_paths=output_paths,
+            predictions=predictions,
+            splits=selected_splits,
+            features=features,
+            labels=labels,
+            classification_metrics=classification_metrics,
+            ranking_metrics=ranking_metrics,
+            portfolio_risk_metrics=portfolio_risk_metrics,
+            model_names=model_names,
+            top_k=top_k,
+            top_fraction=top_fraction,
+            transaction_cost_bps=transaction_cost_bps,
+            rebalance_frequency=rebalance_frequency,
+            periods_per_year=periods_per_year,
+            max_splits=max_splits,
+            experiment_name=mlflow_experiment,
+            run_name=mlflow_run_name,
+            tracking_uri=mlflow_tracking_uri,
+        )
 
     return output_paths
 
