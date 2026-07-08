@@ -65,6 +65,12 @@ def parse_args() -> argparse.Namespace:
         help="One-way transaction cost in basis points applied to turnover.",
     )
     parser.add_argument(
+        "--rebalance-frequency",
+        type=int,
+        default=5,
+        help="Number of prediction dates between portfolio rebalances.",
+    )
+    parser.add_argument(
         "--periods-per-year",
         type=int,
         default=252,
@@ -87,6 +93,7 @@ def main() -> None:
         top_k=args.top_k,
         top_fraction=args.top_fraction,
         transaction_cost_bps=args.transaction_cost_bps,
+        rebalance_frequency=args.rebalance_frequency,
     )
     risk_metrics = summarize_portfolio_risk(
         portfolio_returns,
