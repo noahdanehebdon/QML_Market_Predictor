@@ -14,6 +14,7 @@ PORTFOLIO_RETURN_COLUMNS = [
     "model_name",
     "split_id",
     "date",
+    "rebalance_frequency",
     "selected_count",
     "turnover",
     "transaction_cost",
@@ -62,17 +63,23 @@ def run_portfolio_backtest(
     top_k: int | None = None,
     top_fraction: float = 0.1,
     transaction_cost_bps: float = 0.0,
+    rebalance_frequency: int = 5,
 ) -> pd.DataFrame:
     """Run an equal-weight long-only backtest from model scores."""
     _validate_prediction_table(predictions)
     _validate_selection(top_k=top_k, top_fraction=top_fraction)
     _validate_transaction_cost(transaction_cost_bps)
+    _validate_rebalance_frequency(rebalance_frequency)
 
     rows = []
     grouped = predictions.groupby(["model_name", "split_id"], sort=True)
     for (model_name, split_id), model_split_predictions in grouped:
         previous_weights: dict[str, float] = {}
-        for date, group in model_split_predictions.groupby("date", sort=True):
+        date_groups = list(model_split_predictions.groupby("date", sort=True))
+        for date_index, (date, group) in enumerate(date_groups):
+            if date_index % rebalance_frequency != 0:
+                continue
+
             selected = _select_names(group, top_k=top_k, top_fraction=top_fraction)
             current_weights = _equal_weights(selected["symbol"])
             turnover = _portfolio_turnover(previous_weights, current_weights)
@@ -87,6 +94,7 @@ def run_portfolio_backtest(
                     "model_name": str(model_name),
                     "split_id": int(split_id),
                     "date": pd.Timestamp(date).normalize(),
+                    "rebalance_frequency": rebalance_frequency,
                     "selected_count": len(selected),
                     "turnover": turnover,
                     "transaction_cost": transaction_cost,
@@ -332,3 +340,8 @@ def _validate_selection(*, top_k: int | None, top_fraction: float) -> None:
 def _validate_transaction_cost(transaction_cost_bps: float) -> None:
     if transaction_cost_bps < 0:
         raise ValueError("transaction_cost_bps must be non-negative.")
+
+
+def _validate_rebalance_frequency(rebalance_frequency: int) -> None:
+    if rebalance_frequency <= 0:
+        raise ValueError("rebalance_frequency must be positive.")

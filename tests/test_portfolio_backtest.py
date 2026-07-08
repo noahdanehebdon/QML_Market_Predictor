@@ -43,6 +43,7 @@ def test_run_portfolio_backtest_selects_top_k_and_computes_gross_net_returns():
         _predictions(),
         top_k=2,
         transaction_cost_bps=10,
+        rebalance_frequency=1,
     )
 
     assert list(result.columns) == PORTFOLIO_RETURN_COLUMNS
@@ -66,7 +67,11 @@ def test_run_portfolio_backtest_selects_top_k_and_computes_gross_net_returns():
 
 
 def test_run_portfolio_backtest_supports_top_fraction():
-    result = run_portfolio_backtest(_predictions(), top_fraction=0.25)
+    result = run_portfolio_backtest(
+        _predictions(),
+        top_fraction=0.25,
+        rebalance_frequency=1,
+    )
 
     assert result["selected_count"].tolist() == [1, 1]
     assert result["gross_return"].tolist() == pytest.approx([0.04, 0.05])
@@ -80,7 +85,7 @@ def test_run_portfolio_backtest_supports_multiple_models():
         ignore_index=True,
     )
 
-    result = run_portfolio_backtest(predictions, top_k=1)
+    result = run_portfolio_backtest(predictions, top_k=1, rebalance_frequency=1)
 
     assert result["model_name"].tolist() == [
         "model_a",
@@ -95,6 +100,7 @@ def test_summarize_portfolio_risk_reports_split_and_overall_metrics():
         _predictions(),
         top_k=2,
         transaction_cost_bps=10,
+        rebalance_frequency=1,
     )
     risk = summarize_portfolio_risk(returns, periods_per_year=252)
 
@@ -123,6 +129,17 @@ def test_run_portfolio_backtest_rejects_invalid_selection():
     with pytest.raises(ValueError, match="transaction_cost_bps"):
         run_portfolio_backtest(_predictions(), transaction_cost_bps=-1)
 
+    with pytest.raises(ValueError, match="rebalance_frequency"):
+        run_portfolio_backtest(_predictions(), rebalance_frequency=0)
+
+
+def test_run_portfolio_backtest_defaults_to_horizon_rebalance_frequency():
+    result = run_portfolio_backtest(_predictions(), top_k=2)
+
+    assert result["rebalance_frequency"].tolist() == [5]
+    assert result["date"].tolist() == [pd.Timestamp("2024-01-01")]
+    assert result["selected_count"].tolist() == [2]
+
 
 def test_load_prediction_tables_and_save_portfolio_returns(tmp_path):
     prediction_path = tmp_path / "predictions.parquet"
@@ -131,7 +148,7 @@ def test_load_prediction_tables_and_save_portfolio_returns(tmp_path):
     _predictions().to_parquet(prediction_path, index=False)
 
     predictions = load_prediction_tables([prediction_path])
-    result = run_portfolio_backtest(predictions, top_k=2)
+    result = run_portfolio_backtest(predictions, top_k=2, rebalance_frequency=1)
     risk = summarize_portfolio_risk(result)
     save_portfolio_returns(result, output_path)
     save_portfolio_risk_metrics(risk, risk_output_path)
