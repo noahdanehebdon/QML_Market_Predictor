@@ -1,0 +1,114 @@
+import pandas as pd
+
+from scripts.run_walk_forward_backtest import run_walk_forward_backtest
+
+
+def _features() -> pd.DataFrame:
+    rows = []
+    dates = pd.date_range("2024-01-01", periods=4, freq="D")
+    for symbol, offset in [("AAPL", 1.0), ("MSFT", 2.0), ("NVDA", 3.0)]:
+        for index, date in enumerate(dates):
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "date": date,
+                    "close": 100 + offset + index,
+                    "momentum": offset * (index + 1),
+                    "volatility": 0.1 * offset,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _labels() -> pd.DataFrame:
+    rows = []
+    label_values = {
+        "AAPL": [0, 1, 1, 0],
+        "MSFT": [1, 0, 1, 0],
+        "NVDA": [0, 1, 0, 1],
+    }
+    dates = pd.date_range("2024-01-01", periods=4, freq="D")
+    for symbol in ["AAPL", "MSFT", "NVDA"]:
+        for index, date in enumerate(dates):
+            outperform = label_values[symbol][index]
+            forward_excess = 0.02 if outperform else -0.01
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "date": date,
+                    "label_horizon_days": 5,
+                    "forward_return_5d": 0.01 + forward_excess,
+                    "spy_forward_return_5d": 0.01,
+                    "forward_excess_return_5d": forward_excess,
+                    "outperform_spy_5d": outperform,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _splits() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "split_id": [0],
+            "train_start_date": [pd.Timestamp("2024-01-01")],
+            "train_end_date": [pd.Timestamp("2024-01-02")],
+            "validation_start_date": [pd.Timestamp("2024-01-03")],
+            "validation_end_date": [pd.Timestamp("2024-01-04")],
+            "train_days": [2],
+            "validation_days": [2],
+            "train_rows": [6],
+            "validation_rows": [6],
+        }
+    )
+
+
+def test_run_walk_forward_backtest_writes_report_bundle(tmp_path):
+    outputs = run_walk_forward_backtest(
+        features=_features(),
+        labels=_labels(),
+        splits=_splits(),
+        model_names=["logistic_regression"],
+        output_dir=tmp_path,
+        transaction_cost_bps=10,
+    )
+
+    assert sorted(outputs) == [
+        "classification_metrics",
+        "portfolio_backtest",
+        "portfolio_risk_metrics",
+        "predictions",
+        "ranking_metrics",
+    ]
+    for path in outputs.values():
+        assert path.exists()
+
+    predictions = pd.read_parquet(outputs["predictions"])
+    classification = pd.read_parquet(outputs["classification_metrics"])
+    ranking = pd.read_parquet(outputs["ranking_metrics"])
+    portfolio = pd.read_parquet(outputs["portfolio_backtest"])
+    risk = pd.read_parquet(outputs["portfolio_risk_metrics"])
+
+    assert predictions["model_name"].unique().tolist() == ["logistic_regression"]
+    assert predictions["split_id"].unique().tolist() == [0]
+    assert len(predictions) == 6
+    assert classification["scope"].tolist() == ["split", "overall"]
+    assert set(ranking["scope"]) == {"date", "split", "overall"}
+    assert "net_return" in portfolio.columns
+    assert "net_sharpe" in risk.columns
+
+
+def test_run_walk_forward_backtest_respects_max_splits(tmp_path):
+    splits = pd.concat([_splits(), _splits().assign(split_id=1)], ignore_index=True)
+
+    outputs = run_walk_forward_backtest(
+        features=_features(),
+        labels=_labels(),
+        splits=splits,
+        model_names=["logistic_regression"],
+        output_dir=tmp_path,
+        max_splits=1,
+    )
+
+    predictions = pd.read_parquet(outputs["predictions"])
+
+    assert predictions["split_id"].unique().tolist() == [0]
