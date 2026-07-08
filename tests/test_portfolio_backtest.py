@@ -3,9 +3,12 @@ import pytest
 
 from market_qml.backtest.portfolio import (
     PORTFOLIO_RETURN_COLUMNS,
+    PORTFOLIO_RISK_COLUMNS,
     load_prediction_tables,
     run_portfolio_backtest,
     save_portfolio_returns,
+    save_portfolio_risk_metrics,
+    summarize_portfolio_risk,
 )
 from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
 
@@ -87,6 +90,32 @@ def test_run_portfolio_backtest_supports_multiple_models():
     ]
 
 
+def test_summarize_portfolio_risk_reports_split_and_overall_metrics():
+    returns = run_portfolio_backtest(
+        _predictions(),
+        top_k=2,
+        transaction_cost_bps=10,
+    )
+    risk = summarize_portfolio_risk(returns, periods_per_year=252)
+
+    assert list(risk.columns) == PORTFOLIO_RISK_COLUMNS
+    assert risk["scope"].tolist() == ["split", "overall"]
+    assert risk["rows"].tolist() == [2, 2]
+    assert risk.loc[0, "cumulative_gross_return"] == pytest.approx(
+        returns["cumulative_gross_return"].iloc[-1]
+    )
+    assert risk.loc[0, "cumulative_net_return"] == pytest.approx(
+        returns["cumulative_net_return"].iloc[-1]
+    )
+    assert risk.loc[0, "net_volatility"] >= 0
+    assert risk.loc[0, "net_max_drawdown"] <= 0
+    assert risk.loc[0, "hit_rate"] == pytest.approx(1.0)
+    assert risk.loc[0, "excess_hit_rate"] == pytest.approx(1.0)
+    assert risk.loc[0, "average_turnover"] == pytest.approx(0.75)
+    assert risk.loc[0, "total_transaction_cost"] == pytest.approx(0.0015)
+    assert pd.isna(risk.loc[1, "split_id"])
+
+
 def test_run_portfolio_backtest_rejects_invalid_selection():
     with pytest.raises(ValueError, match="top_k"):
         run_portfolio_backtest(_predictions(), top_k=0)
@@ -98,13 +127,19 @@ def test_run_portfolio_backtest_rejects_invalid_selection():
 def test_load_prediction_tables_and_save_portfolio_returns(tmp_path):
     prediction_path = tmp_path / "predictions.parquet"
     output_path = tmp_path / "portfolio.parquet"
+    risk_output_path = tmp_path / "portfolio_risk.parquet"
     _predictions().to_parquet(prediction_path, index=False)
 
     predictions = load_prediction_tables([prediction_path])
     result = run_portfolio_backtest(predictions, top_k=2)
+    risk = summarize_portfolio_risk(result)
     save_portfolio_returns(result, output_path)
+    save_portfolio_risk_metrics(risk, risk_output_path)
     saved = pd.read_parquet(output_path)
+    saved_risk = pd.read_parquet(risk_output_path)
 
     assert len(predictions) == 8
     assert output_path.exists()
+    assert risk_output_path.exists()
     assert list(saved.columns) == PORTFOLIO_RETURN_COLUMNS
+    assert list(saved_risk.columns) == PORTFOLIO_RISK_COLUMNS
