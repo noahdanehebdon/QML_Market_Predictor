@@ -152,7 +152,8 @@ def _aggregate_row(
         "bottom_decile_return",
         "long_short_spread",
     ]
-    means = metrics[metric_columns].mean(numeric_only=True)
+    numeric_metrics = metrics[metric_columns].apply(pd.to_numeric, errors="coerce")
+    means = numeric_metrics.mean()
     return {
         "model_name": model_name,
         "scope": scope,
