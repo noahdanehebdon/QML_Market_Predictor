@@ -142,6 +142,12 @@ def parse_args() -> argparse.Namespace:
         help="One-way transaction cost in basis points applied to turnover.",
     )
     parser.add_argument(
+        "--rebalance-frequency",
+        type=int,
+        default=5,
+        help="Number of prediction dates between portfolio rebalances.",
+    )
+    parser.add_argument(
         "--periods-per-year",
         type=int,
         default=252,
@@ -162,6 +168,7 @@ def main() -> None:
         top_k=args.top_k,
         top_fraction=args.top_fraction,
         transaction_cost_bps=args.transaction_cost_bps,
+        rebalance_frequency=args.rebalance_frequency,
         periods_per_year=args.periods_per_year,
     )
 
@@ -181,6 +188,7 @@ def run_walk_forward_backtest(
     top_k: int | None = None,
     top_fraction: float = 0.1,
     transaction_cost_bps: float = 0.0,
+    rebalance_frequency: int = 5,
     periods_per_year: int = 252,
 ) -> dict[str, Path]:
     """Train selected models over walk-forward splits and save report outputs."""
@@ -210,6 +218,7 @@ def run_walk_forward_backtest(
         top_k=top_k,
         top_fraction=top_fraction,
         transaction_cost_bps=transaction_cost_bps,
+        rebalance_frequency=rebalance_frequency,
     )
     portfolio_risk_metrics = summarize_portfolio_risk(
         portfolio_returns,
