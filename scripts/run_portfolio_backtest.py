@@ -49,6 +49,12 @@ def parse_args() -> argparse.Namespace:
         default=0.1,
         help="Fraction of top-ranked names to select when top-k is not set.",
     )
+    parser.add_argument(
+        "--transaction-cost-bps",
+        type=float,
+        default=0.0,
+        help="One-way transaction cost in basis points applied to turnover.",
+    )
     return parser.parse_args()
 
 
@@ -65,6 +71,7 @@ def main() -> None:
         predictions,
         top_k=args.top_k,
         top_fraction=args.top_fraction,
+        transaction_cost_bps=args.transaction_cost_bps,
     )
     save_portfolio_returns(portfolio_returns, args.output)
 
