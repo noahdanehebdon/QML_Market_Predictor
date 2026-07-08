@@ -139,6 +139,30 @@ def test_run_walk_forward_backtest_supports_huber_regression_lane(tmp_path):
     assert set(risk["model_name"]) == {"huber_regression"}
 
 
+def test_run_walk_forward_backtest_supports_elastic_net_regression_lane(tmp_path):
+    outputs = run_walk_forward_backtest(
+        features=_features(),
+        labels=_labels(),
+        splits=_splits(),
+        model_names=["elastic_net"],
+        output_dir=tmp_path,
+        transaction_cost_bps=10,
+    )
+
+    predictions = pd.read_parquet(outputs["predictions"])
+    classification = pd.read_parquet(outputs["classification_metrics"])
+    ranking = pd.read_parquet(outputs["ranking_metrics"])
+    portfolio = pd.read_parquet(outputs["portfolio_backtest"])
+    risk = pd.read_parquet(outputs["portfolio_risk_metrics"])
+
+    assert predictions["model_name"].unique().tolist() == ["elastic_net"]
+    assert predictions["y_true"].dtype.kind == "f"
+    assert classification.empty
+    assert set(ranking["model_name"]) == {"elastic_net"}
+    assert set(portfolio["model_name"]) == {"elastic_net"}
+    assert set(risk["model_name"]) == {"elastic_net"}
+
+
 def test_run_walk_forward_backtest_can_log_mlflow_run(tmp_path, monkeypatch):
     calls = []
 
