@@ -68,6 +68,18 @@ def test_evaluate_ranking_metrics_supports_multiple_models():
     assert overall.iloc[0]["long_short_spread"] > overall.iloc[1]["long_short_spread"]
 
 
+def test_evaluate_ranking_metrics_handles_constant_scores():
+    predictions = _predictions().assign(y_score=0.5)
+
+    metrics = evaluate_ranking_metrics(predictions, top_fraction=0.25)
+    aggregate = metrics[metrics["scope"] == "overall"].iloc[0]
+
+    assert list(metrics.columns) == RANKING_METRIC_COLUMNS
+    assert pd.isna(aggregate["information_coefficient"])
+    assert pd.isna(aggregate["rank_information_coefficient"])
+    assert aggregate["long_short_spread"] == pytest.approx(0.055)
+
+
 def test_evaluate_ranking_metrics_rejects_bad_top_fraction():
     with pytest.raises(ValueError, match="top_fraction"):
         evaluate_ranking_metrics(_predictions(), top_fraction=0.8)
