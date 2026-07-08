@@ -15,12 +15,18 @@ PORTFOLIO_RETURN_COLUMNS = [
     "split_id",
     "date",
     "selected_count",
-    "portfolio_return",
+    "turnover",
+    "transaction_cost",
+    "gross_return",
+    "net_return",
     "benchmark_return",
-    "excess_return",
-    "cumulative_return",
+    "gross_excess_return",
+    "net_excess_return",
+    "cumulative_gross_return",
+    "cumulative_net_return",
     "benchmark_cumulative_return",
-    "cumulative_excess_return",
+    "cumulative_gross_excess_return",
+    "cumulative_net_excess_return",
 ]
 
 
@@ -29,45 +35,62 @@ def run_portfolio_backtest(
     *,
     top_k: int | None = None,
     top_fraction: float = 0.1,
+    transaction_cost_bps: float = 0.0,
 ) -> pd.DataFrame:
     """Run an equal-weight long-only backtest from model scores."""
     _validate_prediction_table(predictions)
     _validate_selection(top_k=top_k, top_fraction=top_fraction)
+    _validate_transaction_cost(transaction_cost_bps)
 
     rows = []
-    for (model_name, split_id, date), group in predictions.groupby(
-        ["model_name", "split_id", "date"],
-        sort=True,
-    ):
-        selected = _select_names(group, top_k=top_k, top_fraction=top_fraction)
-        portfolio_return = float(selected["forward_return"].mean())
-        benchmark_return = float(
-            (selected["forward_return"] - selected["forward_excess_return"]).mean()
-        )
-        rows.append(
-            {
-                "model_name": str(model_name),
-                "split_id": int(split_id),
-                "date": pd.Timestamp(date).normalize(),
-                "selected_count": len(selected),
-                "portfolio_return": portfolio_return,
-                "benchmark_return": benchmark_return,
-                "excess_return": portfolio_return - benchmark_return,
-            }
-        )
+    grouped = predictions.groupby(["model_name", "split_id"], sort=True)
+    for (model_name, split_id), model_split_predictions in grouped:
+        previous_weights: dict[str, float] = {}
+        for date, group in model_split_predictions.groupby("date", sort=True):
+            selected = _select_names(group, top_k=top_k, top_fraction=top_fraction)
+            current_weights = _equal_weights(selected["symbol"])
+            turnover = _portfolio_turnover(previous_weights, current_weights)
+            transaction_cost = turnover * (transaction_cost_bps / 10_000)
+            gross_return = float(selected["forward_return"].mean())
+            net_return = gross_return - transaction_cost
+            benchmark_return = float(
+                (selected["forward_return"] - selected["forward_excess_return"]).mean()
+            )
+            rows.append(
+                {
+                    "model_name": str(model_name),
+                    "split_id": int(split_id),
+                    "date": pd.Timestamp(date).normalize(),
+                    "selected_count": len(selected),
+                    "turnover": turnover,
+                    "transaction_cost": transaction_cost,
+                    "gross_return": gross_return,
+                    "net_return": net_return,
+                    "benchmark_return": benchmark_return,
+                    "gross_excess_return": gross_return - benchmark_return,
+                    "net_excess_return": net_return - benchmark_return,
+                }
+            )
+            previous_weights = current_weights
 
     result = pd.DataFrame(rows).sort_values(["model_name", "split_id", "date"])
     if result.empty:
         raise ValueError("No portfolio return rows were produced.")
 
-    result["cumulative_return"] = result.groupby(["model_name", "split_id"])[
-        "portfolio_return"
+    result["cumulative_gross_return"] = result.groupby(["model_name", "split_id"])[
+        "gross_return"
+    ].transform(lambda returns: (1 + returns).cumprod() - 1)
+    result["cumulative_net_return"] = result.groupby(["model_name", "split_id"])[
+        "net_return"
     ].transform(lambda returns: (1 + returns).cumprod() - 1)
     result["benchmark_cumulative_return"] = result.groupby(["model_name", "split_id"])[
         "benchmark_return"
     ].transform(lambda returns: (1 + returns).cumprod() - 1)
-    result["cumulative_excess_return"] = (
-        result["cumulative_return"] - result["benchmark_cumulative_return"]
+    result["cumulative_gross_excess_return"] = (
+        result["cumulative_gross_return"] - result["benchmark_cumulative_return"]
+    )
+    result["cumulative_net_excess_return"] = (
+        result["cumulative_net_return"] - result["benchmark_cumulative_return"]
     )
 
     return result[PORTFOLIO_RETURN_COLUMNS].reset_index(drop=True)
@@ -106,6 +129,26 @@ def _select_names(
     return ordered.head(count)
 
 
+def _equal_weights(symbols: pd.Series) -> dict[str, float]:
+    symbol_list = symbols.astype(str).tolist()
+    weight = 1 / len(symbol_list)
+    return {symbol: weight for symbol in symbol_list}
+
+
+def _portfolio_turnover(
+    previous_weights: dict[str, float],
+    current_weights: dict[str, float],
+) -> float:
+    if not previous_weights:
+        return 1.0
+
+    symbols = set(previous_weights) | set(current_weights)
+    return 0.5 * sum(
+        abs(current_weights.get(symbol, 0.0) - previous_weights.get(symbol, 0.0))
+        for symbol in symbols
+    )
+
+
 def _validate_prediction_table(predictions: pd.DataFrame) -> None:
     _validate_prediction_columns(predictions)
     if predictions.empty:
@@ -131,3 +174,8 @@ def _validate_selection(*, top_k: int | None, top_fraction: float) -> None:
         raise ValueError("top_k must be positive.")
     if not 0 < top_fraction <= 1:
         raise ValueError("top_fraction must be greater than 0 and at most 1.")
+
+
+def _validate_transaction_cost(transaction_cost_bps: float) -> None:
+    if transaction_cost_bps < 0:
+        raise ValueError("transaction_cost_bps must be non-negative.")
