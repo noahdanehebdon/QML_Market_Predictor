@@ -40,6 +40,11 @@ from market_qml.models.gradient_boosting import (
     MODEL_NAME as GRADIENT_BOOSTING_MODEL_NAME,
     train_gradient_boosting,
 )
+from market_qml.models.gradient_boosting_regressor import (
+    DEFAULT_TARGET_COLUMN as GRADIENT_BOOSTING_REGRESSOR_TARGET_COLUMN,
+    MODEL_NAME as GRADIENT_BOOSTING_REGRESSOR_MODEL_NAME,
+    train_gradient_boosting_regressor,
+)
 from market_qml.models.huber_regression import (
     DEFAULT_TARGET_COLUMN as HUBER_TARGET_COLUMN,
     MODEL_NAME as HUBER_REGRESSION_MODEL_NAME,
@@ -107,6 +112,10 @@ MODEL_REGISTRY = {
     GRADIENT_BOOSTING_MODEL_NAME: ModelSpec(
         target_column=DEFAULT_TARGET_COLUMN,
         train=train_gradient_boosting,
+    ),
+    GRADIENT_BOOSTING_REGRESSOR_MODEL_NAME: ModelSpec(
+        target_column=GRADIENT_BOOSTING_REGRESSOR_TARGET_COLUMN,
+        train=train_gradient_boosting_regressor,
     ),
 }
 
