@@ -54,6 +54,11 @@ from market_qml.models.random_forest import (
     MODEL_NAME as RANDOM_FOREST_MODEL_NAME,
     train_random_forest,
 )
+from market_qml.models.random_forest_regressor import (
+    DEFAULT_TARGET_COLUMN as RANDOM_FOREST_REGRESSOR_TARGET_COLUMN,
+    MODEL_NAME as RANDOM_FOREST_REGRESSOR_MODEL_NAME,
+    train_random_forest_regressor,
+)
 from market_qml.models.ridge_regression import (
     DEFAULT_TARGET_COLUMN as RIDGE_TARGET_COLUMN,
     MODEL_NAME as RIDGE_REGRESSION_MODEL_NAME,
@@ -94,6 +99,10 @@ MODEL_REGISTRY = {
     RANDOM_FOREST_MODEL_NAME: ModelSpec(
         target_column=DEFAULT_TARGET_COLUMN,
         train=train_random_forest,
+    ),
+    RANDOM_FOREST_REGRESSOR_MODEL_NAME: ModelSpec(
+        target_column=RANDOM_FOREST_REGRESSOR_TARGET_COLUMN,
+        train=train_random_forest_regressor,
     ),
     GRADIENT_BOOSTING_MODEL_NAME: ModelSpec(
         target_column=DEFAULT_TARGET_COLUMN,
