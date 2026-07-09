@@ -23,7 +23,7 @@ from market_qml.models.preprocessing import (
 DEFAULT_QML_PCA_FEATURE_PATH = Path("data/features/qml_pca_features.parquet")
 DEFAULT_QML_PCA_DIAGNOSTICS_PATH = Path("data/processed/qml_pca_explained_variance.parquet")
 DEFAULT_QML_PCA_ARTIFACT_DIR = Path("artifacts/qml/pca")
-DEFAULT_N_COMPONENTS = 8
+DEFAULT_N_COMPONENTS = 16
 
 
 @dataclass(frozen=True)
