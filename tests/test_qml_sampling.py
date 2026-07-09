@@ -95,6 +95,24 @@ def test_build_qml_sample_skips_balancing_for_continuous_targets():
     assert result.metadata["sampled_rows"].tolist() == [5, 3]
 
 
+def test_build_qml_sample_accepts_grouped_pca_component_names():
+    qml_features = _qml_features().rename(
+        columns={
+            "pca_00": "returns_momentum_pca_00",
+            "pca_01": "macro_pca_00",
+        }
+    )
+
+    result = build_qml_sample(
+        qml_features,
+        max_train_rows_per_split=6,
+        max_validation_rows_per_split=4,
+    )
+
+    assert "returns_momentum_pca_00" in result.sample.columns
+    assert "macro_pca_00" in result.sample.columns
+
+
 def test_build_qml_sample_validates_inputs():
     with pytest.raises(ValueError, match="missing required columns"):
         build_qml_sample(pd.DataFrame({"symbol": ["AAPL"]}))

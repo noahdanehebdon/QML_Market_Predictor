@@ -341,7 +341,11 @@ def _validate_qml_features(qml_features: pd.DataFrame) -> None:
             "QML feature table is missing required columns: "
             + ", ".join(sorted(missing))
         )
-    pca_columns = [column for column in qml_features.columns if column.startswith("pca_")]
+    pca_columns = [
+        column
+        for column in qml_features.columns
+        if column.startswith("pca_") or "_pca_" in column
+    ]
     if not pca_columns:
         raise ValueError("QML feature table does not contain PCA component columns.")
     if qml_features.empty:
