@@ -10,12 +10,71 @@ import pandas as pd
 EXPECTED_BASELINES = [
     "logistic_regression",
     "ridge_regression",
+    "elastic_net",
+    "huber_regression",
     "random_forest",
+    "random_forest_regressor",
     "gradient_boosting",
+    "gradient_boosting_regressor",
 ]
+
+MODEL_METADATA = {
+    "logistic_regression": {
+        "model_family": "linear",
+        "prediction_task": "classification",
+        "target_name": "outperform_spy_5d",
+        "score_used_for_ranking": "outperformance_probability",
+    },
+    "random_forest": {
+        "model_family": "tree_ensemble",
+        "prediction_task": "classification",
+        "target_name": "outperform_spy_5d",
+        "score_used_for_ranking": "outperformance_probability",
+    },
+    "gradient_boosting": {
+        "model_family": "tree_ensemble",
+        "prediction_task": "classification",
+        "target_name": "outperform_spy_5d",
+        "score_used_for_ranking": "outperformance_probability",
+    },
+    "ridge_regression": {
+        "model_family": "linear",
+        "prediction_task": "regression_ranking",
+        "target_name": "forward_excess_return_5d",
+        "score_used_for_ranking": "predicted_forward_excess_return",
+    },
+    "elastic_net": {
+        "model_family": "linear",
+        "prediction_task": "regression_ranking",
+        "target_name": "forward_excess_return_5d",
+        "score_used_for_ranking": "predicted_forward_excess_return",
+    },
+    "huber_regression": {
+        "model_family": "linear_robust",
+        "prediction_task": "regression_ranking",
+        "target_name": "forward_excess_return_5d",
+        "score_used_for_ranking": "predicted_forward_excess_return",
+    },
+    "random_forest_regressor": {
+        "model_family": "tree_ensemble",
+        "prediction_task": "regression_ranking",
+        "target_name": "forward_excess_return_5d",
+        "score_used_for_ranking": "predicted_forward_excess_return",
+    },
+    "gradient_boosting_regressor": {
+        "model_family": "tree_ensemble",
+        "prediction_task": "regression_ranking",
+        "target_name": "forward_excess_return_5d",
+        "score_used_for_ranking": "predicted_forward_excess_return",
+    },
+}
 
 REPORT_COLUMNS = [
     "model_name",
+    "model_family",
+    "prediction_task",
+    "target_name",
+    "score_used_for_ranking",
     "classification_roc_auc",
     "classification_average_precision",
     "ranking_long_short_spread",
@@ -44,6 +103,7 @@ def build_classical_baseline_comparison(
         | set(_overall_models(portfolio_risk_metrics))
     )
     result = pd.DataFrame({"model_name": models})
+    result = result.merge(_model_metadata_frame(models), on="model_name", how="left")
 
     result = result.merge(
         _classification_summary(classification_metrics),
@@ -106,7 +166,12 @@ def render_classical_baseline_report(
     lines.extend(
         [
             "Ranking rule: lower composite rank is better. The composite rank averages "
-            "available ranks across classification, ranking, and portfolio metrics.",
+            "available applicable ranks across classification, ranking, and portfolio "
+            "metrics.",
+            "",
+            "Classification metrics apply to classifier baselines only. Regression/ranking "
+            "baselines predict forward excess return, so classifier-only metrics are shown "
+            "as `NA` instead of being treated as failures.",
             "",
             _markdown_table(comparison),
             "",
@@ -149,6 +214,22 @@ def _classification_summary(metrics: pd.DataFrame) -> pd.DataFrame:
             "average_precision": "classification_average_precision",
         }
     )
+
+
+def _model_metadata_frame(model_names: list[str]) -> pd.DataFrame:
+    rows = []
+    for model_name in model_names:
+        metadata = MODEL_METADATA.get(
+            model_name,
+            {
+                "model_family": "unknown",
+                "prediction_task": "unknown",
+                "target_name": "unknown",
+                "score_used_for_ranking": "unknown",
+            },
+        )
+        rows.append({"model_name": model_name, **metadata})
+    return pd.DataFrame(rows)
 
 
 def _ranking_summary(metrics: pd.DataFrame) -> pd.DataFrame:
@@ -218,15 +299,18 @@ def _overall_models(metrics: pd.DataFrame) -> list[str]:
 
 def _composite_rank(comparison: pd.DataFrame) -> pd.Series:
     rank_inputs = pd.DataFrame(index=comparison.index)
-    higher_is_better = [
-        "classification_roc_auc",
-        "classification_average_precision",
+    shared_higher_is_better = [
         "ranking_long_short_spread",
         "ranking_rank_information_coefficient",
         "portfolio_cumulative_net_return",
         "portfolio_cumulative_net_excess_return",
         "portfolio_net_sharpe",
     ]
+    classification_higher_is_better = [
+        "classification_roc_auc",
+        "classification_average_precision",
+    ]
+    higher_is_better = shared_higher_is_better + classification_higher_is_better
     for column in higher_is_better:
         rank_inputs[column] = comparison[column].rank(ascending=False, method="min")
 
@@ -249,7 +333,7 @@ def _markdown_table(data: pd.DataFrame) -> str:
 
 def _format_value(value) -> str:
     if pd.isna(value):
-        return ""
+        return "NA"
     if isinstance(value, float):
         return f"{value:.6f}"
     return str(value)
