@@ -69,11 +69,16 @@ from market_qml.models.ridge_regression import (
     MODEL_NAME as RIDGE_REGRESSION_MODEL_NAME,
     train_ridge_regression,
 )
+from market_qml.qml.interface import build_qml_train_validation
+from market_qml.qml.pca import fit_pca
+from market_qml.qml.vqc import MODEL_NAME as VQC_MODEL_NAME
+from market_qml.qml.vqc import train_vqc
 from market_qml.utils.mlflow_tracking import DEFAULT_EXPERIMENT_NAME
 from market_qml.utils.mlflow_tracking import log_walk_forward_backtest_run
 
 
 DEFAULT_OUTPUT_DIR = Path("reports/backtests")
+DEFAULT_QML_N_COMPONENTS = 8
 
 
 @dataclass(frozen=True)
@@ -82,6 +87,16 @@ class ModelSpec:
 
     target_column: str
     train: Callable
+    model_family: str = "classical"
+
+
+@dataclass(frozen=True)
+class WalkForwardPredictionResult:
+    """Walk-forward predictions plus optional model-specific diagnostics."""
+
+    predictions: pd.DataFrame
+    training_loss: pd.DataFrame
+    validation_metrics: pd.DataFrame
 
 
 MODEL_REGISTRY = {
@@ -116,6 +131,11 @@ MODEL_REGISTRY = {
     GRADIENT_BOOSTING_REGRESSOR_MODEL_NAME: ModelSpec(
         target_column=GRADIENT_BOOSTING_REGRESSOR_TARGET_COLUMN,
         train=train_gradient_boosting_regressor,
+    ),
+    VQC_MODEL_NAME: ModelSpec(
+        target_column=DEFAULT_TARGET_COLUMN,
+        train=train_vqc,
+        model_family="qml",
     ),
 }
 
@@ -262,12 +282,13 @@ def run_walk_forward_backtest(
         raise ValueError("max_splits must be positive when provided.")
 
     selected_splits = _selected_splits(splits, max_splits=max_splits)
-    predictions = _walk_forward_predictions(
+    prediction_result = _walk_forward_predictions(
         features=features,
         labels=labels,
         splits=selected_splits,
         model_names=model_names,
     )
+    predictions = prediction_result.predictions
     binary_predictions = _binary_predictions(predictions)
 
     classification_metrics = (
@@ -300,7 +321,22 @@ def run_walk_forward_backtest(
         "portfolio_backtest": output_dir / "portfolio_backtest.parquet",
         "portfolio_risk_metrics": output_dir / "portfolio_risk_metrics.parquet",
     }
+    if not prediction_result.training_loss.empty:
+        output_paths["training_loss"] = output_dir / "training_loss.parquet"
+    if not prediction_result.validation_metrics.empty:
+        output_paths["validation_metrics"] = output_dir / "validation_metrics.parquet"
+
     predictions.to_parquet(output_paths["predictions"], index=False)
+    if "training_loss" in output_paths:
+        prediction_result.training_loss.to_parquet(
+            output_paths["training_loss"],
+            index=False,
+        )
+    if "validation_metrics" in output_paths:
+        prediction_result.validation_metrics.to_parquet(
+            output_paths["validation_metrics"],
+            index=False,
+        )
     save_classification_metrics(
         classification_metrics,
         output_paths["classification_metrics"],
@@ -342,8 +378,10 @@ def _walk_forward_predictions(
     labels: pd.DataFrame,
     splits: pd.DataFrame,
     model_names: list[str],
-) -> pd.DataFrame:
+) -> WalkForwardPredictionResult:
     frames = []
+    training_loss_frames = []
+    validation_metric_frames = []
     for model_name in model_names:
         spec = MODEL_REGISTRY[model_name]
         for split in splits.itertuples(index=False):
@@ -357,16 +395,99 @@ def _walk_forward_predictions(
                 validation_end_date=split.validation_end_date,
             )
             preprocessed = fit_transform_train_validation(datasets)
-            result = spec.train(
-                preprocessed,
-                split_id=int(split.split_id),
-            )
+            if spec.model_family == "qml":
+                result = spec.train(
+                    _build_qml_split_sample(
+                        preprocessed=preprocessed,
+                        split_id=int(split.split_id),
+                    ),
+                    split_id=int(split.split_id),
+                )
+                training_loss_frames.append(result.training_loss)
+                validation_metric_frames.append(result.validation_metrics)
+            else:
+                result = spec.train(
+                    preprocessed,
+                    split_id=int(split.split_id),
+                )
             frames.append(result.predictions)
 
     if not frames:
         raise ValueError("No prediction rows were produced.")
 
-    return pd.concat(frames, ignore_index=True)
+    return WalkForwardPredictionResult(
+        predictions=pd.concat(frames, ignore_index=True),
+        training_loss=(
+            pd.concat(training_loss_frames, ignore_index=True)
+            if training_loss_frames
+            else pd.DataFrame()
+        ),
+        validation_metrics=(
+            pd.concat(validation_metric_frames, ignore_index=True)
+            if validation_metric_frames
+            else pd.DataFrame()
+        ),
+    )
+
+
+def _build_qml_split_sample(
+    *,
+    preprocessed,
+    split_id: int,
+):
+    pca = fit_pca(preprocessed.train.X, n_components=DEFAULT_QML_N_COMPONENTS)
+    train_rows = _pca_rows(
+        X=preprocessed.train.X,
+        y=preprocessed.train.y,
+        metadata=preprocessed.train.metadata,
+        pca=pca,
+        split_id=split_id,
+        sample_role="train",
+    )
+    validation_rows = _pca_rows(
+        X=preprocessed.validation.X,
+        y=preprocessed.validation.y,
+        metadata=preprocessed.validation.metadata,
+        pca=pca,
+        split_id=split_id,
+        sample_role="validation",
+    )
+    qml_sample = pd.concat([train_rows, validation_rows], ignore_index=True)
+    return build_qml_train_validation(qml_sample, split_id=split_id)
+
+
+def _pca_rows(
+    *,
+    X: pd.DataFrame,
+    y: pd.Series,
+    metadata: pd.DataFrame,
+    pca,
+    split_id: int,
+    sample_role: str,
+) -> pd.DataFrame:
+    component_columns = [
+        f"pca_{component_index:02d}"
+        for component_index in range(DEFAULT_QML_N_COMPONENTS)
+    ]
+    component_frame = pd.DataFrame(
+        pca.transform(X),
+        columns=component_columns,
+        index=X.index,
+    )
+    result = metadata.copy().reset_index(drop=True)
+    result["date"] = pd.to_datetime(result["date"], errors="coerce").dt.normalize()
+    result["split_id"] = split_id
+    result["sample_role"] = sample_role
+    result["target"] = pd.to_numeric(y, errors="coerce").to_numpy()
+    result = pd.concat(
+        [result, component_frame.reset_index(drop=True)],
+        axis=1,
+    )
+    if result["date"].isna().any():
+        raise ValueError("QML walk-forward PCA rows contain invalid dates.")
+    if result["target"].isna().any():
+        raise ValueError("QML walk-forward PCA rows contain invalid targets.")
+    return result
 
 
 def _selected_splits(splits: pd.DataFrame, *, max_splits: int | None) -> pd.DataFrame:
