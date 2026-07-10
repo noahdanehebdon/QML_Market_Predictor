@@ -317,6 +317,22 @@ By default, label columns are excluded from `X`. Date columns, filing forms,
 accession numbers, and other non-numeric identifiers remain in metadata unless a
 modeling step explicitly encodes them later.
 
+## QML Angle Encoding
+
+QML angle encoding consumes PCA component columns such as `pca_00` or grouped
+columns such as `macro_pca_00`. The default encoder expects eight feature
+columns for eight-qubit VQC and QCNN experiments.
+
+PCA components are unbounded real values, so they are scaled with:
+
+```text
+angle = 2 * atan(component)
+```
+
+This maps every input smoothly into `[-pi, pi]`, which is a valid rotation angle
+range. The transform is stateless, so it does not fit scaling parameters on train
+or validation rows and does not introduce an additional leakage path.
+
 ## Leakage Precautions
 
 The project includes dedicated tests for leakage-sensitive behavior:
