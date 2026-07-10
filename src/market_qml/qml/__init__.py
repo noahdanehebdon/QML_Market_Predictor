@@ -18,6 +18,12 @@ from market_qml.qml.interface import (
     QMLTrainValidation,
     build_qml_train_validation,
 )
+from market_qml.qml.vqc import (
+    MODEL_NAME as VQC_MODEL_NAME,
+    VQCResult,
+    VariationalQuantumClassifier,
+    train_vqc,
+)
 
 __all__ = [
     "ANGLE_MAX",
@@ -29,9 +35,13 @@ __all__ = [
     "QMLModelConfig",
     "QMLModelResult",
     "QMLTrainValidation",
+    "VQC_MODEL_NAME",
+    "VQCResult",
+    "VariationalQuantumClassifier",
     "angle_encode_dataset",
     "angle_encode_features",
     "angle_encoding_operations",
     "build_qml_train_validation",
     "scale_value_to_angle",
+    "train_vqc",
 ]
