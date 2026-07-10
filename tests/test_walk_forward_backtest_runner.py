@@ -63,6 +63,44 @@ def _splits() -> pd.DataFrame:
     )
 
 
+def _qml_features() -> pd.DataFrame:
+    rows = []
+    dates = pd.date_range("2024-01-01", periods=4, freq="D")
+    for symbol_index, symbol in enumerate(["AAPL", "MSFT", "NVDA", "AMZN", "GOOG"]):
+        for date_index, date in enumerate(dates):
+            row = {
+                "symbol": symbol,
+                "date": date,
+            }
+            for feature_index in range(8):
+                row[f"feature_{feature_index}"] = (
+                    symbol_index * 0.1 + date_index * 0.2 + feature_index
+                )
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _qml_labels() -> pd.DataFrame:
+    rows = []
+    dates = pd.date_range("2024-01-01", periods=4, freq="D")
+    for symbol_index, symbol in enumerate(["AAPL", "MSFT", "NVDA", "AMZN", "GOOG"]):
+        for date_index, date in enumerate(dates):
+            outperform = int((symbol_index + date_index) % 2 == 0)
+            forward_excess = 0.02 if outperform else -0.01
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "date": date,
+                    "label_horizon_days": 5,
+                    "forward_return_5d": 0.01 + forward_excess,
+                    "spy_forward_return_5d": 0.01,
+                    "forward_excess_return_5d": forward_excess,
+                    "outperform_spy_5d": outperform,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def test_run_walk_forward_backtest_writes_report_bundle(tmp_path):
     outputs = run_walk_forward_backtest(
         features=_features(),
@@ -209,6 +247,38 @@ def test_run_walk_forward_backtest_supports_gradient_boosting_regressor_lane(tmp
     assert set(ranking["model_name"]) == {"gradient_boosting_regressor"}
     assert set(portfolio["model_name"]) == {"gradient_boosting_regressor"}
     assert set(risk["model_name"]) == {"gradient_boosting_regressor"}
+
+
+def test_run_walk_forward_backtest_supports_vqc_lane(tmp_path):
+    outputs = run_walk_forward_backtest(
+        features=_qml_features(),
+        labels=_qml_labels(),
+        splits=_splits(),
+        model_names=["vqc"],
+        output_dir=tmp_path,
+        transaction_cost_bps=10,
+    )
+
+    assert "training_loss" in outputs
+    assert "validation_metrics" in outputs
+
+    predictions = pd.read_parquet(outputs["predictions"])
+    training_loss = pd.read_parquet(outputs["training_loss"])
+    validation_metrics = pd.read_parquet(outputs["validation_metrics"])
+    classification = pd.read_parquet(outputs["classification_metrics"])
+    ranking = pd.read_parquet(outputs["ranking_metrics"])
+    portfolio = pd.read_parquet(outputs["portfolio_backtest"])
+    risk = pd.read_parquet(outputs["portfolio_risk_metrics"])
+
+    assert predictions["model_name"].unique().tolist() == ["vqc"]
+    assert predictions["split_id"].unique().tolist() == [0]
+    assert predictions["y_score"].between(0, 1).all()
+    assert training_loss["model_name"].unique().tolist() == ["vqc"]
+    assert validation_metrics["model_name"].unique().tolist() == ["vqc"]
+    assert set(classification["model_name"]) == {"vqc"}
+    assert set(ranking["model_name"]) == {"vqc"}
+    assert set(portfolio["model_name"]) == {"vqc"}
+    assert set(risk["model_name"]) == {"vqc"}
 
 
 def test_run_walk_forward_backtest_can_log_mlflow_run(tmp_path, monkeypatch):
