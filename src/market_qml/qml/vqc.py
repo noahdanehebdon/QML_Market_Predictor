@@ -14,6 +14,7 @@ from market_qml.models.predictions import save_predictions as save_prediction_ta
 from market_qml.qml.encoding import AngleEncodingConfig, angle_encode_dataset
 from market_qml.qml.interface import BaseQMLModel, QMLDataset, QMLModelConfig
 from market_qml.qml.interface import QMLTrainValidation
+from market_qml.qml.simulator import apply_cnot, apply_ry, zero_state
 
 
 MODEL_NAME = "vqc"
@@ -365,54 +366,18 @@ def _circuit_probabilities(angles: np.ndarray, weights: np.ndarray) -> np.ndarra
     if angles.shape[1] != n_qubits:
         raise ValueError("VQC angle and circuit qubit counts must match.")
 
-    state = np.zeros((len(angles), 1 << n_qubits), dtype=np.complex128)
-    state[:, 0] = 1.0
+    state = zero_state(len(angles), n_qubits)
     for qubit in range(n_qubits):
-        state = _apply_ry(state, angles[:, qubit], qubit)
+        state = apply_ry(state, angles[:, qubit], qubit)
     for layer in range(depth):
         for qubit in range(n_qubits):
-            state = _apply_ry(state, weights[layer, qubit], qubit)
+            state = apply_ry(state, weights[layer, qubit], qubit)
         for control in range(n_qubits):
-            state = _apply_cnot(state, control, (control + 1) % n_qubits)
+            state = apply_cnot(state, control, (control + 1) % n_qubits)
 
     basis = np.arange(1 << n_qubits)
     measured_one = ((basis >> 0) & 1).astype(bool)
     return np.sum(np.abs(state[:, measured_one]) ** 2, axis=1).real
-
-
-def _apply_ry(
-    state: np.ndarray,
-    angles: np.ndarray | float,
-    qubit: int,
-) -> np.ndarray:
-    """Apply an RY gate to one qubit for every state in a batch."""
-    result = state.copy()
-    basis = np.arange(state.shape[1])
-    zero_indices = basis[(basis & (1 << qubit)) == 0]
-    one_indices = zero_indices | (1 << qubit)
-    theta = np.asarray(angles, dtype=float)
-    if theta.ndim == 0:
-        theta = np.full(len(state), float(theta))
-    cosine = np.cos(theta / 2.0)[:, None]
-    sine = np.sin(theta / 2.0)[:, None]
-    zero = state[:, zero_indices]
-    one = state[:, one_indices]
-    result[:, zero_indices] = cosine * zero - sine * one
-    result[:, one_indices] = sine * zero + cosine * one
-    return result
-
-
-def _apply_cnot(
-    state: np.ndarray,
-    control: int,
-    target: int,
-) -> np.ndarray:
-    """Apply a CNOT by permuting statevector basis amplitudes."""
-    basis = np.arange(state.shape[1])
-    permutation = basis.copy()
-    control_on = (basis & (1 << control)) != 0
-    permutation[control_on] ^= 1 << target
-    return state[:, permutation]
 
 
 def _binary_targets(y: pd.Series, *, require_two_classes: bool) -> np.ndarray:
