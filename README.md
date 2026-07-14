@@ -193,6 +193,15 @@ python -m scripts.build_quantum_feature_map --split-id 0
 See [docs/quantum_feature_map.md](docs/quantum_feature_map.md) for the circuit,
 fidelity-kernel definition, simulator backend, and saved outputs.
 
+Train the reduced-sample quantum kernel SVM with:
+
+```powershell
+python -m scripts.train_qsvm_baseline
+```
+
+See [docs/qsvm.md](docs/qsvm.md) for the hybrid quantum/classical training flow,
+quadratic kernel-scaling constraint, diagnostics, and initial result.
+
 The ingestion test suite includes mock API responses for Alpaca, BLS, Federal Reserve DDP, and SEC EDGAR so tests can run without live API calls or real API keys.
 
 ## Data Sources and Disclaimers
