@@ -39,6 +39,14 @@ from market_qml.qml.qsvm import (
     QuantumKernelSVM,
     train_qsvm,
 )
+from market_qml.qml.qcnn_blocks import (
+    QCNNArchitecture,
+    build_qcnn_architecture,
+    execute_qcnn_architecture,
+    initialize_qcnn_parameters,
+    pooling_block,
+    two_qubit_convolution,
+)
 
 __all__ = [
     "ANGLE_MAX",
@@ -50,6 +58,7 @@ __all__ = [
     "QMLModelConfig",
     "QMLModelResult",
     "QMLTrainValidation",
+    "QCNNArchitecture",
     "QSVM_MODEL_NAME",
     "QSVMResult",
     "QuantumFeatureMapConfig",
@@ -64,10 +73,15 @@ __all__ = [
     "angle_encode_features",
     "angle_encoding_operations",
     "build_qml_train_validation",
+    "build_qcnn_architecture",
+    "execute_qcnn_architecture",
     "feature_map_operations",
     "fidelity_kernel",
+    "initialize_qcnn_parameters",
+    "pooling_block",
     "save_feature_map_split",
     "scale_value_to_angle",
     "train_vqc",
     "train_qsvm",
+    "two_qubit_convolution",
 ]
