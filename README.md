@@ -175,6 +175,15 @@ Run a one-split VQC smoke backtest with:
 python -m scripts.run_walk_forward_backtest --models vqc --max-splits 1 --disable-mlflow
 ```
 
+Tune VQC depth, learning rate, and optimizer with:
+
+```powershell
+python -m scripts.tune_vqc
+```
+
+See [docs/vqc_tuning.md](docs/vqc_tuning.md) for the tuning methodology,
+generated artifacts, current best tested configuration, and limitations.
+
 The ingestion test suite includes mock API responses for Alpaca, BLS, Federal Reserve DDP, and SEC EDGAR so tests can run without live API calls or real API keys.
 
 ## Data Sources and Disclaimers
