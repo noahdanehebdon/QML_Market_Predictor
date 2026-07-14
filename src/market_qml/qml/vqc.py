@@ -18,9 +18,12 @@ from market_qml.qml.interface import QMLTrainValidation
 
 MODEL_NAME = "vqc"
 DEFAULT_N_QUBITS = 8
+DEFAULT_ANSATZ_DEPTH = 1
 DEFAULT_MAX_ITER = 100
 DEFAULT_LEARNING_RATE = 0.1
 DEFAULT_L2 = 0.001
+DEFAULT_PERTURBATION = 0.1
+DEFAULT_BATCH_SIZE = 32
 DEFAULT_RANDOM_STATE = 42
 DEFAULT_MODEL_PATH = Path("artifacts/models/vqc.pkl")
 DEFAULT_PREDICTION_PATH = Path("data/processed/predictions_vqc.parquet")
@@ -40,21 +43,29 @@ class VQCResult:
 
 
 class VariationalQuantumClassifier(BaseQMLModel):
-    """Small VQC-style binary classifier over angle-encoded PCA inputs.
+    """Binary VQC executed by an exact local statevector simulator.
 
-    The baseline keeps the circuit contract explicit without requiring a quantum
-    SDK dependency: angle encoding supplies one rotation per qubit, and the
-    variational ansatz is represented by trainable sinusoidal readout weights.
+    Each sample is encoded with one RY rotation per qubit. The variational
+    ansatz alternates trainable RY rotations with a ring of CNOT entanglers, and
+    the positive-class score is the probability of measuring qubit zero as 1.
+    Circuit parameters are trained with reproducible SPSA updates.
     """
 
     def __init__(self, config: QMLModelConfig) -> None:
         super().__init__(config)
         self.n_qubits = int(config.params.get("n_qubits", DEFAULT_N_QUBITS))
+        self.ansatz_depth = int(
+            config.params.get("ansatz_depth", DEFAULT_ANSATZ_DEPTH)
+        )
         self.max_iter = int(config.params.get("max_iter", DEFAULT_MAX_ITER))
         self.learning_rate = float(
             config.params.get("learning_rate", DEFAULT_LEARNING_RATE)
         )
         self.l2 = float(config.params.get("l2", DEFAULT_L2))
+        self.perturbation = float(
+            config.params.get("perturbation", DEFAULT_PERTURBATION)
+        )
+        self.batch_size = int(config.params.get("batch_size", DEFAULT_BATCH_SIZE))
         self.weights_: np.ndarray | None = None
         self.loss_history_: list[float] = []
 
@@ -62,23 +73,51 @@ class VariationalQuantumClassifier(BaseQMLModel):
         """Fit trainable variational readout weights on binary labels."""
         self._validate_hyperparameters()
         y = _binary_targets(dataset.y, require_two_classes=True)
-        X = _design_matrix(
-            angle_encode_dataset(
-                dataset,
-                config=AngleEncodingConfig(n_qubits=self.n_qubits),
-            ).X
-        )
+        angles = _encoded_angles(dataset, n_qubits=self.n_qubits)
 
         rng = np.random.default_rng(self.seed)
-        weights = rng.normal(loc=0.0, scale=0.01, size=X.shape[1])
+        weights = rng.uniform(
+            low=-0.1,
+            high=0.1,
+            size=(self.ansatz_depth, self.n_qubits),
+        )
         losses = []
         for _ in range(self.max_iter):
-            scores = _sigmoid(X @ weights)
-            error = scores - y
-            gradient = (X.T @ error) / len(y)
-            gradient[1:] += self.l2 * weights[1:]
+            batch_indices = rng.choice(
+                len(y),
+                size=min(self.batch_size, len(y)),
+                replace=False,
+            )
+            batch_angles = angles[batch_indices]
+            batch_targets = y[batch_indices]
+            direction = rng.choice((-1.0, 1.0), size=weights.shape)
+            loss_plus = _circuit_loss(
+                batch_angles,
+                batch_targets,
+                weights + self.perturbation * direction,
+                self.l2,
+            )
+            loss_minus = _circuit_loss(
+                batch_angles,
+                batch_targets,
+                weights - self.perturbation * direction,
+                self.l2,
+            )
+            gradient = (
+                (loss_plus - loss_minus)
+                / (2.0 * self.perturbation)
+                * direction
+            )
             weights -= self.learning_rate * gradient
-            losses.append(_binary_cross_entropy(y, scores) + _l2_penalty(weights, self.l2))
+            # Record a coherent post-update objective on the same mini-batch.
+            losses.append(
+                _circuit_loss(
+                    batch_angles,
+                    batch_targets,
+                    weights,
+                    self.l2,
+                )
+            )
 
         self.weights_ = weights
         self.loss_history_ = losses
@@ -88,23 +127,24 @@ class VariationalQuantumClassifier(BaseQMLModel):
         """Predict positive-class probabilities for validation rows."""
         if self.weights_ is None:
             raise ValueError("VQC model must be fitted before prediction.")
-        X = _design_matrix(
-            angle_encode_dataset(
-                dataset,
-                config=AngleEncodingConfig(n_qubits=self.n_qubits),
-            ).X
-        )
-        return _sigmoid(X @ self.weights_).tolist()
+        angles = _encoded_angles(dataset, n_qubits=self.n_qubits)
+        return _circuit_probabilities(angles, self.weights_).tolist()
 
     def _validate_hyperparameters(self) -> None:
         if self.n_qubits <= 0:
             raise ValueError("n_qubits must be positive.")
+        if self.ansatz_depth <= 0:
+            raise ValueError("ansatz_depth must be positive.")
         if self.max_iter <= 0:
             raise ValueError("max_iter must be positive.")
         if self.learning_rate <= 0:
             raise ValueError("learning_rate must be positive.")
         if self.l2 < 0:
             raise ValueError("l2 must be non-negative.")
+        if self.perturbation <= 0:
+            raise ValueError("perturbation must be positive.")
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be positive.")
 
 
 def train_vqc(
@@ -113,9 +153,12 @@ def train_vqc(
     model_name: str = MODEL_NAME,
     split_id: int | None = None,
     n_qubits: int = DEFAULT_N_QUBITS,
+    ansatz_depth: int = DEFAULT_ANSATZ_DEPTH,
     max_iter: int = DEFAULT_MAX_ITER,
     learning_rate: float = DEFAULT_LEARNING_RATE,
     l2: float = DEFAULT_L2,
+    perturbation: float = DEFAULT_PERTURBATION,
+    batch_size: int = DEFAULT_BATCH_SIZE,
     random_state: int = DEFAULT_RANDOM_STATE,
 ) -> VQCResult:
     """Train a VQC baseline on one QML train/validation split."""
@@ -125,10 +168,15 @@ def train_vqc(
         seed=random_state,
         params={
             "n_qubits": n_qubits,
+            "ansatz_depth": ansatz_depth,
             "max_iter": max_iter,
             "learning_rate": learning_rate,
             "l2": l2,
-            "ansatz": "sin_cos_readout",
+            "perturbation": perturbation,
+            "batch_size": batch_size,
+            "ansatz": "ry_ring_cnot",
+            "simulator": "numpy_statevector",
+            "optimizer": "spsa",
         },
     )
     model = VariationalQuantumClassifier(config)
@@ -239,16 +287,80 @@ def save_validation_metrics(
     validation_metrics.to_parquet(output_path, index=False)
 
 
-def _design_matrix(angles: pd.DataFrame) -> np.ndarray:
-    values = angles.to_numpy(dtype=float)
-    return np.concatenate(
-        [
-            np.ones((len(values), 1)),
-            np.sin(values),
-            np.cos(values),
-        ],
-        axis=1,
+def _encoded_angles(dataset: QMLDataset, *, n_qubits: int) -> np.ndarray:
+    encoded = angle_encode_dataset(
+        dataset,
+        config=AngleEncodingConfig(n_qubits=n_qubits),
     )
+    return encoded.X.to_numpy(dtype=float)
+
+
+def _circuit_loss(
+    angles: np.ndarray,
+    targets: np.ndarray,
+    weights: np.ndarray,
+    l2: float,
+) -> float:
+    scores = _circuit_probabilities(angles, weights)
+    return _binary_cross_entropy(targets, scores) + _l2_penalty(weights, l2)
+
+
+def _circuit_probabilities(angles: np.ndarray, weights: np.ndarray) -> np.ndarray:
+    """Execute the batched VQC circuit and return P(measure q0 = 1)."""
+    if angles.ndim != 2:
+        raise ValueError("VQC angles must be a two-dimensional array.")
+    depth, n_qubits = weights.shape
+    if angles.shape[1] != n_qubits:
+        raise ValueError("VQC angle and circuit qubit counts must match.")
+
+    state = np.zeros((len(angles), 1 << n_qubits), dtype=np.complex128)
+    state[:, 0] = 1.0
+    for qubit in range(n_qubits):
+        state = _apply_ry(state, angles[:, qubit], qubit)
+    for layer in range(depth):
+        for qubit in range(n_qubits):
+            state = _apply_ry(state, weights[layer, qubit], qubit)
+        for control in range(n_qubits):
+            state = _apply_cnot(state, control, (control + 1) % n_qubits)
+
+    basis = np.arange(1 << n_qubits)
+    measured_one = ((basis >> 0) & 1).astype(bool)
+    return np.sum(np.abs(state[:, measured_one]) ** 2, axis=1).real
+
+
+def _apply_ry(
+    state: np.ndarray,
+    angles: np.ndarray | float,
+    qubit: int,
+) -> np.ndarray:
+    """Apply an RY gate to one qubit for every state in a batch."""
+    result = state.copy()
+    basis = np.arange(state.shape[1])
+    zero_indices = basis[(basis & (1 << qubit)) == 0]
+    one_indices = zero_indices | (1 << qubit)
+    theta = np.asarray(angles, dtype=float)
+    if theta.ndim == 0:
+        theta = np.full(len(state), float(theta))
+    cosine = np.cos(theta / 2.0)[:, None]
+    sine = np.sin(theta / 2.0)[:, None]
+    zero = state[:, zero_indices]
+    one = state[:, one_indices]
+    result[:, zero_indices] = cosine * zero - sine * one
+    result[:, one_indices] = sine * zero + cosine * one
+    return result
+
+
+def _apply_cnot(
+    state: np.ndarray,
+    control: int,
+    target: int,
+) -> np.ndarray:
+    """Apply a CNOT by permuting statevector basis amplitudes."""
+    basis = np.arange(state.shape[1])
+    permutation = basis.copy()
+    control_on = (basis & (1 << control)) != 0
+    permutation[control_on] ^= 1 << target
+    return state[:, permutation]
 
 
 def _binary_targets(y: pd.Series, *, require_two_classes: bool) -> np.ndarray:
@@ -263,11 +375,6 @@ def _binary_targets(y: pd.Series, *, require_two_classes: bool) -> np.ndarray:
     return values
 
 
-def _sigmoid(values: np.ndarray) -> np.ndarray:
-    clipped = np.clip(values, -500, 500)
-    return 1.0 / (1.0 + np.exp(-clipped))
-
-
 def _binary_cross_entropy(y_true: np.ndarray, y_score: np.ndarray) -> float:
     eps = 1e-12
     scores = np.clip(y_score, eps, 1 - eps)
@@ -277,4 +384,4 @@ def _binary_cross_entropy(y_true: np.ndarray, y_score: np.ndarray) -> float:
 
 
 def _l2_penalty(weights: np.ndarray, l2: float) -> float:
-    return float(0.5 * l2 * np.sum(weights[1:] ** 2))
+    return float(0.5 * l2 * np.sum(weights**2))

@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -5,6 +6,7 @@ from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
 from market_qml.qml.interface import build_qml_train_validation
 from market_qml.qml.vqc import (
     MODEL_NAME,
+    _circuit_probabilities,
     train_vqc,
     save_predictions,
     save_training_loss,
@@ -50,6 +52,10 @@ def test_train_vqc_outputs_standard_predictions_loss_and_metrics():
     assert result.config.model_name == MODEL_NAME
     assert result.config.seed == 7
     assert result.config.params["n_qubits"] == 8
+    assert result.config.params["ansatz"] == "ry_ring_cnot"
+    assert result.config.params["simulator"] == "numpy_statevector"
+    assert result.config.params["optimizer"] == "spsa"
+    assert result.model.weights_.shape == (1, 8)
     assert list(result.predictions.columns) == REQUIRED_PREDICTION_COLUMNS
     assert result.predictions["model_name"].unique().tolist() == [MODEL_NAME]
     assert result.predictions["split_id"].unique().tolist() == [0]
@@ -90,3 +96,33 @@ def test_train_vqc_rejects_non_binary_targets():
 
     with pytest.raises(ValueError, match="binary targets"):
         train_vqc(build_qml_train_validation(sample, split_id=0))
+
+
+def test_vqc_statevector_ansatz_entangles_feature_qubits_with_readout():
+    weights = np.zeros((1, 2))
+    probabilities = _circuit_probabilities(
+        np.array(
+            [
+                [0.0, 0.0],
+                [0.0, np.pi],
+            ]
+        ),
+        weights,
+    )
+
+    assert probabilities == pytest.approx([0.0, 1.0], abs=1e-12)
+
+
+def test_vqc_training_is_reproducible_for_the_same_seed():
+    data = build_qml_train_validation(_qml_sample(), split_id=0)
+
+    first = train_vqc(data, max_iter=4, random_state=17)
+    second = train_vqc(data, max_iter=4, random_state=17)
+
+    assert first.model.weights_ == pytest.approx(second.model.weights_)
+    assert first.training_loss["loss"].to_numpy() == pytest.approx(
+        second.training_loss["loss"].to_numpy()
+    )
+    assert first.predictions["y_score"].to_numpy() == pytest.approx(
+        second.predictions["y_score"].to_numpy()
+    )

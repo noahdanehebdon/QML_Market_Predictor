@@ -4,11 +4,31 @@ A market prediction platform comparing classical ML, standard QML models, and a 
 
 ## Project Status
 
-Milestones 1 and 2 of 5 are complete.
+Milestones 1 through 3 of 5 are complete. Milestone 4 is in progress through
+the variational quantum classifier (VQC) baseline.
 
-Milestone 1 implements the core data-ingestion layer for market prices, macroeconomic data, SEC filings metadata, and SEC company fundamentals. Milestone 2 builds the canonical modeling feature table, forward-return labels, modeling dataset constructor, and leakage-focused tests. Generated raw, processed, feature, and label data files are stored locally and excluded from version control.
+Milestone 1 implements the core data-ingestion layer for market prices,
+macroeconomic data, SEC filings metadata, and SEC company fundamentals.
+Milestone 2 builds the canonical modeling feature table, forward-return labels,
+modeling dataset constructor, and leakage-focused tests. Milestone 3 adds
+leakage-safe preprocessing, classical classification and ranking baselines,
+walk-forward evaluation, portfolio simulation, risk metrics, and experiment
+tracking. Milestone 4 currently includes train-only PCA compression, reproducible
+QML sampling, shared model interfaces, angle encoding, and a statevector-simulated
+VQC. Generated data and model artifacts are stored locally and excluded from
+version control.
 
 ## Local Environment
+
+Create and activate a Python 3.10 or newer virtual environment, then install the
+project in editable mode:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
 
 Create a local `.env` file from `.env.example` and fill in your own API credentials:
 
@@ -125,6 +145,36 @@ Run the full test suite with:
 python -m pytest
 ```
 
+Pytest is configured for the repository's `src` layout, so this command also
+works directly from a checkout before an editable install.
+
+## Milestone 3: Classical Backtesting
+
+Milestone 3 provides chronological walk-forward splits, train-only preprocessing,
+classification and regression/ranking baselines, standard prediction tables,
+classification and ranking metrics, portfolio simulation, transaction costs,
+risk metrics, MLflow tracking, and task-aware baseline reports.
+
+Run a small reproducible backtest with:
+
+```powershell
+python -m scripts.run_walk_forward_backtest --max-splits 1 --disable-mlflow
+```
+
+## Milestone 4: QML Experiments
+
+The current VQC uses PCA-compressed inputs and RY angle encoding. A local exact
+statevector simulator executes trainable RY layers separated by ring-CNOT
+entanglers, and SPSA optimizes the circuit parameters. The walk-forward runner
+saves standard predictions together with per-iteration training loss and
+validation diagnostics.
+
+Run a one-split VQC smoke backtest with:
+
+```powershell
+python -m scripts.run_walk_forward_backtest --models vqc --max-splits 1 --disable-mlflow
+```
+
 The ingestion test suite includes mock API responses for Alpaca, BLS, Federal Reserve DDP, and SEC EDGAR so tests can run without live API calls or real API keys.
 
 ## Data Sources and Disclaimers
@@ -171,7 +221,7 @@ This project is not sponsored, endorsed, certified, or approved by the U.S. Secu
 
 Source: U.S. Securities and Exchange Commission EDGAR.
 
-## Next Steps 
+## Next Steps
 
 The best next confidence upgrades would be:
 - Add GitHub Actions so tests run automatically on every PR.
