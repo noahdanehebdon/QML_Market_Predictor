@@ -24,6 +24,8 @@ DEFAULT_LEARNING_RATE = 0.1
 DEFAULT_L2 = 0.001
 DEFAULT_PERTURBATION = 0.1
 DEFAULT_BATCH_SIZE = 32
+DEFAULT_OPTIMIZER = "spsa"
+SUPPORTED_OPTIMIZERS = {"spsa", "finite_difference"}
 DEFAULT_RANDOM_STATE = 42
 DEFAULT_MODEL_PATH = Path("artifacts/models/vqc.pkl")
 DEFAULT_PREDICTION_PATH = Path("data/processed/predictions_vqc.parquet")
@@ -66,6 +68,7 @@ class VariationalQuantumClassifier(BaseQMLModel):
             config.params.get("perturbation", DEFAULT_PERTURBATION)
         )
         self.batch_size = int(config.params.get("batch_size", DEFAULT_BATCH_SIZE))
+        self.optimizer = str(config.params.get("optimizer", DEFAULT_OPTIMIZER))
         self.weights_: np.ndarray | None = None
         self.loss_history_: list[float] = []
 
@@ -90,23 +93,14 @@ class VariationalQuantumClassifier(BaseQMLModel):
             )
             batch_angles = angles[batch_indices]
             batch_targets = y[batch_indices]
-            direction = rng.choice((-1.0, 1.0), size=weights.shape)
-            loss_plus = _circuit_loss(
-                batch_angles,
-                batch_targets,
-                weights + self.perturbation * direction,
-                self.l2,
-            )
-            loss_minus = _circuit_loss(
-                batch_angles,
-                batch_targets,
-                weights - self.perturbation * direction,
-                self.l2,
-            )
-            gradient = (
-                (loss_plus - loss_minus)
-                / (2.0 * self.perturbation)
-                * direction
+            gradient = _estimate_gradient(
+                optimizer=self.optimizer,
+                angles=batch_angles,
+                targets=batch_targets,
+                weights=weights,
+                l2=self.l2,
+                perturbation=self.perturbation,
+                rng=rng,
             )
             weights -= self.learning_rate * gradient
             # Record a coherent post-update objective on the same mini-batch.
@@ -145,6 +139,11 @@ class VariationalQuantumClassifier(BaseQMLModel):
             raise ValueError("perturbation must be positive.")
         if self.batch_size <= 0:
             raise ValueError("batch_size must be positive.")
+        if self.optimizer not in SUPPORTED_OPTIMIZERS:
+            raise ValueError(
+                "optimizer must be one of: "
+                + ", ".join(sorted(SUPPORTED_OPTIMIZERS))
+            )
 
 
 def train_vqc(
@@ -159,6 +158,7 @@ def train_vqc(
     l2: float = DEFAULT_L2,
     perturbation: float = DEFAULT_PERTURBATION,
     batch_size: int = DEFAULT_BATCH_SIZE,
+    optimizer: str = DEFAULT_OPTIMIZER,
     random_state: int = DEFAULT_RANDOM_STATE,
 ) -> VQCResult:
     """Train a VQC baseline on one QML train/validation split."""
@@ -176,7 +176,7 @@ def train_vqc(
             "batch_size": batch_size,
             "ansatz": "ry_ring_cnot",
             "simulator": "numpy_statevector",
-            "optimizer": "spsa",
+            "optimizer": optimizer,
         },
     )
     model = VariationalQuantumClassifier(config)
@@ -303,6 +303,58 @@ def _circuit_loss(
 ) -> float:
     scores = _circuit_probabilities(angles, weights)
     return _binary_cross_entropy(targets, scores) + _l2_penalty(weights, l2)
+
+
+def _estimate_gradient(
+    *,
+    optimizer: str,
+    angles: np.ndarray,
+    targets: np.ndarray,
+    weights: np.ndarray,
+    l2: float,
+    perturbation: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Estimate the circuit-objective gradient for a supported optimizer."""
+    if optimizer == "spsa":
+        direction = rng.choice((-1.0, 1.0), size=weights.shape)
+        loss_plus = _circuit_loss(
+            angles,
+            targets,
+            weights + perturbation * direction,
+            l2,
+        )
+        loss_minus = _circuit_loss(
+            angles,
+            targets,
+            weights - perturbation * direction,
+            l2,
+        )
+        return (loss_plus - loss_minus) / (2.0 * perturbation) * direction
+
+    if optimizer == "finite_difference":
+        gradient = np.zeros_like(weights)
+        for index in np.ndindex(weights.shape):
+            offset = np.zeros_like(weights)
+            offset[index] = perturbation
+            loss_plus = _circuit_loss(
+                angles,
+                targets,
+                weights + offset,
+                l2,
+            )
+            loss_minus = _circuit_loss(
+                angles,
+                targets,
+                weights - offset,
+                l2,
+            )
+            gradient[index] = (loss_plus - loss_minus) / (2.0 * perturbation)
+        return gradient
+
+    raise ValueError(
+        "optimizer must be one of: " + ", ".join(sorted(SUPPORTED_OPTIMIZERS))
+    )
 
 
 def _circuit_probabilities(angles: np.ndarray, weights: np.ndarray) -> np.ndarray:
