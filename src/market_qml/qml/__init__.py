@@ -33,6 +33,12 @@ from market_qml.qml.vqc import (
     VariationalQuantumClassifier,
     train_vqc,
 )
+from market_qml.qml.qsvm import (
+    MODEL_NAME as QSVM_MODEL_NAME,
+    QSVMResult,
+    QuantumKernelSVM,
+    train_qsvm,
+)
 
 __all__ = [
     "ANGLE_MAX",
@@ -44,10 +50,13 @@ __all__ = [
     "QMLModelConfig",
     "QMLModelResult",
     "QMLTrainValidation",
+    "QSVM_MODEL_NAME",
+    "QSVMResult",
     "QuantumFeatureMapConfig",
     "QuantumFeatureMapResult",
     "QuantumFeatureMapSplitResult",
     "QuantumKernelFeatureMap",
+    "QuantumKernelSVM",
     "VQC_MODEL_NAME",
     "VQCResult",
     "VariationalQuantumClassifier",
@@ -60,4 +69,5 @@ __all__ = [
     "save_feature_map_split",
     "scale_value_to_angle",
     "train_vqc",
+    "train_qsvm",
 ]
