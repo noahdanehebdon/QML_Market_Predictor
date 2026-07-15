@@ -161,6 +161,33 @@ Run a small reproducible backtest with:
 python -m scripts.run_walk_forward_backtest --max-splits 1 --disable-mlflow
 ```
 
+The default label workflow also produces a volatility-normalized continuous
+target and a 0.5% neutral-zone classification target. Walk-forward splits use a
+five-trading-day purge configured in `configs/backtest.yaml`, preventing labels
+at the end of training from overlapping the validation period. The canonical
+feature table includes same-date cross-sectional ranks, and the normalized
+target can be evaluated with:
+
+```powershell
+python -m scripts.run_walk_forward_backtest `
+  --models vol_normalized_gradient_boosting_regressor `
+  --disable-mlflow
+```
+
+For the stronger classical selection baseline, run:
+
+```powershell
+python -m scripts.run_walk_forward_backtest `
+  --models gradient_boosting_regressor tuned_gradient_boosting_regressor `
+  --transaction-cost-bps 5 `
+  --disable-mlflow
+```
+
+The tuned model ranks candidate feature counts and boosting parameters on the
+chronological tail of each outer training window. It never selects against the
+outer validation period, and writes every trial to
+`selection_diagnostics.parquet`.
+
 ## Milestone 4: QML Experiments
 
 The current VQC uses PCA-compressed inputs and RY angle encoding. A local exact
@@ -223,6 +250,21 @@ python -m scripts.analyze_qcnn_stability
 
 See [docs/qcnn_stability.md](docs/qcnn_stability.md) for gradient diagnostics,
 failure thresholds, the selected stable configuration, and known limitations.
+
+Run the controlled six-split QML/classical comparison with:
+
+```powershell
+python scripts/compare_qml_models.py
+```
+
+The comparison now rebuilds eight qubit inputs per outer split from the
+classical tuner's training-only selected features on the expanded universe. It
+also tunes neighbor interaction re-uploading exclusively inside training and
+saves the source-feature/qubit audit manifest alongside the comparison report.
+
+See [docs/qml_model_comparison.md](docs/qml_model_comparison.md) for the
+training-only QSVM selection protocol, saved audit artifacts, confidence
+intervals, and the initial model-selection conclusion.
 
 The ingestion test suite includes mock API responses for Alpaca, BLS, Federal Reserve DDP, and SEC EDGAR so tests can run without live API calls or real API keys.
 

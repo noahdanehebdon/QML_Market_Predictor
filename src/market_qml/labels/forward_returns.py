@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
@@ -18,6 +19,8 @@ def build_forward_return_labels(
     horizon: int = DEFAULT_LABEL_HORIZON,
     benchmark_symbol: str = DEFAULT_BENCHMARK_SYMBOL,
     drop_missing: bool = True,
+    neutral_threshold: float = 0.0,
+    volatility_window: int = 20,
 ) -> pd.DataFrame:
     """Create forward excess return labels from close prices.
 
@@ -33,6 +36,10 @@ def build_forward_return_labels(
 
     if horizon <= 0:
         raise ValueError(f"Label horizon must be positive: {horizon}")
+    if neutral_threshold < 0:
+        raise ValueError("Neutral threshold cannot be negative.")
+    if volatility_window <= 1:
+        raise ValueError("Volatility window must be greater than one.")
 
     benchmark_symbol = benchmark_symbol.strip().upper()
     if not benchmark_symbol:
@@ -57,6 +64,27 @@ def build_forward_return_labels(
     benchmark_return_column = f"{benchmark_symbol.lower()}_forward_return_{horizon}d"
     excess_return_column = f"forward_excess_return_{horizon}d"
     binary_label_column = f"outperform_{benchmark_symbol.lower()}_{horizon}d"
+    neutral_label_column = f"outperform_{benchmark_symbol.lower()}_{horizon}d_neutral"
+    normalized_return_column = f"vol_normalized_excess_return_{horizon}d"
+
+    labels["_daily_return"] = labels.groupby("symbol", sort=False)["close"].pct_change(
+        fill_method=None
+    )
+    benchmark_daily = labels.loc[
+        labels["symbol"] == benchmark_symbol, ["date", "_daily_return"]
+    ].rename(columns={"_daily_return": "_benchmark_daily_return"})
+    labels = labels.merge(benchmark_daily, on="date", how="left")
+    labels["_daily_excess_return"] = (
+        labels["_daily_return"] - labels["_benchmark_daily_return"]
+    )
+    labels["_excess_volatility"] = labels.groupby("symbol", sort=False)[
+        "_daily_excess_return"
+    ].transform(
+        lambda values: values.rolling(
+            volatility_window,
+            min_periods=max(2, volatility_window // 2),
+        ).std()
+    )
 
     labels[forward_return_column] = labels.groupby("symbol", sort=False)[
         "close"
@@ -76,6 +104,13 @@ def build_forward_return_labels(
     result[excess_return_column] = (
         result[forward_return_column] - result[benchmark_return_column]
     )
+    volatility = labels[["symbol", "date", "_excess_volatility"]]
+    result = result.merge(volatility, on=["symbol", "date"], how="left")
+    denominator = result["_excess_volatility"] * np.sqrt(horizon)
+    result[normalized_return_column] = result[excess_return_column] / denominator
+    result[normalized_return_column] = result[normalized_return_column].replace(
+        [np.inf, -np.inf], np.nan
+    )
 
     result[binary_label_column] = pd.NA
     valid_excess = result[excess_return_column].notna()
@@ -83,6 +118,14 @@ def build_forward_return_labels(
         result.loc[valid_excess, excess_return_column] > 0
     ).astype("int64")
     result[binary_label_column] = result[binary_label_column].astype("Int64")
+    result[neutral_label_column] = pd.NA
+    decisive = valid_excess & (
+        result[excess_return_column].abs() > neutral_threshold
+    )
+    result.loc[decisive, neutral_label_column] = (
+        result.loc[decisive, excess_return_column] > neutral_threshold
+    ).astype("int64")
+    result[neutral_label_column] = result[neutral_label_column].astype("Int64")
 
     ordered_columns = [
         "symbol",
@@ -91,7 +134,9 @@ def build_forward_return_labels(
         forward_return_column,
         benchmark_return_column,
         excess_return_column,
+        normalized_return_column,
         binary_label_column,
+        neutral_label_column,
     ]
     result = result[ordered_columns].sort_values(["symbol", "date"]).reset_index(drop=True)
 
@@ -115,6 +160,8 @@ def build_forward_return_label_table(
     horizon: int = DEFAULT_LABEL_HORIZON,
     benchmark_symbol: str = DEFAULT_BENCHMARK_SYMBOL,
     drop_missing: bool = True,
+    neutral_threshold: float = 0.0,
+    volatility_window: int = 20,
 ) -> pd.DataFrame:
     """Load prices, build forward return labels, save, and return them."""
     price_path = Path(price_path)
@@ -129,6 +176,8 @@ def build_forward_return_label_table(
         horizon=horizon,
         benchmark_symbol=benchmark_symbol,
         drop_missing=drop_missing,
+        neutral_threshold=neutral_threshold,
+        volatility_window=volatility_window,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

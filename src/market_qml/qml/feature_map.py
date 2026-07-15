@@ -25,6 +25,7 @@ class QuantumFeatureMapConfig:
     repetitions: int = DEFAULT_REPETITIONS
     backend: str = BACKEND_NAME
     entanglement: str = "ring"
+    interaction_scale: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,7 @@ class QuantumKernelFeatureMap:
         encoded = angle_encode_dataset(
             dataset,
             config=AngleEncodingConfig(n_qubits=self.config.n_qubits),
+            feature_columns=list(dataset.X.columns),
         )
         angles = encoded.X.to_numpy(dtype=float)
         states = zero_state(len(angles), self.config.n_qubits)
@@ -67,6 +69,15 @@ class QuantumKernelFeatureMap:
                 states = apply_ry(states, angles[:, qubit], qubit)
             for first, second in _ring_edges(self.config.n_qubits):
                 states = apply_cz(states, first, second)
+            if self.config.interaction_scale:
+                for qubit in range(self.config.n_qubits):
+                    neighbor = (qubit + 1) % self.config.n_qubits
+                    interaction = (
+                        self.config.interaction_scale
+                        * angles[:, qubit]
+                        * angles[:, neighbor]
+                    )
+                    states = apply_ry(states, interaction, qubit)
 
         return QuantumFeatureMapResult(
             states=states,
@@ -136,6 +147,19 @@ def feature_map_operations(config: QuantumFeatureMapConfig) -> pd.DataFrame:
                 }
             )
             operation_index += 1
+        if config.interaction_scale:
+            for qubit in range(config.n_qubits):
+                neighbor = (qubit + 1) % config.n_qubits
+                rows.append(
+                    {
+                        "operation_index": operation_index,
+                        "repetition": repetition,
+                        "gate": "ry_interaction",
+                        "qubits": str(qubit),
+                        "parameter": f"{config.interaction_scale}*theta_{qubit:02d}*theta_{neighbor:02d}",
+                    }
+                )
+                operation_index += 1
     return pd.DataFrame(rows)
 
 
@@ -176,6 +200,8 @@ def _validate_config(config: QuantumFeatureMapConfig) -> None:
         raise ValueError(f"Unsupported quantum feature-map backend: {config.backend}.")
     if config.entanglement != "ring":
         raise ValueError("entanglement must be 'ring'.")
+    if config.interaction_scale < 0:
+        raise ValueError("interaction_scale must be non-negative.")
 
 
 def _ring_edges(n_qubits: int) -> list[tuple[int, int]]:
