@@ -88,6 +88,34 @@ def test_build_forward_return_labels_requires_positive_horizon():
         build_forward_return_labels(_prices(), horizon=0)
 
 
+def test_build_forward_return_labels_adds_neutral_zone_target():
+    result = build_forward_return_labels(
+        _prices(),
+        horizon=2,
+        neutral_threshold=0.10,
+        drop_missing=False,
+    )
+    first_date = result["date"] == pd.Timestamp("2024-01-01")
+    aapl = result[first_date & (result["symbol"] == "AAPL")].iloc[0]
+    msft = result[first_date & (result["symbol"] == "MSFT")].iloc[0]
+
+    assert aapl["outperform_spy_2d_neutral"] == 1
+    assert pd.isna(msft["outperform_spy_2d_neutral"])
+
+
+def test_build_forward_return_labels_adds_past_only_volatility_normalized_target():
+    result = build_forward_return_labels(
+        _prices(),
+        horizon=1,
+        volatility_window=3,
+        drop_missing=False,
+    )
+
+    assert "vol_normalized_excess_return_1d" in result.columns
+    first_aapl = result[result["symbol"] == "AAPL"].iloc[0]
+    assert pd.isna(first_aapl["vol_normalized_excess_return_1d"])
+
+
 def test_build_forward_return_label_table_saves_output(tmp_path):
     price_path = tmp_path / "prices.parquet"
     output_path = tmp_path / "forward_return_labels.parquet"

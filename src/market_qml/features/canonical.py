@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from market_qml.features.cross_sectional import add_cross_sectional_features
+
 
 REQUIRED_KEY_COLUMNS = {"symbol", "date"}
 LABEL_COLUMN_MARKERS = (
@@ -16,7 +18,11 @@ LABEL_COLUMN_MARKERS = (
 )
 
 
-def build_canonical_features(features: pd.DataFrame) -> pd.DataFrame:
+def build_canonical_features(
+    features: pd.DataFrame,
+    *,
+    add_cross_sectional: bool = True,
+) -> pd.DataFrame:
     """Validate and sort the canonical feature table keyed by symbol/date."""
     missing_columns = REQUIRED_KEY_COLUMNS - set(features.columns)
     if missing_columns:
@@ -38,6 +44,9 @@ def build_canonical_features(features: pd.DataFrame) -> pd.DataFrame:
 
     if result["date"].isna().any():
         raise ValueError("Feature table contains invalid dates.")
+
+    if add_cross_sectional:
+        result = add_cross_sectional_features(result)
 
     duplicate_keys = result.duplicated(subset=["symbol", "date"], keep=False)
     if duplicate_keys.any():

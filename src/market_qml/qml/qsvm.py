@@ -53,10 +53,12 @@ class QuantumKernelSVM(BaseQMLModel):
         self.repetitions = int(
             config.params.get("repetitions", DEFAULT_REPETITIONS)
         )
+        self.interaction_scale = float(config.params.get("interaction_scale", 0.0))
         self.feature_map = QuantumKernelFeatureMap(
             QuantumFeatureMapConfig(
                 n_qubits=self.n_qubits,
                 repetitions=self.repetitions,
+                interaction_scale=self.interaction_scale,
             )
         )
         self.estimator_: SVC | None = None

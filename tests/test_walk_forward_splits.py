@@ -90,7 +90,24 @@ def test_generate_walk_forward_splits_returns_empty_when_history_is_too_short():
         "validation_days",
         "train_rows",
         "validation_rows",
+        "purge_days",
     ]
+
+
+def test_generate_walk_forward_splits_purges_overlapping_training_labels():
+    result = generate_walk_forward_splits(
+        _metadata(pd.date_range("2024-01-01", periods=14, freq="D")),
+        train_window_days=4,
+        validation_window_days=2,
+        step_days=2,
+        purge_days=2,
+    )
+
+    first = result.iloc[0]
+    assert first["train_start_date"] == pd.Timestamp("2024-01-01")
+    assert first["train_end_date"] == pd.Timestamp("2024-01-04")
+    assert first["validation_start_date"] == pd.Timestamp("2024-01-07")
+    assert first["purge_days"] == 2
 
 
 def test_generate_walk_forward_splits_validates_inputs():

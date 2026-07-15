@@ -10,3 +10,5 @@ walk_forward:
   train_window_days: 756
   validation_window_days: 126
   test_window_days: 63
+  # Remove training labels whose five-day outcome overlaps validation.
+  purge_days: 5
