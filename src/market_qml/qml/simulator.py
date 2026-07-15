@@ -64,6 +64,14 @@ def apply_cz(state: np.ndarray, first: int, second: int) -> np.ndarray:
     return result
 
 
+def expectation_z(state: np.ndarray, qubit: int) -> np.ndarray:
+    """Return the Pauli-Z expectation of one qubit for every batched state."""
+    _validate_qubit(state, qubit)
+    basis = np.arange(state.shape[1])
+    signs = np.where((basis & (1 << qubit)) == 0, 1.0, -1.0)
+    return np.sum(np.abs(state) ** 2 * signs[None, :], axis=1).real
+
+
 def _validate_two_qubits(state: np.ndarray, first: int, second: int) -> None:
     _validate_qubit(state, first)
     _validate_qubit(state, second)

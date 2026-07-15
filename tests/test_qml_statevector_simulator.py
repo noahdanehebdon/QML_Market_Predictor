@@ -1,7 +1,13 @@
 import numpy as np
 import pytest
 
-from market_qml.qml.simulator import apply_cnot, apply_cz, apply_ry, zero_state
+from market_qml.qml.simulator import (
+    apply_cnot,
+    apply_cz,
+    apply_ry,
+    expectation_z,
+    zero_state,
+)
 
 
 def test_statevector_gates_preserve_norm_and_apply_expected_basis_changes():
@@ -14,6 +20,8 @@ def test_statevector_gates_preserve_norm_and_apply_expected_basis_changes():
 
     phased = apply_cz(state, 0, 1)
     assert phased[0] == pytest.approx([0.0, 0.0, 0.0, -1.0], abs=1e-12)
+    assert expectation_z(phased, 0) == pytest.approx([-1.0])
+    assert expectation_z(phased, 1) == pytest.approx([-1.0])
 
 
 def test_statevector_backend_validates_gate_inputs():
