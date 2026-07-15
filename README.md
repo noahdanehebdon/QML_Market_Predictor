@@ -215,6 +215,15 @@ python -m scripts.train_qcnn_classifier
 See [docs/qcnn_classifier.md](docs/qcnn_classifier.md) for angle encoding,
 two-qubit expectation readout, SPSA training, saved metrics, and initial results.
 
+Run the reproducible QCNN stability grid with:
+
+```powershell
+python -m scripts.analyze_qcnn_stability
+```
+
+See [docs/qcnn_stability.md](docs/qcnn_stability.md) for gradient diagnostics,
+failure thresholds, the selected stable configuration, and known limitations.
+
 The ingestion test suite includes mock API responses for Alpaca, BLS, Federal Reserve DDP, and SEC EDGAR so tests can run without live API calls or real API keys.
 
 ## Data Sources and Disclaimers
