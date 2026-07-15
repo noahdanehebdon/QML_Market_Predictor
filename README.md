@@ -206,6 +206,15 @@ The reusable eight-qubit QCNN convolution and pooling architecture is documented
 in [docs/qcnn_blocks.md](docs/qcnn_blocks.md), including its `8 → 4 → 2`
 active-qubit flow and complete parameter layout.
 
+Train the first complete QCNN classifier with:
+
+```powershell
+python -m scripts.train_qcnn_classifier
+```
+
+See [docs/qcnn_classifier.md](docs/qcnn_classifier.md) for angle encoding,
+two-qubit expectation readout, SPSA training, saved metrics, and initial results.
+
 The ingestion test suite includes mock API responses for Alpaca, BLS, Federal Reserve DDP, and SEC EDGAR so tests can run without live API calls or real API keys.
 
 ## Data Sources and Disclaimers
