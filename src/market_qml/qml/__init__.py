@@ -47,6 +47,12 @@ from market_qml.qml.qcnn_blocks import (
     pooling_block,
     two_qubit_convolution,
 )
+from market_qml.qml.qcnn import (
+    MODEL_NAME as QCNN_MODEL_NAME,
+    QCNNResult,
+    QuantumConvolutionalClassifier,
+    train_qcnn,
+)
 
 __all__ = [
     "ANGLE_MAX",
@@ -59,6 +65,8 @@ __all__ = [
     "QMLModelResult",
     "QMLTrainValidation",
     "QCNNArchitecture",
+    "QCNN_MODEL_NAME",
+    "QCNNResult",
     "QSVM_MODEL_NAME",
     "QSVMResult",
     "QuantumFeatureMapConfig",
@@ -66,6 +74,7 @@ __all__ = [
     "QuantumFeatureMapSplitResult",
     "QuantumKernelFeatureMap",
     "QuantumKernelSVM",
+    "QuantumConvolutionalClassifier",
     "VQC_MODEL_NAME",
     "VQCResult",
     "VariationalQuantumClassifier",
@@ -83,5 +92,6 @@ __all__ = [
     "scale_value_to_angle",
     "train_vqc",
     "train_qsvm",
+    "train_qcnn",
     "two_qubit_convolution",
 ]
