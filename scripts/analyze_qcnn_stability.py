@@ -1,4 +1,4 @@
-"""Train the eight-qubit QCNN classifier on a reduced QML sample."""
+"""Run a reproducible QCNN initialization, learning-rate, and sample-size grid."""
 
 from __future__ import annotations
 
@@ -8,64 +8,74 @@ from pathlib import Path
 import pandas as pd
 
 from market_qml.qml.interface import build_qml_train_validation
-from market_qml.qml.qcnn import save_qcnn_result, train_qcnn
+from market_qml.qml.qcnn_stability import (
+    evaluate_qcnn_stability,
+    save_qcnn_stability_result,
+)
 
 
 DEFAULT_SAMPLE_PATH = Path("data/features/qml_sample_grouped_smoke.parquet")
 DEFAULT_LABEL_PATH = Path("data/labels/forward_return_labels.parquet")
-DEFAULT_OUTPUT_DIR = Path("artifacts/qml/qcnn")
+DEFAULT_OUTPUT_DIR = Path("reports/qcnn_stability")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Train the eight-qubit QCNN classifier."
-    )
+    parser = argparse.ArgumentParser(description="Analyze QCNN training stability.")
     parser.add_argument("--sample", type=Path, default=DEFAULT_SAMPLE_PATH)
     parser.add_argument("--labels", type=Path, default=DEFAULT_LABEL_PATH)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--split-id", type=int, default=0)
-    parser.add_argument("--max-iter", type=int, default=50)
-    parser.add_argument("--learning-rate", type=float, default=0.1)
-    parser.add_argument("--perturbation", type=float, default=0.1)
+    parser.add_argument(
+        "--initialization-scales",
+        type=float,
+        nargs="+",
+        default=[0.01, 0.1],
+    )
+    parser.add_argument(
+        "--learning-rates",
+        type=float,
+        nargs="+",
+        default=[0.02, 0.05, 0.1],
+    )
+    parser.add_argument(
+        "--train-sample-sizes",
+        type=int,
+        nargs="+",
+        default=[128, 512],
+    )
+    parser.add_argument("--max-iter", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--l2", type=float, default=0.001)
-    parser.add_argument("--initialization-scale", type=float, default=0.1)
     parser.add_argument("--random-state", type=int, default=42)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    sample = _attach_return_metadata(
+    sample = _attach_returns(
         pd.read_parquet(args.sample),
         pd.read_parquet(args.labels),
     )
-    feature_columns = _qml_feature_columns(sample)
     data = build_qml_train_validation(
         sample,
         split_id=args.split_id,
-        feature_columns=feature_columns,
+        feature_columns=_feature_columns(sample),
     )
-    result = train_qcnn(
+    result = evaluate_qcnn_stability(
         data,
+        initialization_scales=args.initialization_scales,
+        learning_rates=args.learning_rates,
+        train_sample_sizes=args.train_sample_sizes,
         max_iter=args.max_iter,
-        learning_rate=args.learning_rate,
-        perturbation=args.perturbation,
         batch_size=args.batch_size,
-        l2=args.l2,
-        initialization_scale=args.initialization_scale,
         random_state=args.random_state,
     )
-    paths = save_qcnn_result(result, output_dir=args.output_dir)
-    print(
-        f"Trained QCNN on {len(data.train.y)} rows and predicted "
-        f"{len(data.validation.y)} validation rows."
-    )
+    paths = save_qcnn_stability_result(result, output_dir=args.output_dir)
+    print(f"Selected stable QCNN configuration: {result.best_config['config_id']}")
     for name, path in paths.items():
         print(f"{name}: {path}")
 
 
-def _attach_return_metadata(sample: pd.DataFrame, labels: pd.DataFrame) -> pd.DataFrame:
+def _attach_returns(sample: pd.DataFrame, labels: pd.DataFrame) -> pd.DataFrame:
     columns = [
         "symbol",
         "date",
@@ -90,7 +100,7 @@ def _attach_return_metadata(sample: pd.DataFrame, labels: pd.DataFrame) -> pd.Da
     )
 
 
-def _qml_feature_columns(sample: pd.DataFrame) -> list[str]:
+def _feature_columns(sample: pd.DataFrame) -> list[str]:
     columns = sorted(
         column
         for column in sample.columns
