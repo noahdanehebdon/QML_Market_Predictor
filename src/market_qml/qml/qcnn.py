@@ -29,6 +29,7 @@ DEFAULT_LEARNING_RATE = 0.1
 DEFAULT_PERTURBATION = 0.1
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_L2 = 0.001
+DEFAULT_INITIALIZATION_SCALE = 0.1
 DEFAULT_RANDOM_STATE = 42
 DEFAULT_OUTPUT_DIR = Path("artifacts/qml/qcnn")
 
@@ -60,9 +61,13 @@ class QuantumConvolutionalClassifier(BaseQMLModel):
         )
         self.batch_size = int(config.params.get("batch_size", DEFAULT_BATCH_SIZE))
         self.l2 = float(config.params.get("l2", DEFAULT_L2))
+        self.initialization_scale = float(
+            config.params.get("initialization_scale", DEFAULT_INITIALIZATION_SCALE)
+        )
         self.architecture: QCNNArchitecture = build_qcnn_architecture(self.n_qubits)
         self.weights_: np.ndarray | None = None
         self.loss_history_: list[float] = []
+        self.optimization_history_: list[dict[str, float | int]] = []
 
     def fit(self, dataset: QMLDataset) -> "QuantumConvolutionalClassifier":
         """Fit the 30 QCNN parameters on binary labels with SPSA updates."""
@@ -72,10 +77,12 @@ class QuantumConvolutionalClassifier(BaseQMLModel):
         weights = initialize_qcnn_parameters(
             self.architecture,
             random_state=self.seed,
+            scale=self.initialization_scale,
         )
         rng = np.random.default_rng(self.seed + 1)
         losses = []
-        for _ in range(self.max_iter):
+        optimization_history = []
+        for iteration in range(1, self.max_iter + 1):
             indices = rng.choice(
                 len(targets),
                 size=min(self.batch_size, len(targets)),
@@ -104,18 +111,30 @@ class QuantumConvolutionalClassifier(BaseQMLModel):
                 * direction
             )
             weights -= self.learning_rate * gradient
-            losses.append(
-                _qcnn_loss(
-                    batch_angles,
-                    batch_targets,
-                    weights,
-                    self.architecture,
-                    self.l2,
-                )
+            post_update_loss = _qcnn_loss(
+                batch_angles,
+                batch_targets,
+                weights,
+                self.architecture,
+                self.l2,
+            )
+            losses.append(post_update_loss)
+            optimization_history.append(
+                {
+                    "iteration": iteration,
+                    "loss": post_update_loss,
+                    "gradient_norm": float(np.linalg.norm(gradient)),
+                    "step_norm": float(
+                        self.learning_rate * np.linalg.norm(gradient)
+                    ),
+                    "parameter_norm": float(np.linalg.norm(weights)),
+                    "batch_rows": len(indices),
+                }
             )
 
         self.weights_ = weights
         self.loss_history_ = losses
+        self.optimization_history_ = optimization_history
         return self
 
     def predict_scores(self, dataset: QMLDataset) -> list[float]:
@@ -142,6 +161,8 @@ class QuantumConvolutionalClassifier(BaseQMLModel):
             raise ValueError("batch_size must be positive.")
         if self.l2 < 0:
             raise ValueError("l2 must be non-negative.")
+        if self.initialization_scale <= 0:
+            raise ValueError("initialization_scale must be positive.")
 
 
 def train_qcnn(
@@ -154,6 +175,7 @@ def train_qcnn(
     perturbation: float = DEFAULT_PERTURBATION,
     batch_size: int = DEFAULT_BATCH_SIZE,
     l2: float = DEFAULT_L2,
+    initialization_scale: float = DEFAULT_INITIALIZATION_SCALE,
     random_state: int = DEFAULT_RANDOM_STATE,
 ) -> QCNNResult:
     """Train the QCNN and build standard validation outputs."""
@@ -168,6 +190,7 @@ def train_qcnn(
             "perturbation": perturbation,
             "batch_size": batch_size,
             "l2": l2,
+            "initialization_scale": initialization_scale,
             "optimizer": "spsa",
             "encoding": "ry_angle",
             "readout_qubits": [0, 4],
@@ -198,14 +221,9 @@ def train_qcnn(
         split_id=split_id,
         sample_role="validation",
     )
-    training_loss = pd.DataFrame(
-        {
-            "model_name": model_name,
-            "split_id": split_id,
-            "iteration": np.arange(1, len(model.loss_history_) + 1),
-            "loss": model.loss_history_,
-        }
-    )
+    training_loss = pd.DataFrame(model.optimization_history_)
+    training_loss.insert(0, "split_id", split_id)
+    training_loss.insert(0, "model_name", model_name)
     return QCNNResult(
         model=model,
         predictions=predictions,

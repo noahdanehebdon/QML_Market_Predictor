@@ -47,6 +47,8 @@ def test_qcnn_trains_and_outputs_predictions_loss_and_metrics():
     assert result.predictions["y_score"].between(0, 1).all()
     assert result.training_loss["iteration"].tolist() == [1, 2, 3]
     assert result.training_loss["loss"].notna().all()
+    assert result.training_loss["gradient_norm"].notna().all()
+    assert result.training_loss["parameter_norm"].notna().all()
     assert result.training_metrics["sample_role"].tolist() == ["train"]
     assert result.validation_metrics["sample_role"].tolist() == ["validation"]
     assert result.validation_metrics["rows"].tolist() == [4]
