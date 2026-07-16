@@ -18,6 +18,11 @@ dependencies = [
     "mlflow>=2.14"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.12,<1",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

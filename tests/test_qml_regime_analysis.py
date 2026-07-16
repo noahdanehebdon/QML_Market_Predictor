@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 from market_qml.qml.regime_analysis import analyze_predictions_by_regime, save_regime_analysis
