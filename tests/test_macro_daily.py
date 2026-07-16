@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pandas as pd
 
 from scripts.build_macro_daily import build_macro_daily
