@@ -113,6 +113,7 @@ python -m scripts.build_macro_features
 python -m scripts.build_fundamental_features
 python -m scripts.build_filing_event_features
 python -m scripts.build_feature_table
+python -m scripts.build_market_regimes
 python -m scripts.build_forward_return_labels
 ```
 
