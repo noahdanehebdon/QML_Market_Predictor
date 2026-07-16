@@ -1,0 +1,45 @@
+# Each terminal command runs these existing Python modules in order. Arguments
+# are passed directly to the module and can be adjusted for local experiments.
+commands:
+  ingest-prices:
+    steps:
+      - module: scripts.ingest_alpaca_prices
+
+  ingest-macro:
+    steps:
+      - module: scripts.pull_macro
+        args: ["--config", "configs/data_sources.yaml"]
+      - module: scripts.build_macro_daily
+
+  ingest-sec:
+    steps:
+      - module: scripts.build_sec_ticker_cik_lookup
+      - module: scripts.ingest_sec_submissions
+      - module: scripts.ingest_sec_company_facts
+
+  build-features:
+    steps:
+      - module: scripts.build_price_return_features
+      - module: scripts.build_price_volatility_features
+      - module: scripts.build_price_volume_features
+      - module: scripts.build_benchmark_relative_features
+      - module: scripts.build_macro_features
+      - module: scripts.build_fundamental_features
+      - module: scripts.build_filing_event_features
+      - module: scripts.build_feature_table
+      - module: scripts.build_market_regimes
+      - module: scripts.build_forward_return_labels
+      - module: scripts.build_walk_forward_splits
+
+  train:
+    steps:
+      - module: scripts.train_logistic_regression_baseline
+
+  backtest:
+    steps:
+      - module: scripts.run_walk_forward_backtest
+        args: ["--disable-mlflow"]
+
+  report:
+    steps:
+      - module: scripts.build_classical_baseline_report
