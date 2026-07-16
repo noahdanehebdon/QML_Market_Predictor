@@ -1,7 +1,8 @@
 # Controlled QML model comparison
 
-Issue #49 adds one leakage-safe decision experiment for the VQC, fixed QSVM,
-training-only tuned QSVM, QCNN, linear SVM, and RBF SVM.
+Issues #49 and #50 provide one leakage-safe decision experiment for the VQC,
+fixed QSVM, training-only tuned QSVM, QCNN, linear SVM, RBF SVM, logistic
+regression, and histogram gradient boosting.
 
 Run it with:
 
@@ -35,12 +36,47 @@ The selected source feature, target correlation, qubit assignment, neighboring
 feature, and neighboring correlation are saved in
 `selected_feature_manifest.parquet`.
 
-Outputs under `reports/qml_comparison/` include predictions, per-split metrics,
+Outputs under `reports/qml_comparison/` include predictions, per-split classification metrics,
 split-bootstrap confidence intervals, timing and peak traced memory, QSVM kernel
 dimensions/similarity/support-vector counts, every tuning trial, selected
-configuration, sampled-row hashes, and a Markdown decision report. Generated
+configuration, sampled-row hashes, date/split/overall ranking metrics,
+transaction-cost-aware portfolio returns and risk metrics, and a Markdown decision report. Generated
 reports remain local because market-derived artifacts are excluded from version
 control.
+
+Logistic regression and gradient boosting receive the same eight selected inputs,
+chronological splits, balanced training sample, and validation row keys as every
+QML model. The default portfolio comparison selects the top score decile,
+rebalances every five prediction dates, and charges 10 basis points per unit of
+turnover.
+
+## Issue #50 classical-baseline result
+
+The full run covered six chronological splits and 3,072 aligned sampled rows
+(256 training and 256 validation rows per split). Logistic regression led
+classification with mean ROC-AUC `0.5406`; the strongest QML classifier, QCNN,
+reached `0.5314`. The difference is small, so this is not evidence that QML adds
+classification value beyond the requested classical baselines.
+
+The models behaved differently on downstream metrics. Fixed QSVM led overall
+rank IC at `0.0804`, while VQC led the long-only portfolio on net Sharpe at
+`4.5183`. Gradient boosting produced the strongest requested-classical rank
+spread (`0.0038`) and a net Sharpe of `3.3096`. VQC's portfolio result occurs
+despite a below-random mean ROC-AUC (`0.4973`), so it should be treated as a
+ranking/selection behavior worth further validation, not as quantum advantage.
+
+| Model | Mean ROC-AUC | Overall rank IC | Long-short spread | Net cumulative return | Net Sharpe |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Logistic regression | 0.5406 | -0.0512 | 0.0001 | 1.8494 | 3.2525 |
+| Gradient boosting | 0.5398 | 0.0195 | 0.0038 | 2.1071 | 3.3096 |
+| QCNN | 0.5314 | 0.0238 | 0.0020 | 1.6488 | 2.8806 |
+| Fixed QSVM | 0.5215 | 0.0804 | 0.0036 | 4.0836 | 4.0952 |
+| Tuned QSVM | 0.5095 | 0.0230 | 0.0007 | 1.5537 | 2.8789 |
+| VQC | 0.4973 | -0.0966 | 0.0002 | 4.7913 | 4.5183 |
+
+Conclusion: classical models remain the stronger classification baseline. Some
+QML models behave differently in ranking and portfolio selection, but the
+mixed metrics do not establish broad or robust QML outperformance.
 
 ## Expanded selected-feature result
 
