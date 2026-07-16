@@ -23,6 +23,15 @@ dev = [
     "ruff>=0.12,<1",
 ]
 
+[project.scripts]
+ingest-prices = "market_qml.cli:ingest_prices"
+ingest-macro = "market_qml.cli:ingest_macro"
+ingest-sec = "market_qml.cli:ingest_sec"
+build-features = "market_qml.cli:build_features"
+train = "market_qml.cli:train"
+backtest = "market_qml.cli:backtest"
+report = "market_qml.cli:report"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

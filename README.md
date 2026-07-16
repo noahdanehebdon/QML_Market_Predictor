@@ -165,6 +165,32 @@ python -m pytest
 Pytest is configured for the repository's `src` layout, so this command also
 works directly from a checkout before an editable install.
 
+## Command-Line Interface
+
+Installing the project creates seven workflow commands. Each reads
+`configs/cli.yaml`, whose steps can be edited to select modules and arguments:
+
+```powershell
+ingest-prices
+ingest-macro
+ingest-sec
+build-features
+train
+backtest
+report
+```
+
+Use a different pipeline configuration or preview a command without running it:
+
+```powershell
+backtest --config configs/cli.yaml --dry-run
+train --config configs/cli.yaml
+```
+
+The ingestion commands require the credentials described in Local Environment.
+Run commands from the repository root so configured relative paths resolve
+against the project directories.
+
 ## Milestone 3: Classical Backtesting
 
 Milestone 3 provides chronological walk-forward splits, train-only preprocessing,
