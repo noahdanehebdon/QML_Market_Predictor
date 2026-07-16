@@ -191,6 +191,18 @@ The ingestion commands require the credentials described in Local Environment.
 Run commands from the repository root so configured relative paths resolve
 against the project directories.
 
+After training the default logistic-regression model, generate the latest
+cross-sectional signal report with:
+
+```powershell
+report
+```
+
+This reads the latest canonical feature date, applies the saved train-fitted
+preprocessor and model, and writes `reports/daily_signal.md` plus
+`reports/daily_signal.csv`. The report ranks predicted benchmark outperformance
+for research purposes only; it is not financial advice.
+
 ## Milestone 3: Classical Backtesting
 
 Milestone 3 provides chronological walk-forward splits, train-only preprocessing,
