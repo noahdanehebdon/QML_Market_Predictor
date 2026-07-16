@@ -69,6 +69,11 @@ from market_qml.models.ridge_regression import (
     MODEL_NAME as RIDGE_REGRESSION_MODEL_NAME,
     train_ridge_regression,
 )
+from market_qml.models.tuned_gradient_boosting import (
+    DEFAULT_TARGET_COLUMN as TUNED_GRADIENT_BOOSTING_TARGET_COLUMN,
+    MODEL_NAME as TUNED_GRADIENT_BOOSTING_MODEL_NAME,
+    train_tuned_gradient_boosting_regressor,
+)
 from market_qml.qml.interface import build_qml_train_validation
 from market_qml.qml.pca import fit_pca
 from market_qml.qml.vqc import MODEL_NAME as VQC_MODEL_NAME
@@ -79,6 +84,10 @@ from market_qml.utils.mlflow_tracking import log_walk_forward_backtest_run
 
 DEFAULT_OUTPUT_DIR = Path("reports/backtests")
 DEFAULT_QML_N_COMPONENTS = 8
+VOL_NORMALIZED_GRADIENT_BOOSTING_MODEL_NAME = (
+    "vol_normalized_gradient_boosting_regressor"
+)
+VOL_NORMALIZED_TARGET_COLUMN = "vol_normalized_excess_return_5d"
 
 
 @dataclass(frozen=True)
@@ -97,6 +106,7 @@ class WalkForwardPredictionResult:
     predictions: pd.DataFrame
     training_loss: pd.DataFrame
     validation_metrics: pd.DataFrame
+    selection_diagnostics: pd.DataFrame
 
 
 MODEL_REGISTRY = {
@@ -131,6 +141,19 @@ MODEL_REGISTRY = {
     GRADIENT_BOOSTING_REGRESSOR_MODEL_NAME: ModelSpec(
         target_column=GRADIENT_BOOSTING_REGRESSOR_TARGET_COLUMN,
         train=train_gradient_boosting_regressor,
+    ),
+    TUNED_GRADIENT_BOOSTING_MODEL_NAME: ModelSpec(
+        target_column=TUNED_GRADIENT_BOOSTING_TARGET_COLUMN,
+        train=train_tuned_gradient_boosting_regressor,
+    ),
+    VOL_NORMALIZED_GRADIENT_BOOSTING_MODEL_NAME: ModelSpec(
+        target_column=VOL_NORMALIZED_TARGET_COLUMN,
+        train=lambda data, split_id: train_gradient_boosting_regressor(
+            data,
+            model_name=VOL_NORMALIZED_GRADIENT_BOOSTING_MODEL_NAME,
+            split_id=split_id,
+            l2_regularization=0.1,
+        ),
     ),
     VQC_MODEL_NAME: ModelSpec(
         target_column=DEFAULT_TARGET_COLUMN,
@@ -325,6 +348,8 @@ def run_walk_forward_backtest(
         output_paths["training_loss"] = output_dir / "training_loss.parquet"
     if not prediction_result.validation_metrics.empty:
         output_paths["validation_metrics"] = output_dir / "validation_metrics.parquet"
+    if not prediction_result.selection_diagnostics.empty:
+        output_paths["selection_diagnostics"] = output_dir / "selection_diagnostics.parquet"
 
     predictions.to_parquet(output_paths["predictions"], index=False)
     if "training_loss" in output_paths:
@@ -336,6 +361,10 @@ def run_walk_forward_backtest(
         prediction_result.validation_metrics.to_parquet(
             output_paths["validation_metrics"],
             index=False,
+        )
+    if "selection_diagnostics" in output_paths:
+        prediction_result.selection_diagnostics.to_parquet(
+            output_paths["selection_diagnostics"], index=False
         )
     save_classification_metrics(
         classification_metrics,
@@ -382,6 +411,7 @@ def _walk_forward_predictions(
     frames = []
     training_loss_frames = []
     validation_metric_frames = []
+    selection_diagnostic_frames = []
     for model_name in model_names:
         spec = MODEL_REGISTRY[model_name]
         for split in splits.itertuples(index=False):
@@ -410,6 +440,8 @@ def _walk_forward_predictions(
                     preprocessed,
                     split_id=int(split.split_id),
                 )
+                if hasattr(result, "selection_diagnostics"):
+                    selection_diagnostic_frames.append(result.selection_diagnostics)
             frames.append(result.predictions)
 
     if not frames:
@@ -425,6 +457,11 @@ def _walk_forward_predictions(
         validation_metrics=(
             pd.concat(validation_metric_frames, ignore_index=True)
             if validation_metric_frames
+            else pd.DataFrame()
+        ),
+        selection_diagnostics=(
+            pd.concat(selection_diagnostic_frames, ignore_index=True)
+            if selection_diagnostic_frames
             else pd.DataFrame()
         ),
     )

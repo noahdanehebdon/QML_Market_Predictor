@@ -32,10 +32,12 @@ def test_comparison_uses_identical_rows_and_training_only_qsvm_selection():
     result = run_model_comparison(_comparison_data(), ComparisonConfig(
         train_rows=16, validation_rows=16, vqc_iterations=1, qcnn_iterations=1,
         qsvm_c_values=(1.0,), qsvm_repetitions=(1,),
+        interaction_scales=(0.0,),
         feature_selection_names=("broad_market",), bootstrap_iterations=20,
     ))
     assert set(result.predictions.model_name) == {
-        "vqc", "qcnn", "qsvm", "qsvm_tuned", "linear_svm", "rbf_svm"
+        "vqc", "qcnn", "qsvm", "qsvm_tuned", "linear_svm", "rbf_svm",
+        "logistic_regression", "gradient_boosting"
     }
     counts = result.predictions.groupby(["split_id", "model_name"]).size()
     assert counts.nunique() == 1
@@ -45,6 +47,9 @@ def test_comparison_uses_identical_rows_and_training_only_qsvm_selection():
     assert key_hashes.groupby(level=0).nunique().eq(1).all()
     assert (result.qsvm_tuning_trials.inner_train_end < result.qsvm_tuning_trials.inner_validation_start).all()
     assert set(result.aggregate_metrics.columns) >= {"mean", "median", "std", "ci_lower", "ci_upper"}
+    assert set(result.ranking_metrics.scope) == {"date", "split", "overall"}
+    assert set(result.portfolio_metrics.scope) == {"split", "overall"}
+    assert set(result.portfolio_metrics.model_name) == set(result.predictions.model_name)
 
 
 def test_aggregate_and_save_outputs(tmp_path):
@@ -56,8 +61,10 @@ def test_aggregate_and_save_outputs(tmp_path):
     result = run_model_comparison(_comparison_data().query("split_id == 0"), ComparisonConfig(
         train_rows=16, validation_rows=16, vqc_iterations=1, qcnn_iterations=1,
         qsvm_c_values=(1.0,), qsvm_repetitions=(1,), feature_selection_names=("broad_market",),
+        interaction_scales=(0.0,),
         bootstrap_iterations=10,
     ))
     paths = save_comparison_result(result, tmp_path)
     assert all(path.exists() for path in paths.values())
     assert "Decision:" in paths["report"].read_text()
+    assert {"ranking_metrics", "portfolio_returns", "portfolio_metrics"} <= set(paths)

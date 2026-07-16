@@ -92,6 +92,7 @@ def main() -> None:
         validation_window_days=int(walk_forward.get("validation_window_days", 126)),
         step_days=args.step_days,
         yearly_validation=args.yearly_validation,
+        purge_days=int(walk_forward.get("purge_days", 0)),
     )
 
     print(f"Saved walk-forward split metadata to {args.output}")

@@ -60,6 +60,19 @@ def test_feature_map_applies_identical_circuit_to_train_and_validation():
     assert result.train.operations.equals(result.validation.operations)
 
 
+def test_feature_map_adds_selected_feature_interaction_reuploading():
+    data = build_qml_train_validation(_sample(), split_id=0)
+    baseline = QuantumKernelFeatureMap(
+        QuantumFeatureMapConfig(n_qubits=3, interaction_scale=0.0)
+    ).transform(data.train)
+    redesigned = QuantumKernelFeatureMap(
+        QuantumFeatureMapConfig(n_qubits=3, interaction_scale=0.5)
+    ).transform(data.train)
+
+    assert redesigned.operations["gate"].tolist().count("ry_interaction") == 6
+    assert not np.allclose(baseline.states, redesigned.states)
+
+
 def test_fidelity_kernel_is_symmetric_bounded_and_has_unit_diagonal():
     data = build_qml_train_validation(_sample(), split_id=0)
     feature_map = QuantumKernelFeatureMap(
@@ -111,6 +124,7 @@ def test_feature_map_split_outputs_can_be_saved_for_kernel_estimation(tmp_path):
         (QuantumFeatureMapConfig(repetitions=0), "repetitions"),
         (QuantumFeatureMapConfig(backend="other"), "Unsupported"),
         (QuantumFeatureMapConfig(entanglement="full"), "ring"),
+        (QuantumFeatureMapConfig(interaction_scale=-0.1), "non-negative"),
     ],
 )
 def test_feature_map_rejects_unsupported_configuration(config, message):
