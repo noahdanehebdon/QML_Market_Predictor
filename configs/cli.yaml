@@ -42,4 +42,4 @@ commands:
 
   report:
     steps:
-      - module: scripts.build_classical_baseline_report
+      - module: scripts.generate_daily_signal_report
