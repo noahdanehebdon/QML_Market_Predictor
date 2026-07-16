@@ -203,6 +203,18 @@ preprocessor and model, and writes `reports/daily_signal.md` plus
 `reports/daily_signal.csv`. The report ranks predicted benchmark outperformance
 for research purposes only; it is not financial advice.
 
+After running the controlled QML comparison and regime analysis, build the
+unified classical/QML report with:
+
+```powershell
+python -m scripts.build_model_comparison_report
+```
+
+The command writes `reports/model_comparison.md` and companion CSV tables. It
+compares classification, ranking, transaction-cost-aware portfolio, and
+regime-specific results on aligned validation rows, identifies overall and
+model-family leaders, and documents the limits of the comparison.
+
 ## Milestone 3: Classical Backtesting
 
 Milestone 3 provides chronological walk-forward splits, train-only preprocessing,
