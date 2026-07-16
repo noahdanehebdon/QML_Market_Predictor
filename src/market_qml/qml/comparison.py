@@ -9,9 +9,13 @@ import tracemalloc
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, brier_score_loss, log_loss, roc_auc_score
 from sklearn.svm import SVC
 
+from market_qml.backtest.portfolio import run_portfolio_backtest, summarize_portfolio_risk
+from market_qml.backtest.ranking_metrics import evaluate_ranking_metrics
 from market_qml.models.predictions import build_prediction_table
 from market_qml.qml.interface import QMLDataset, QMLTrainValidation, build_qml_train_validation
 from market_qml.qml.qcnn import train_qcnn
@@ -52,6 +56,9 @@ class ComparisonConfig:
     feature_selection_names: tuple[str, ...] = ("classical_selected",)
     interaction_scales: tuple[float, ...] = (0.0, 0.5, 1.0)
     bootstrap_iterations: int = 2000
+    portfolio_top_fraction: float = 0.1
+    transaction_cost_bps: float = 10.0
+    rebalance_frequency: int = 5
 
 
 @dataclass(frozen=True)
@@ -63,6 +70,9 @@ class ComparisonResult:
     qsvm_tuning_trials: pd.DataFrame
     qsvm_selected_configs: pd.DataFrame
     sample_manifest: pd.DataFrame
+    ranking_metrics: pd.DataFrame
+    portfolio_returns: pd.DataFrame
+    portfolio_metrics: pd.DataFrame
 
 
 def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = ComparisonConfig()) -> ComparisonResult:
@@ -89,6 +99,8 @@ def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = Comparis
             "qsvm": lambda: _qsvm_predictions(primary, 1.0, 2, 0.0, "qsvm", config.random_state),
             "linear_svm": lambda: _classical_predictions(primary, "linear", "linear_svm", config.random_state),
             "rbf_svm": lambda: _classical_predictions(primary, "rbf", "rbf_svm", config.random_state),
+            "logistic_regression": lambda: _logistic_predictions(primary, config.random_state),
+            "gradient_boosting": lambda: _gradient_boosting_predictions(primary, config.random_state),
         }
         tuned_data = build_qml_train_validation(
             sampled, split_id=int(split_id), feature_columns=_feature_columns(sampled, chosen["feature_selection"])
@@ -106,6 +118,16 @@ def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = Comparis
 
     prediction_table = pd.concat(predictions, ignore_index=True)
     split_metrics = _split_metrics(prediction_table)
+    ranking_metrics = evaluate_ranking_metrics(
+        prediction_table, top_fraction=config.portfolio_top_fraction
+    )
+    portfolio_returns = run_portfolio_backtest(
+        prediction_table,
+        top_fraction=config.portfolio_top_fraction,
+        transaction_cost_bps=config.transaction_cost_bps,
+        rebalance_frequency=config.rebalance_frequency,
+    )
+    portfolio_metrics = summarize_portfolio_risk(portfolio_returns)
     return ComparisonResult(
         predictions=prediction_table,
         split_metrics=split_metrics,
@@ -114,6 +136,9 @@ def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = Comparis
         qsvm_tuning_trials=pd.concat(trials, ignore_index=True),
         qsvm_selected_configs=pd.DataFrame(selected),
         sample_manifest=pd.concat(manifests, ignore_index=True),
+        ranking_metrics=ranking_metrics,
+        portfolio_returns=portfolio_returns,
+        portfolio_metrics=portfolio_metrics,
     )
 
 
@@ -146,6 +171,9 @@ def save_comparison_result(result: ComparisonResult, output_dir: str | Path) -> 
         "qsvm_tuning_trials": result.qsvm_tuning_trials,
         "qsvm_selected_configs": result.qsvm_selected_configs,
         "sample_manifest": result.sample_manifest,
+        "ranking_metrics": result.ranking_metrics,
+        "portfolio_returns": result.portfolio_returns,
+        "portfolio_metrics": result.portfolio_metrics,
     }
     paths = {}
     for name, table in tables.items():
@@ -159,24 +187,51 @@ def render_comparison_report(result: ComparisonResult) -> str:
     pivot = result.aggregate_metrics.pivot(index="model_name", columns="metric", values="mean")
     ranked = pivot.sort_values("roc_auc", ascending=False)
     best = ranked.index[0]
-    qsvm_auc = float(pivot.loc["qsvm_tuned", "roc_auc"])
-    classical_auc = float(pivot.loc[["linear_svm", "rbf_svm"], "roc_auc"].max())
-    if classical_auc > qsvm_auc + 0.02:
-        decision = "Classical controls are currently stronger; keep them as the production baseline and redesign the quantum kernel before wider QSVM tuning."
-    elif qsvm_auc <= 0.52:
-        decision = "The tuned QSVM remains near random ranking performance; redesign the quantum kernel before spending on a larger hyperparameter search."
+    qml_models = ["vqc", "qcnn", "qsvm", "qsvm_tuned"]
+    classical_models = ["logistic_regression", "gradient_boosting"]
+    best_qml = pivot.loc[qml_models, "roc_auc"].idxmax()
+    best_classical = pivot.loc[classical_models, "roc_auc"].idxmax()
+    qml_auc = float(pivot.loc[best_qml, "roc_auc"])
+    classical_auc = float(pivot.loc[best_classical, "roc_auc"])
+    if classical_auc > qml_auc + 0.02:
+        decision = f"QML underperforms the requested classical baselines on mean ROC-AUC ({qml_auc:.4f} versus {classical_auc:.4f})."
+    elif qml_auc > classical_auc + 0.02:
+        decision = f"QML outperforms the requested classical baselines on mean ROC-AUC ({qml_auc:.4f} versus {classical_auc:.4f}); confirm the result on additional chronological splits."
     else:
-        decision = "The QSVM is competitive enough to justify a deeper, still training-only tuning study."
-    display = ranked[["accuracy", "roc_auc", "log_loss", "brier_score", "information_coefficient", "top_decile_return"]]
+        decision = f"QML and the requested classical baselines behave similarly on mean ROC-AUC ({qml_auc:.4f} versus {classical_auc:.4f}); ranking and portfolio metrics should drive interpretation."
+    overall_ranking = result.ranking_metrics.query("scope == 'overall'").set_index("model_name")
+    overall_portfolio = result.portfolio_metrics.query("scope == 'overall'").set_index("model_name")
+    display = ranked[["accuracy", "roc_auc", "log_loss", "brier_score"]].join(
+        overall_ranking[["rank_information_coefficient", "long_short_spread"]]
+    ).join(
+        overall_portfolio[["cumulative_net_return", "cumulative_net_excess_return", "net_sharpe"]]
+    )
+    ranking_winner = _metric_leader(display["rank_information_coefficient"])
+    portfolio_winner = _metric_leader(display["net_sharpe"])
     headers = ["model"] + list(display.columns)
     table = ["| " + " | ".join(headers) + " |", "| " + " | ".join(["---"] * len(headers)) + " |"]
-    table.extend("| " + " | ".join([str(index)] + [f"{value:.4f}" for value in row]) + " |"
+    table.extend("| " + " | ".join([str(index)] + [_format_report_value(value) for value in row]) + " |"
                  for index, row in display.iterrows())
     return "\n".join([
         "# QML model comparison", "", "All models used identical outer validation rows. QSVM choices were made only from an inner chronological portion of each training window.", "",
-        *table, "", f"Best mean ROC-AUC: **{best}**.", "", f"Decision: {decision}", "",
-        "Uncertainty is recorded in `aggregate_metrics.parquet`; runtime, peak traced memory, selected configurations, tuning trials, and exact sampled-row hashes are retained beside this report.",
+        *table, "", f"Classification leader (mean ROC-AUC): **{best}**. Ranking leader (overall rank IC): **{ranking_winner}**. Portfolio leader (overall net Sharpe): **{portfolio_winner}**.", "",
+        f"Best QML: **{best_qml}**; best requested classical baseline: **{best_classical}**.", "", f"Decision: {decision}", "",
+        "Classification and split-bootstrap uncertainty are recorded in `split_metrics.parquet` and `aggregate_metrics.parquet`. Date-level ranking results are in `ranking_metrics.parquet`; transaction-cost-aware returns and risk metrics are in `portfolio_returns.parquet` and `portfolio_metrics.parquet`.", "",
+        "Runtime, peak traced memory, selected configurations, tuning trials, and exact sampled-row hashes are retained beside this report.",
     ])
+
+
+def _metric_leader(values: pd.Series) -> str:
+    available = pd.to_numeric(values, errors="coerce").dropna()
+    if available.empty:
+        return "not available"
+    maximum = available.max()
+    winners = [str(name) for name, value in available.items() if np.isclose(value, maximum)]
+    return ", ".join(winners)
+
+
+def _format_report_value(value) -> str:
+    return "NA" if pd.isna(value) else f"{value:.4f}"
 
 
 def _select_qsvm(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
@@ -248,6 +303,30 @@ def _classical_predictions(data, kernel, model_name, seed):
     return result
 
 
+def _logistic_predictions(data, seed):
+    model = LogisticRegression(max_iter=1000, random_state=seed).fit(data.train.X, data.train.y)
+    scores = model.predict_proba(data.validation.X)[:, int(np.where(model.classes_ == 1)[0][0])]
+    result = build_prediction_table(metadata=data.validation.metadata, y_true=data.validation.y,
+                                    y_score=scores, model_name="logistic_regression", split_id=data.split_id)
+    result.attrs = _non_kernel_resource_attrs()
+    return result
+
+
+def _gradient_boosting_predictions(data, seed):
+    model = HistGradientBoostingClassifier(random_state=seed).fit(data.train.X, data.train.y)
+    scores = model.predict_proba(data.validation.X)[:, int(np.where(model.classes_ == 1)[0][0])]
+    result = build_prediction_table(metadata=data.validation.metadata, y_true=data.validation.y,
+                                    y_score=scores, model_name="gradient_boosting", split_id=data.split_id)
+    result.attrs = _non_kernel_resource_attrs()
+    return result
+
+
+def _non_kernel_resource_attrs():
+    return {"train_kernel_rows": np.nan, "train_kernel_columns": np.nan,
+            "validation_kernel_rows": np.nan, "validation_kernel_columns": np.nan,
+            "kernel_mean_similarity": np.nan, "support_vectors": np.nan}
+
+
 def _measure(function):
     tracemalloc.start(); started = time.perf_counter()
     try:
@@ -311,6 +390,12 @@ def _validate_inputs(data, config):
     if config.bootstrap_iterations <= 0: raise ValueError("bootstrap_iterations must be positive")
     if not config.interaction_scales or any(value < 0 for value in config.interaction_scales):
         raise ValueError("interaction_scales must contain non-negative values")
+    if not 0 < config.portfolio_top_fraction <= 0.5:
+        raise ValueError("portfolio_top_fraction must be greater than 0 and at most 0.5")
+    if config.transaction_cost_bps < 0:
+        raise ValueError("transaction_cost_bps must be non-negative")
+    if config.rebalance_frequency <= 0:
+        raise ValueError("rebalance_frequency must be positive")
 
 
 def _feature_columns(data: pd.DataFrame, selection: str) -> list[str]:
