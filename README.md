@@ -256,6 +256,7 @@ Run the controlled six-split QML/classical comparison with:
 
 ```powershell
 python scripts/compare_qml_models.py
+python scripts/analyze_qml_regimes.py
 ```
 
 The comparison now rebuilds eight qubit inputs per outer split from the
