@@ -8,6 +8,8 @@ models:
     - logistic_regression
     - random_forest
     - gradient_boosting
+    - vol_normalized_gradient_boosting_regressor
+    - tuned_gradient_boosting_regressor
   qml:
     - vqc
     - qsvm

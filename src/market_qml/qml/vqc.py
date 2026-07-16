@@ -292,6 +292,7 @@ def _encoded_angles(dataset: QMLDataset, *, n_qubits: int) -> np.ndarray:
     encoded = angle_encode_dataset(
         dataset,
         config=AngleEncodingConfig(n_qubits=n_qubits),
+        feature_columns=list(dataset.X.columns),
     )
     return encoded.X.to_numpy(dtype=float)
 

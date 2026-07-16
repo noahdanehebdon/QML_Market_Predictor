@@ -48,6 +48,18 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Keep rows without a complete forward return label.",
     )
+    parser.add_argument(
+        "--neutral-threshold",
+        type=float,
+        default=0.005,
+        help="Absolute excess-return band assigned no neutral-zone class label.",
+    )
+    parser.add_argument(
+        "--volatility-window",
+        type=int,
+        default=20,
+        help="Trailing daily observations used to normalize excess returns.",
+    )
     return parser.parse_args()
 
 
@@ -59,6 +71,8 @@ def main() -> None:
         horizon=args.horizon,
         benchmark_symbol=args.benchmark,
         drop_missing=not args.keep_missing,
+        neutral_threshold=args.neutral_threshold,
+        volatility_window=args.volatility_window,
     )
 
     print(f"Saved forward return labels to {args.output}")

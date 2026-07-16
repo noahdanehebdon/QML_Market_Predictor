@@ -147,6 +147,14 @@ The `excess_return_*_vs_spy` columns are backward-looking feature columns. They
 are distinct from the forward-looking label columns, which live only in the
 label table.
 
+## Cross-Sectional Features
+
+The canonical builder adds same-date percentile ranks for available momentum,
+volatility, volume-shock, and benchmark-relative momentum columns. Each ranked
+column receives an `_xs_rank` suffix and a companion `_missing` indicator.
+Ranks use only securities observed on that date, so they add relative context
+without looking forward in time.
+
 ## Macro Features
 
 Macro level features include:
@@ -299,6 +307,12 @@ The continuous ranking target is:
 ```text
 forward_excess_return_5d
 ```
+
+The label builder also emits `vol_normalized_excess_return_5d`, which divides
+forward excess return by trailing realized excess-return volatility, and a
+neutral-zone classification target. The CLI defaults to a 0.5% neutral band;
+rows inside that band retain their regression target but receive no neutral-zone
+class label.
 
 The label table drops rows where the forward horizon is incomplete. With a
 5-trading-day horizon, the last five trading rows for each symbol do not have

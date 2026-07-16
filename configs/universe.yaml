@@ -1,5 +1,5 @@
 universe:
-  name: initial_large_cap_test
+  name: diversified_large_cap_research
   benchmark: SPY
   symbols:
     - AAPL
@@ -9,6 +9,29 @@ universe:
     - GOOGL
     - META
     - JPM
+    - BAC
+    - GS
+    - V
+    - MA
+    - JNJ
+    - UNH
+    - LLY
+    - PFE
+    - XOM
+    - CVX
+    - CAT
+    - BA
+    - GE
+    - WMT
+    - COST
+    - HD
+    - KO
+    - PEP
+    - DIS
+    - NFLX
+    - CRM
+    - ORCL
+    - AVGO
     - SPY
 
 dates:

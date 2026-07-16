@@ -19,6 +19,7 @@ def generate_walk_forward_splits(
     validation_window_days: int = 126,
     step_days: int | None = None,
     yearly_validation: bool = False,
+    purge_days: int = 0,
 ) -> pd.DataFrame:
     """Generate time-ordered walk-forward split metadata.
 
@@ -29,6 +30,8 @@ def generate_walk_forward_splits(
     _validate_positive_window(validation_window_days, "validation_window_days")
     if step_days is not None:
         _validate_positive_window(step_days, "step_days")
+    if purge_days < 0:
+        raise ValueError("purge_days cannot be negative.")
 
     dates = _unique_dates(data, date_column=date_column)
     if len(dates) <= train_window_days:
@@ -40,6 +43,7 @@ def generate_walk_forward_splits(
             dates=dates,
             train_window_days=train_window_days,
             date_column=date_column,
+            purge_days=purge_days,
         )
 
     return _generate_fixed_window_splits(
@@ -49,6 +53,7 @@ def generate_walk_forward_splits(
         validation_window_days=validation_window_days,
         step_days=step_days or validation_window_days,
         date_column=date_column,
+        purge_days=purge_days,
     )
 
 
@@ -68,6 +73,7 @@ def build_walk_forward_split_table(
     validation_window_days: int = 126,
     step_days: int | None = None,
     yearly_validation: bool = False,
+    purge_days: int = 0,
 ) -> pd.DataFrame:
     """Generate and save walk-forward split metadata from row metadata."""
     splits = generate_walk_forward_splits(
@@ -77,6 +83,7 @@ def build_walk_forward_split_table(
         validation_window_days=validation_window_days,
         step_days=step_days,
         yearly_validation=yearly_validation,
+        purge_days=purge_days,
     )
     save_walk_forward_splits(splits, output_path)
     return splits
@@ -90,18 +97,20 @@ def _generate_fixed_window_splits(
     validation_window_days: int,
     step_days: int,
     date_column: str,
+    purge_days: int,
 ) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     split_id = 0
-    validation_start_index = train_window_days
+    validation_start_index = train_window_days + purge_days
 
     while validation_start_index < len(dates):
         validation_end_index = validation_start_index + validation_window_days - 1
         if validation_end_index >= len(dates):
             break
 
-        train_start_index = validation_start_index - train_window_days
-        train_dates = dates[train_start_index:validation_start_index]
+        train_end_index = validation_start_index - purge_days
+        train_start_index = train_end_index - train_window_days
+        train_dates = dates[train_start_index:train_end_index]
         validation_dates = dates[validation_start_index:validation_end_index + 1]
 
         rows.append(
@@ -111,6 +120,7 @@ def _generate_fixed_window_splits(
                 validation_dates=validation_dates,
                 data=data,
                 date_column=date_column,
+                purge_days=purge_days,
             )
         )
         split_id += 1
@@ -125,6 +135,7 @@ def _generate_yearly_splits(
     dates: pd.DatetimeIndex,
     train_window_days: int,
     date_column: str,
+    purge_days: int,
 ) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     split_id = 0
@@ -135,12 +146,11 @@ def _generate_yearly_splits(
             continue
 
         validation_start_index = dates.get_loc(year_dates[0])
-        if validation_start_index < train_window_days:
+        if validation_start_index < train_window_days + purge_days:
             continue
 
-        train_dates = dates[
-            validation_start_index - train_window_days:validation_start_index
-        ]
+        train_end_index = validation_start_index - purge_days
+        train_dates = dates[train_end_index - train_window_days:train_end_index]
         rows.append(
             _split_row(
                 split_id=split_id,
@@ -148,6 +158,7 @@ def _generate_yearly_splits(
                 validation_dates=year_dates,
                 data=data,
                 date_column=date_column,
+                purge_days=purge_days,
             )
         )
         split_id += 1
@@ -162,6 +173,7 @@ def _split_row(
     validation_dates: pd.DatetimeIndex,
     data: pd.DataFrame | pd.Series | pd.DatetimeIndex | list[pd.Timestamp],
     date_column: str,
+    purge_days: int,
 ) -> dict[str, object]:
     train_start = train_dates.min()
     train_end = train_dates.max()
@@ -186,6 +198,7 @@ def _split_row(
             validation_end,
             date_column,
         ),
+        "purge_days": purge_days,
     }
 
 
@@ -246,4 +259,5 @@ def _split_metadata_columns() -> list[str]:
         "validation_days",
         "train_rows",
         "validation_rows",
+        "purge_days",
     ]
