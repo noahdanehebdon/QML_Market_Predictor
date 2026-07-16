@@ -17,7 +17,7 @@ from sklearn.svm import SVC
 from market_qml.backtest.portfolio import run_portfolio_backtest, summarize_portfolio_risk
 from market_qml.backtest.ranking_metrics import evaluate_ranking_metrics
 from market_qml.models.predictions import build_prediction_table
-from market_qml.qml.interface import QMLDataset, QMLTrainValidation, build_qml_train_validation
+from market_qml.qml.interface import build_qml_train_validation
 from market_qml.qml.qcnn import train_qcnn
 from market_qml.qml.qsvm import QuantumKernelSVM
 from market_qml.qml.interface import QMLModelConfig
@@ -164,7 +164,8 @@ def aggregate_split_metrics(metrics: pd.DataFrame, bootstrap_iterations: int = 2
 
 def save_comparison_result(result: ComparisonResult, output_dir: str | Path) -> dict[str, Path]:
     """Persist auditable tables and a concise decision report."""
-    output = Path(output_dir); output.mkdir(parents=True, exist_ok=True)
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
     tables = {
         "predictions": result.predictions, "split_metrics": result.split_metrics,
         "aggregate_metrics": result.aggregate_metrics, "resource_usage": result.resource_usage,
@@ -177,7 +178,8 @@ def save_comparison_result(result: ComparisonResult, output_dir: str | Path) -> 
     }
     paths = {}
     for name, table in tables.items():
-        paths[name] = output / f"{name}.parquet"; table.to_parquet(paths[name], index=False)
+        paths[name] = output / f"{name}.parquet"
+        table.to_parquet(paths[name], index=False)
     paths["report"] = output / "comparison_report.md"
     paths["report"].write_text(render_comparison_report(result), encoding="utf-8")
     return paths
@@ -328,9 +330,11 @@ def _non_kernel_resource_attrs():
 
 
 def _measure(function):
-    tracemalloc.start(); started = time.perf_counter()
+    tracemalloc.start()
+    started = time.perf_counter()
     try:
-        result = function(); _, peak = tracemalloc.get_traced_memory()
+        result = function()
+        _, peak = tracemalloc.get_traced_memory()
     finally:
         tracemalloc.stop()
     return result, time.perf_counter() - started, peak / (1024 ** 2)
@@ -386,8 +390,10 @@ def _validate_inputs(data, config):
     for name in config.feature_selection_names:
         required.update(_feature_columns(data, name))
     missing = required - set(data.columns)
-    if missing: raise ValueError("Comparison data is missing: " + ", ".join(sorted(missing)))
-    if config.bootstrap_iterations <= 0: raise ValueError("bootstrap_iterations must be positive")
+    if missing:
+        raise ValueError("Comparison data is missing: " + ", ".join(sorted(missing)))
+    if config.bootstrap_iterations <= 0:
+        raise ValueError("bootstrap_iterations must be positive")
     if not config.interaction_scales or any(value < 0 for value in config.interaction_scales):
         raise ValueError("interaction_scales must contain non-negative values")
     if not 0 < config.portfolio_top_fraction <= 0.5:
