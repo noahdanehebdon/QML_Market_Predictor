@@ -40,6 +40,7 @@ python -m scripts.build_macro_features
 python -m scripts.build_fundamental_features
 python -m scripts.build_filing_event_features
 python -m scripts.build_feature_table
+python -m scripts.build_market_regimes
 python -m scripts.build_forward_return_labels
 ```
 
@@ -206,6 +207,41 @@ macro values before they would have been known.
 Missing values can occur near the start of the series, before conservative
 monthly availability dates, or when a source has not yet published the latest
 observation.
+
+## Market Regime Labels
+
+`scripts.build_market_regimes` writes one row per SPY trading date to:
+
+```text
+data/features/market_regimes.parquet
+```
+
+Regimes are analysis labels rather than forward targets. Each row uses only
+information available through that date:
+
+- `volatility_regime` compares annualized 20-day SPY realized volatility with
+  the expanding median of prior valid 20-day volatility observations. The
+  threshold is shifted by one date, so the current observation cannot alter its
+  own high/low classification. Labels are `high_volatility`, `low_volatility`,
+  or `normal_volatility` for an exact tie.
+- `rate_regime` uses the 20-trading-date change in the average of the 2Y and 10Y
+  Treasury yields. Positive, negative, and zero changes map to `rising_rates`,
+  `falling_rates`, and `flat_rates`.
+- `yield_curve_regime` uses the contemporaneously available 10Y-minus-2Y spread.
+  Positive, negative, and zero spreads map to `normal_curve`, `inverted_curve`,
+  and `flat_curve`. `--curve-flat-tolerance` can define a symmetric near-zero
+  flat band.
+- `yield_curve_trend` uses the trailing 20-date spread change and labels it
+  `steepening_curve`, `flattening_curve`, or `unchanged_curve`.
+
+The output retains the numeric volatility, threshold, yield level, yield
+change, spread, and spread change beside the categorical labels for auditability.
+Warm-up rows remain missing until their required history is available.
+
+The regimes inherit the macro table's publication-aware alignment. Use
+`build_macro_daily --lag-daily-rates` before building the canonical feature table
+when same-day Treasury observations should be treated as unavailable until the
+following calendar day.
 
 ## SEC Fundamental Features
 
