@@ -215,6 +215,17 @@ compares classification, ranking, transaction-cost-aware portfolio, and
 regime-specific results on aligned validation rows, identifies overall and
 model-family leaders, and documents the limits of the comparison.
 
+Generate the reproducible chart set after building the comparison report:
+
+```powershell
+python -m scripts.build_backtest_charts
+```
+
+The command saves cumulative return, drawdown, rolling Sharpe, model comparison,
+and regime-specific figures under `reports/figures/`. It also creates
+`reports/backtest_charts.md`, which embeds every figure for inclusion in the
+final project report.
+
 ## Milestone 3: Classical Backtesting
 
 Milestone 3 provides chronological walk-forward splits, train-only preprocessing,
