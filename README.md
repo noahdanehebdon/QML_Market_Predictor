@@ -2,6 +2,9 @@
 
 A market prediction platform comparing classical ML, standard QML models, and a QCNN architecture for regime-aware equity outperformance prediction.
 
+For a standalone explanation of the quantum experiments, circuit designs,
+results, and limitations, see [docs/qml_experiments.md](docs/qml_experiments.md).
+
 ## Project Status
 
 Milestones 1 through 3 of 5 are complete. Milestone 4 is in progress through
