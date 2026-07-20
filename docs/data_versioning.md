@@ -41,6 +41,10 @@ complete snapshot. It is updated only after upload succeeds. Weekly retraining
 downloads that snapshot and verifies every file against its manifest before
 building features.
 
+Weekly retraining outputs are stored under `reports/runs/<workflow-run-id>/`
+in the same private bucket. Workflows do not use GitHub Actions artifacts for
+provider data, processed data, predictions, reports, or model outputs.
+
 ## Local regeneration
 
 Configure `.env` as described in the README, then run from the repository root:
@@ -61,7 +65,8 @@ accounts and terms; this repository does not redistribute market datasets.
 
 ## Recovery and retention
 
-R2 stores only processed data. Raw provider responses stay on the temporary
-runner and are deleted with it. The bucket lifecycle removes snapshots after
-30 days. Recreate an expired snapshot by checking out its recorded Git commit,
-using the same configuration, and rerunning ingestion and feature generation.
+R2 stores processed data and generated weekly reports. Raw provider responses
+stay on the temporary runner and are deleted with it. The bucket lifecycle
+removes snapshots and reports after 30 days. Recreate an expired snapshot by
+checking out its recorded Git commit, using the same configuration, and
+rerunning ingestion and feature generation.
