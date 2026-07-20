@@ -1,25 +1,57 @@
-# QML_Market_Predictor
+# QML Market Predictor
 
-A market prediction platform comparing classical ML, standard QML models, and a QCNN architecture for regime-aware equity outperformance prediction.
+A research platform for testing whether quantum machine-learning models add
+useful signal beyond strong classical baselines when ranking US equities by
+future performance relative to `SPY`.
 
-For a standalone explanation of the quantum experiments, circuit designs,
-results, and limitations, see [docs/qml_experiments.md](docs/qml_experiments.md).
+## Five-minute overview
 
-## Project Status
+The project turns daily market, macroeconomic, and SEC filing information into
+point-in-time features, trains models on chronological walk-forward windows,
+and evaluates their out-of-sample predictions after transaction costs. Its
+purpose is comparative research—not live trading or a claim of quantum
+advantage.
 
-Milestones 1 through 3 of 5 are complete. Milestone 4 is in progress through
-the variational quantum classifier (VQC) baseline.
+### Prediction targets
 
-Milestone 1 implements the core data-ingestion layer for market prices,
-macroeconomic data, SEC filings metadata, and SEC company fundamentals.
-Milestone 2 builds the canonical modeling feature table, forward-return labels,
-modeling dataset constructor, and leakage-focused tests. Milestone 3 adds
-leakage-safe preprocessing, classical classification and ranking baselines,
-walk-forward evaluation, portfolio simulation, risk metrics, and experiment
-tracking. Milestone 4 currently includes train-only PCA compression, reproducible
-QML sampling, shared model interfaces, angle encoding, and a statevector-simulated
-VQC. Generated data and model artifacts are stored locally and excluded from
-version control.
+The primary classification target, `outperform_spy_5d`, is 1 when a stock's
+next five-trading-day return exceeds `SPY` and 0 otherwise. Ranking models use
+the continuous five-day excess return, `forward_excess_return_5d`. Labels are
+purged at split boundaries to prevent overlapping future-return windows from
+leaking into validation.
+
+### Data sources
+
+- Alpaca daily OHLCV bars for equities and `SPY`;
+- Federal Reserve Board H.15 and G.17 releases;
+- Bureau of Labor Statistics CPI and unemployment series; and
+- SEC EDGAR submissions and XBRL company facts.
+
+Users supply their own credentials and permissions. Provider-derived data,
+predictions, reports, and fitted models are excluded from Git and GitHub Actions
+artifacts. Automated runs place reproducible snapshots in a private Cloudflare
+R2 bucket.
+
+### Model suite
+
+- Classical classification: logistic regression, random forest, and gradient
+  boosting.
+- Classical ranking/regression: ridge, elastic net, Huber, random forest, and
+  standard or train-only-tuned gradient boosting.
+- Quantum experiments: VQC, quantum-kernel SVM, and an eight-qubit QCNN, all
+  currently executed with local simulators.
+
+Every comparison uses chronological splits and train-only preprocessing. The
+walk-forward runner records predictions, metrics, portfolio results, and a
+traceable fitted-model bundle for each model and split.
+
+### Project status
+
+The ingestion, feature engineering, classical baseline, QML/QCNN simulation,
+walk-forward evaluation, reporting, private data versioning, and scheduled
+retraining workflows are implemented. Real quantum-hardware execution is not
+yet implemented. For the quantum methodology and current findings, see
+[docs/qml_experiments.md](docs/qml_experiments.md).
 
 ## Local Environment
 
@@ -32,6 +64,9 @@ python -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -e .
 ```
+
+On macOS or Linux, activate the environment with `source .venv/bin/activate`;
+the remaining commands are the same.
 
 Create a local `.env` file from `.env.example` and fill in your own API credentials:
 
@@ -50,6 +85,32 @@ The SEC requires a descriptive User-Agent for automated requests. Use a value th
 SEC_USER_AGENT=QML Market Predictor contact@example.com
 ```
 
+### Quick start
+
+Preview the configured pipeline without making API requests or writing data:
+
+```powershell
+ingest-prices --dry-run
+ingest-macro --dry-run
+ingest-sec --dry-run
+build-features --dry-run
+backtest --dry-run
+```
+
+To execute the complete local workflow after configuring credentials:
+
+```powershell
+ingest-prices
+ingest-macro
+ingest-sec
+build-features
+backtest
+```
+
+Run `train` before `report` when you want the standalone latest-date signal
+report. All commands should be run from the repository root. Generated outputs
+land under `data/`, `artifacts/`, and `reports/` and remain ignored by Git.
+
 ## GitHub Secrets
 
 For GitHub Actions or other hosted workflows, add the same secret names in the repository settings under GitHub Secrets:
@@ -58,6 +119,10 @@ For GitHub Actions or other hosted workflows, add the same secret names in the r
 - `ALPACA_SECRET_KEY`
 - `BLS_API_KEY`
 - `SEC_USER_AGENT`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_ACCOUNT_ID`
+- `R2_BUCKET_NAME`
 
 ## Milestone 1: Data Ingestion
 
@@ -412,6 +477,19 @@ intervals, and the initial model-selection conclusion.
 
 The ingestion test suite includes mock API responses for Alpaca, BLS, Federal Reserve DDP, and SEC EDGAR so tests can run without live API calls or real API keys.
 
+## Limitations
+
+- Results are backtests on a limited equity universe, not evidence of future
+  profitability or a production trading strategy.
+- Market regimes, transaction-cost assumptions, data revisions, survivorship,
+  and the selected date range can materially change conclusions.
+- The quantum models run on idealized local simulators. They do not measure
+  queueing, shot noise, calibration drift, or errors from real hardware.
+- Small QML samples and expensive circuit evaluation limit statistical power;
+  no current result establishes quantum advantage over the classical baselines.
+- The pipeline does not place orders, manage capital, or provide investment
+  advice. Users remain responsible for data-provider terms and permissions.
+
 ## Data Sources and Disclaimers
 
 This project is intended for research, education, feature engineering, backtesting, and model-development purposes only. It does not provide financial, investment, trading, legal, accounting, or tax advice. Model outputs, forecasts, signals, metrics, and backtests should not be interpreted as recommendations to buy, sell, or hold any security or financial instrument. Past performance and backtested performance do not guarantee future results.
@@ -455,13 +533,3 @@ SEC EDGAR data are used as inputs to local research, feature engineering, and mo
 This project is not sponsored, endorsed, certified, or approved by the U.S. Securities and Exchange Commission. The SEC does not endorse this project, its models, its outputs, or any investment-related interpretation derived from EDGAR data.
 
 Source: U.S. Securities and Exchange Commission EDGAR.
-
-## Next Steps
-
-The best next confidence upgrades would be:
-- Add GitHub Actions so tests run automatically on every PR.
-- Add a small end-to-end smoke workflow from raw/sample data to final report.
-- Add “golden output” tests for a tiny known dataset.
-- Add report validation tests: expected models present, expected task types, expected metric columns.
-- Add more leakage tests around labels, macro release timing, SEC filing timing, and split boundaries.
-- Add documented commands for reproducing the current backtest outputs.
