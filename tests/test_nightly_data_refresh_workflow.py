@@ -45,8 +45,8 @@ def test_nightly_refresh_runs_all_sources_and_uploads_ignored_data():
     assert "scripts.ingest_sec_submissions" in commands
     assert "scripts.ingest_sec_company_facts" in commands
     assert upload["uses"] == "actions/upload-artifact@v4"
-    assert "data/raw/" in upload["with"]["path"]
     assert "data/processed/" in upload["with"]["path"]
+    assert "data/raw/" not in upload["with"]["path"]
     assert "git push" not in commands
 
 

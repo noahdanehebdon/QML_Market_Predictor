@@ -1,4 +1,5 @@
 import pytest
+import requests
 
 from market_qml.ingestion import prices
 from market_qml.ingestion import sec
@@ -266,3 +267,27 @@ def test_missing_sec_user_agent_has_useful_error(monkeypatch):
 
     with pytest.raises(RuntimeError, match="Missing SEC user agent"):
         sec._headers()
+
+
+def test_sec_session_retries_transient_get_failures():
+    session = sec.build_sec_session()
+    adapter = session.get_adapter("https://")
+
+    assert isinstance(session, requests.Session)
+    assert adapter.max_retries.total == 3
+    assert 429 in adapter.max_retries.status_forcelist
+    assert adapter.max_retries.respect_retry_after_header is True
+
+
+def test_sec_request_pacing_enforces_five_per_second(monkeypatch):
+    clock = iter([10.0, 10.05])
+    sleeps = []
+    monkeypatch.setattr(sec.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(sec.time, "sleep", sleeps.append)
+
+    first = sec.pace_sec_requests(None)
+    second = sec.pace_sec_requests(first)
+
+    assert first == 10.0
+    assert second == pytest.approx(10.2)
+    assert sleeps == pytest.approx([0.15])

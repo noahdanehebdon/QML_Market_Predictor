@@ -10,6 +10,7 @@ import yaml
 from dotenv import load_dotenv
 
 from market_qml.ingestion.sec import (
+    build_sec_session,
     fetch_company_tickers,
     lookup_ciks,
     save_company_tickers,
@@ -107,7 +108,7 @@ def main() -> None:
     url = load_sec_company_tickers_url(args.data_sources_config)
 
     LOGGER.info("Fetching SEC company ticker metadata.")
-    company_tickers = fetch_company_tickers(url=url)
+    company_tickers = fetch_company_tickers(url=url, session=build_sec_session())
     lookup = lookup_ciks(symbols=symbols, company_tickers=company_tickers)
 
     save_company_tickers(company_tickers, args.raw_output)

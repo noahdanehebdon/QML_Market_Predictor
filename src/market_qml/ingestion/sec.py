@@ -5,16 +5,20 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import time
 from typing import Any
 
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_URL_TEMPLATE = "https://data.sec.gov/submissions/CIK{cik}.json"
 SEC_COMPANY_FACTS_URL_TEMPLATE = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
 SEC_SUBMISSION_FORMS = {"10-K", "10-Q", "8-K"}
+SEC_REQUEST_INTERVAL_SECONDS = 0.2
 SEC_FUNDAMENTAL_CONCEPTS = {
     "revenue": [
         "Revenues",
@@ -29,6 +33,41 @@ SEC_FUNDAMENTAL_CONCEPTS = {
         "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
     ],
 }
+
+
+def build_sec_session() -> requests.Session:
+    """Build a session that retries temporary SEC and network failures."""
+    retry = Retry(
+        total=3,
+        connect=3,
+        read=3,
+        backoff_factor=1.0,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset({"GET"}),
+        respect_retry_after_header=True,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session = requests.Session()
+    session.mount("https://", adapter)
+    return session
+
+
+def pace_sec_requests(
+    last_request_at: float | None,
+    *,
+    interval_seconds: float = SEC_REQUEST_INTERVAL_SECONDS,
+) -> float:
+    """Wait as needed to keep SEC request starts at or below five per second."""
+    if interval_seconds <= 0:
+        raise ValueError("interval_seconds must be positive.")
+
+    now = time.monotonic()
+    if last_request_at is not None:
+        wait_seconds = max(0.0, interval_seconds - (now - last_request_at))
+        if wait_seconds:
+            time.sleep(wait_seconds)
+            now += wait_seconds
+    return now
 
 
 def _sec_user_agent() -> str:
