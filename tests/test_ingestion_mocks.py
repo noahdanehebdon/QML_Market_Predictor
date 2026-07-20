@@ -113,7 +113,7 @@ def test_fetch_bls_chunk_uses_mock_response_and_normalizes_schema(monkeypatch):
         assert url == pull_macro.BLS_URL
         assert json["seriesid"] == ["CUSR0000SA0"]
         assert json["registrationkey"] == "fake-key"
-        assert timeout == 30
+        assert timeout == 60
         return MockResponse(
             json_data={
                 "status": "REQUEST_SUCCEEDED",
@@ -153,6 +153,47 @@ def test_fetch_bls_chunk_uses_mock_response_and_normalizes_schema(monkeypatch):
     assert df.loc[0, "value"] == 309.685
 
 
+def test_macro_request_retries_a_timeout(monkeypatch):
+    response = MockResponse(json_data={"status": "REQUEST_SUCCEEDED"})
+    calls = []
+    sleeps = []
+
+    def flaky_request(url, timeout):
+        calls.append((url, timeout))
+        if len(calls) == 1:
+            raise requests.ReadTimeout("temporary timeout")
+        return response
+
+    monkeypatch.setattr(pull_macro.time, "sleep", sleeps.append)
+
+    result = pull_macro.request_with_retries(
+        flaky_request,
+        "https://example.test/data",
+        source="Test source",
+    )
+
+    assert result is response
+    assert calls == [
+        ("https://example.test/data", 60),
+        ("https://example.test/data", 60),
+    ]
+    assert sleeps == [1]
+
+
+def test_macro_request_reports_exhausted_retries(monkeypatch):
+    def timeout(url, timeout):
+        raise requests.ReadTimeout(f"timeout from {url} after {timeout}s")
+
+    monkeypatch.setattr(pull_macro.time, "sleep", lambda _: None)
+
+    with pytest.raises(RuntimeError, match="BLS request failed after 3 attempts"):
+        pull_macro.request_with_retries(
+            timeout,
+            "https://example.test/data",
+            source="BLS",
+        )
+
+
 def test_fetch_fed_ddp_series_uses_mock_csv_and_normalizes_schema(monkeypatch):
     csv_text = "\n".join(
         [
@@ -166,7 +207,7 @@ def test_fetch_fed_ddp_series_uses_mock_csv_and_normalizes_schema(monkeypatch):
 
     def mock_get(url, timeout):
         assert url == "https://example.test/fed.csv"
-        assert timeout == 30
+        assert timeout == 60
         return MockResponse(text=csv_text)
 
     monkeypatch.setattr(pull_macro.requests, "get", mock_get)
