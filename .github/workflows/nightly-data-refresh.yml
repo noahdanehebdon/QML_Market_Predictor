@@ -54,7 +54,10 @@ jobs:
         run: python -m scripts.ingest_alpaca_prices
 
       - name: Pull latest macro data
-        run: python -m scripts.pull_macro --config configs/data_sources.yaml
+        run: >-
+          python -m scripts.pull_macro
+          --config configs/data_sources.yaml
+          --start-year 2020
 
       - name: Build market-aligned macro data
         run: >-
