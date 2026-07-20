@@ -31,6 +31,11 @@ from market_qml.models.dataset import (
     DEFAULT_TARGET_COLUMN,
     build_train_validation_datasets,
 )
+from market_qml.models.artifacts import (
+    resolve_git_sha,
+    save_artifact_manifest,
+    save_model_artifact,
+)
 from market_qml.models.elastic_net import (
     DEFAULT_TARGET_COLUMN as ELASTIC_NET_TARGET_COLUMN,
     MODEL_NAME as ELASTIC_NET_MODEL_NAME,
@@ -107,6 +112,7 @@ class WalkForwardPredictionResult:
     training_loss: pd.DataFrame
     validation_metrics: pd.DataFrame
     selection_diagnostics: pd.DataFrame
+    artifact_records: list[dict]
 
 
 MODEL_REGISTRY = {
@@ -192,6 +198,12 @@ def parse_args() -> argparse.Namespace:
         help="Directory to save backtest outputs.",
     )
     parser.add_argument(
+        "--artifact-dir",
+        type=Path,
+        default=None,
+        help="Directory for fitted model bundles (defaults inside output-dir).",
+    )
+    parser.add_argument(
         "--models",
         nargs="+",
         default=list(MODEL_REGISTRY),
@@ -265,6 +277,7 @@ def main() -> None:
         splits=pd.read_parquet(args.splits),
         model_names=args.models,
         output_dir=args.output_dir,
+        artifact_dir=args.artifact_dir,
         max_splits=args.max_splits,
         top_k=args.top_k,
         top_fraction=args.top_fraction,
@@ -289,6 +302,7 @@ def run_walk_forward_backtest(
     splits: pd.DataFrame,
     model_names: list[str],
     output_dir: str | Path = DEFAULT_OUTPUT_DIR,
+    artifact_dir: str | Path | None = None,
     max_splits: int | None = None,
     top_k: int | None = None,
     top_fraction: float = 0.1,
@@ -304,12 +318,28 @@ def run_walk_forward_backtest(
     if max_splits is not None and max_splits <= 0:
         raise ValueError("max_splits must be positive when provided.")
 
+    output_dir = Path(output_dir)
+    artifact_dir = (
+        Path(artifact_dir) if artifact_dir else output_dir / "model_artifacts"
+    )
     selected_splits = _selected_splits(splits, max_splits=max_splits)
+    run_config = {
+        "models": model_names,
+        "max_splits": max_splits,
+        "top_k": top_k,
+        "top_fraction": top_fraction,
+        "transaction_cost_bps": transaction_cost_bps,
+        "rebalance_frequency": rebalance_frequency,
+        "periods_per_year": periods_per_year,
+    }
     prediction_result = _walk_forward_predictions(
         features=features,
         labels=labels,
         splits=selected_splits,
         model_names=model_names,
+        artifact_dir=artifact_dir,
+        run_config=run_config,
+        git_sha=resolve_git_sha(),
     )
     predictions = prediction_result.predictions
     binary_predictions = _binary_predictions(predictions)
@@ -335,7 +365,6 @@ def run_walk_forward_backtest(
         periods_per_year=periods_per_year,
     )
 
-    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_paths = {
         "predictions": output_dir / "predictions.parquet",
@@ -343,13 +372,18 @@ def run_walk_forward_backtest(
         "ranking_metrics": output_dir / "ranking_metrics.parquet",
         "portfolio_backtest": output_dir / "portfolio_backtest.parquet",
         "portfolio_risk_metrics": output_dir / "portfolio_risk_metrics.parquet",
+        "artifact_manifest": save_artifact_manifest(
+            artifact_dir, prediction_result.artifact_records
+        ),
     }
     if not prediction_result.training_loss.empty:
         output_paths["training_loss"] = output_dir / "training_loss.parquet"
     if not prediction_result.validation_metrics.empty:
         output_paths["validation_metrics"] = output_dir / "validation_metrics.parquet"
     if not prediction_result.selection_diagnostics.empty:
-        output_paths["selection_diagnostics"] = output_dir / "selection_diagnostics.parquet"
+        output_paths["selection_diagnostics"] = (
+            output_dir / "selection_diagnostics.parquet"
+        )
 
     predictions.to_parquet(output_paths["predictions"], index=False)
     if "training_loss" in output_paths:
@@ -407,11 +441,15 @@ def _walk_forward_predictions(
     labels: pd.DataFrame,
     splits: pd.DataFrame,
     model_names: list[str],
+    artifact_dir: Path,
+    run_config: dict,
+    git_sha: str,
 ) -> WalkForwardPredictionResult:
     frames = []
     training_loss_frames = []
     validation_metric_frames = []
     selection_diagnostic_frames = []
+    artifact_records = []
     for model_name in model_names:
         spec = MODEL_REGISTRY[model_name]
         for split in splits.itertuples(index=False):
@@ -425,12 +463,14 @@ def _walk_forward_predictions(
                 validation_end_date=split.validation_end_date,
             )
             preprocessed = fit_transform_train_validation(datasets)
+            pca = None
             if spec.model_family == "qml":
+                qml_sample, pca = _build_qml_split_sample(
+                    preprocessed=preprocessed,
+                    split_id=int(split.split_id),
+                )
                 result = spec.train(
-                    _build_qml_split_sample(
-                        preprocessed=preprocessed,
-                        split_id=int(split.split_id),
-                    ),
+                    qml_sample,
                     split_id=int(split.split_id),
                 )
                 training_loss_frames.append(result.training_loss)
@@ -442,7 +482,24 @@ def _walk_forward_predictions(
                 )
                 if hasattr(result, "selection_diagnostics"):
                     selection_diagnostic_frames.append(result.selection_diagnostics)
-            frames.append(result.predictions)
+            record = save_model_artifact(
+                root=artifact_dir,
+                model_name=model_name,
+                split_id=int(split.split_id),
+                model=result.model,
+                preprocessor=preprocessed.preprocessor,
+                pca=pca,
+                result=result,
+                train_metadata=preprocessed.train.metadata,
+                validation_metadata=preprocessed.validation.metadata,
+                target_column=spec.target_column,
+                run_config=run_config,
+                git_sha=git_sha,
+            )
+            artifact_records.append(record)
+            model_predictions = result.predictions.copy()
+            model_predictions["artifact_id"] = record["artifact_id"]
+            frames.append(model_predictions)
 
     if not frames:
         raise ValueError("No prediction rows were produced.")
@@ -464,6 +521,7 @@ def _walk_forward_predictions(
             if selection_diagnostic_frames
             else pd.DataFrame()
         ),
+        artifact_records=artifact_records,
     )
 
 
@@ -490,7 +548,7 @@ def _build_qml_split_sample(
         sample_role="validation",
     )
     qml_sample = pd.concat([train_rows, validation_rows], ignore_index=True)
-    return build_qml_train_validation(qml_sample, split_id=split_id)
+    return build_qml_train_validation(qml_sample, split_id=split_id), pca
 
 
 def _pca_rows(

@@ -112,6 +112,7 @@ def test_run_walk_forward_backtest_writes_report_bundle(tmp_path):
     )
 
     assert sorted(outputs) == [
+        "artifact_manifest",
         "classification_metrics",
         "portfolio_backtest",
         "portfolio_risk_metrics",
@@ -129,6 +130,15 @@ def test_run_walk_forward_backtest_writes_report_bundle(tmp_path):
 
     assert predictions["model_name"].unique().tolist() == ["logistic_regression"]
     assert predictions["split_id"].unique().tolist() == [0]
+    assert predictions["artifact_id"].unique().tolist() == [
+        "logistic_regression-split-000"
+    ]
+    assert (
+        tmp_path / "model_artifacts/logistic_regression/split_000/model.pkl"
+    ).exists()
+    assert (
+        tmp_path / "model_artifacts/logistic_regression/split_000/preprocessor.pkl"
+    ).exists()
     assert len(predictions) == 6
     assert classification["scope"].tolist() == ["split", "overall"]
     assert set(ranking["scope"]) == {"date", "split", "overall"}
@@ -241,7 +251,9 @@ def test_run_walk_forward_backtest_supports_gradient_boosting_regressor_lane(tmp
     portfolio = pd.read_parquet(outputs["portfolio_backtest"])
     risk = pd.read_parquet(outputs["portfolio_risk_metrics"])
 
-    assert predictions["model_name"].unique().tolist() == ["gradient_boosting_regressor"]
+    assert predictions["model_name"].unique().tolist() == [
+        "gradient_boosting_regressor"
+    ]
     assert predictions["y_true"].dtype.kind == "f"
     assert classification.empty
     assert set(ranking["model_name"]) == {"gradient_boosting_regressor"}
@@ -272,6 +284,8 @@ def test_run_walk_forward_backtest_supports_vqc_lane(tmp_path):
 
     assert predictions["model_name"].unique().tolist() == ["vqc"]
     assert predictions["split_id"].unique().tolist() == [0]
+    assert predictions["artifact_id"].unique().tolist() == ["vqc-split-000"]
+    assert (tmp_path / "model_artifacts/vqc/split_000/pca.pkl").exists()
     assert predictions["y_score"].between(0, 1).all()
     assert training_loss["model_name"].unique().tolist() == ["vqc"]
     assert validation_metrics["model_name"].unique().tolist() == ["vqc"]
