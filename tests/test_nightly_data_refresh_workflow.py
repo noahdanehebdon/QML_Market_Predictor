@@ -26,12 +26,14 @@ def test_nightly_refresh_uses_secrets_without_echoing_values():
         "ALPACA_API_KEY": "${{ secrets.ALPACA_API_KEY }}",
         "ALPACA_SECRET_KEY": "${{ secrets.ALPACA_SECRET_KEY }}",
         "BLS_API_KEY": "${{ secrets.BLS_API_KEY }}",
+        "SEC_USER_AGENT": "${{ secrets.SEC_USER_AGENT }}",
     }
     assert "echo \"$ALPACA" not in workflow_text
     assert "echo \"$BLS" not in workflow_text
+    assert "echo \"$SEC" not in workflow_text
 
 
-def test_nightly_refresh_runs_both_sources_and_uploads_ignored_data():
+def test_nightly_refresh_runs_all_sources_and_uploads_ignored_data():
     workflow = _workflow()
     steps = workflow["jobs"]["refresh"]["steps"]
     commands = "\n".join(step.get("run", "") for step in steps)
@@ -39,6 +41,9 @@ def test_nightly_refresh_runs_both_sources_and_uploads_ignored_data():
 
     assert "scripts.ingest_alpaca_prices" in commands
     assert "scripts.pull_macro" in commands
+    assert "scripts.build_sec_ticker_cik_lookup" in commands
+    assert "scripts.ingest_sec_submissions" in commands
+    assert "scripts.ingest_sec_company_facts" in commands
     assert upload["uses"] == "actions/upload-artifact@v4"
     assert "data/raw/" in upload["with"]["path"]
     assert "data/processed/" in upload["with"]["path"]

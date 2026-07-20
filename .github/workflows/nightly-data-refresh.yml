@@ -22,6 +22,7 @@ jobs:
       ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
       ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
       BLS_API_KEY: ${{ secrets.BLS_API_KEY }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
 
     steps:
       - name: Check out repository
@@ -43,6 +44,7 @@ jobs:
           [[ -z "$ALPACA_API_KEY" ]] && missing+=(ALPACA_API_KEY)
           [[ -z "$ALPACA_SECRET_KEY" ]] && missing+=(ALPACA_SECRET_KEY)
           [[ -z "$BLS_API_KEY" ]] && missing+=(BLS_API_KEY)
+          [[ -z "$SEC_USER_AGENT" ]] && missing+=(SEC_USER_AGENT)
           if (( ${#missing[@]} )); then
             echo "::error title=Missing GitHub Secrets::Configure: ${missing[*]}"
             exit 1
@@ -59,10 +61,19 @@ jobs:
           python -m scripts.build_macro_daily
           --prices data/processed/prices.parquet
 
+      - name: Refresh SEC ticker and CIK lookup
+        run: python -m scripts.build_sec_ticker_cik_lookup
+
+      - name: Pull latest SEC submissions
+        run: python -m scripts.ingest_sec_submissions
+
+      - name: Pull latest SEC company facts
+        run: python -m scripts.ingest_sec_company_facts
+
       - name: Summarize refresh failure
         if: failure()
         run: |
-          echo "::error title=Nightly data refresh failed::Review the first failed step above. API availability, credentials, and source responses are the most likely causes."
+          echo "::error title=Nightly data refresh failed::Review the first failed step above. API availability, credentials, SEC identity, and source responses are the most likely causes."
 
       - name: Upload refreshed data
         uses: actions/upload-artifact@v4
