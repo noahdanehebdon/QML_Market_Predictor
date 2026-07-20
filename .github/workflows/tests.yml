@@ -32,5 +32,8 @@ jobs:
       - name: Lint
         run: python -m ruff check .
 
+      - name: Check tracked data policy
+        run: python -m scripts.check_git_data_policy
+
       - name: Test
         run: python -m pytest -q

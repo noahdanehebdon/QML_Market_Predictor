@@ -20,19 +20,20 @@ def test_weekly_retraining_supports_manual_and_scheduled_runs():
     assert inputs["run_qml"]["default"] == "false"
 
 
-def test_weekly_retraining_downloads_latest_nightly_processed_data():
+def test_weekly_retraining_downloads_and_verifies_latest_r2_snapshot():
     workflow = _workflow()
     job = workflow["jobs"]["retrain"]
     steps = job["steps"]
-    download = next(step for step in steps if step["name"] == "Download latest refreshed data")
+    download = next(step for step in steps if step["name"] == "Download latest private R2 snapshot")
 
     permissions = job.get("permissions", workflow["permissions"])
-    assert permissions["actions"] == "read"
     assert permissions["contents"] == "read"
-    assert "nightly-data-refresh.yml" in download["run"]
-    assert "--status success" in download["run"]
-    assert 'nightly-market-data-$run_id' in download["run"]
-    assert "--dir data/processed" in download["run"]
+    assert "actions" not in permissions
+    assert "processed/latest-run-id.txt" in download["run"]
+    assert "processed/runs/${run_id}/" in download["run"]
+    assert "data/processed/" in download["run"]
+    assert "scripts.data_manifest verify" in download["run"]
+    assert "gh run download" not in download["run"]
 
 
 def test_weekly_retraining_builds_features_and_gates_qml():

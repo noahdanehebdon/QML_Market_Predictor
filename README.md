@@ -206,17 +206,19 @@ repository secrets before running it:
 The workflow refreshes Alpaca prices, BLS/Federal Reserve macro data, and SEC
 ticker, submissions, and company-facts data. SEC requests are paced at no more
 than five per second and retry temporary failures. The workflow builds the
-market-aligned macro table and uploads only `data/processed/` as a seven-day
-GitHub Actions artifact; raw provider responses are not uploaded. Generated
-data remains excluded by `.gitignore`, and the workflow never commits data
-files to the repository. A failed run emits a GitHub error annotation and
-identifies the failed step in its log.
+market-aligned macro table, creates a SHA-256 manifest, and uploads only
+`data/processed/` to a private Cloudflare R2 snapshot. Raw provider responses
+are not uploaded. Configure the four bucket-scoped secrets `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`, and `R2_BUCKET_NAME`. Generated data
+remains excluded by `.gitignore`, and the workflow never commits data files to
+the repository. A failed run emits a GitHub error annotation and identifies the
+failed step in its log.
 
 ### Weekly model retraining
 
 The `Weekly model retraining` GitHub Actions workflow runs Saturdays at 08:00
-UTC, after the final scheduled weekday refresh. It downloads the most recent
-successful `Nightly data refresh` processed-data artifact, rebuilds features
+UTC, after the final scheduled weekday refresh. It downloads and checksum-
+verifies the latest private R2 processed-data snapshot, rebuilds features
 and walk-forward splits, and retrains the tuned gradient-boosting regressor by
 default. The workflow uploads classification, ranking, portfolio-risk, and
 model diagnostic metrics as a private 30-day artifact; it does not upload
@@ -226,6 +228,9 @@ The workflow can also be started from the repository's **Actions** tab. Manual
 runs can select a different classical baseline and optionally enable VQC with
 the `run_qml` input. Scheduled runs keep QML disabled so the slower quantum
 workflow remains explicitly opt-in.
+
+See [docs/data_versioning.md](docs/data_versioning.md) for the private-data
+policy, snapshot identity, regeneration procedure, and Git safeguards.
 
 After training the default logistic-regression model, generate the latest
 cross-sectional signal report with:

@@ -10,6 +10,7 @@ commands:
       - module: scripts.pull_macro
         args: ["--config", "configs/data_sources.yaml"]
       - module: scripts.build_macro_daily
+        args: ["--prices", "data/processed/prices.parquet"]
 
   ingest-sec:
     steps:
