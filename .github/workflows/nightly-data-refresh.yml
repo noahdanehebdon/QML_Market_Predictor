@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   refresh:
-    name: Refresh Alpaca and macro data
+    name: Refresh market, macro, and SEC data
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -79,9 +79,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nightly-market-data-${{ github.run_id }}
-          path: |
-            data/raw/
-            data/processed/
+          path: data/processed/
           if-no-files-found: error
           retention-days: 7
           compression-level: 6
