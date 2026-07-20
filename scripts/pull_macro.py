@@ -32,6 +32,7 @@ import csv
 import os
 from io import StringIO
 from pathlib import Path
+import time
 
 import pandas as pd
 import requests
@@ -63,6 +64,8 @@ EXPECTED_COLUMNS = [
     "unemployment_rate",
     "industrial_production",
 ]
+REQUEST_TIMEOUT_SECONDS = 60
+REQUEST_ATTEMPTS = 3
 
 
 # ---------------------------------------------------------------------
@@ -98,6 +101,24 @@ def safe_numeric(value) -> float | None:
 def ensure_output_dirs() -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def request_with_retries(request, url: str, *, source: str, **kwargs):
+    """Run an HTTP request with bounded exponential backoff."""
+    for attempt in range(1, REQUEST_ATTEMPTS + 1):
+        try:
+            return request(url, timeout=REQUEST_TIMEOUT_SECONDS, **kwargs)
+        except requests.RequestException as exc:
+            if attempt == REQUEST_ATTEMPTS:
+                raise RuntimeError(
+                    f"{source} request failed after {REQUEST_ATTEMPTS} attempts: {exc}"
+                ) from exc
+            delay = 2 ** (attempt - 1)
+            print(
+                f"{source} request attempt {attempt} failed; "
+                f"retrying in {delay} second(s)..."
+            )
+            time.sleep(delay)
 
 
 def load_macro_config(config_path: Path = DEFAULT_CONFIG_PATH) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
@@ -193,7 +214,12 @@ def fetch_bls_chunk(
         "registrationkey": api_key,
     }
 
-    response = requests.post(BLS_URL, json=payload, timeout=30)
+    response = request_with_retries(
+        requests.post,
+        BLS_URL,
+        source=f"BLS {start_year}-{end_year}",
+        json=payload,
+    )
     response.raise_for_status()
 
     data = response.json()
@@ -341,7 +367,11 @@ def fetch_fed_ddp_series(
     """
     print(f"Pulling Fed series: {column}...")
 
-    response = requests.get(url, timeout=30)
+    response = request_with_retries(
+        requests.get,
+        url,
+        source=f"Federal Reserve {column}",
+    )
     response.raise_for_status()
 
     text = response.text
