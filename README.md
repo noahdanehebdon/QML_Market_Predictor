@@ -226,6 +226,22 @@ and regime-specific figures under `reports/figures/`. It also creates
 `reports/backtest_charts.md`, which embeds every figure for inclusion in the
 final project report.
 
+### Local results dashboard
+
+Install the optional dashboard dependency and launch Streamlit from the
+repository root:
+
+```powershell
+python -m pip install -e ".[dashboard]"
+python -m streamlit run scripts/dashboard.py
+```
+
+The dashboard reads existing artifacts under `reports/` and shows the latest
+signal report, classical model comparison, cumulative net returns, drawdowns,
+top-ranked stocks, and QML experiment summaries. If `reports/daily_signal.csv`
+does not exist, generate it first with `report`; the top-stock view falls back
+to the latest saved backtest predictions in the meantime.
+
 ## Milestone 3: Classical Backtesting
 
 Milestone 3 provides chronological walk-forward splits, train-only preprocessing,

@@ -23,6 +23,9 @@ dependencies = [
 dev = [
     "ruff>=0.12,<1",
 ]
+dashboard = [
+    "streamlit>=1.36,<2",
+]
 
 [project.scripts]
 ingest-prices = "market_qml.cli:ingest_prices"
