@@ -24,7 +24,9 @@ def test_weekly_retraining_downloads_and_verifies_latest_r2_snapshot():
     workflow = _workflow()
     job = workflow["jobs"]["retrain"]
     steps = job["steps"]
-    download = next(step for step in steps if step["name"] == "Download latest private R2 snapshot")
+    download = next(
+        step for step in steps if step["name"] == "Download latest private R2 snapshot"
+    )
 
     permissions = job.get("permissions", workflow["permissions"])
     assert permissions["contents"] == "read"
@@ -49,20 +51,29 @@ def test_weekly_retraining_builds_features_and_gates_qml():
 
 def test_weekly_retraining_uploads_reports_only_to_private_r2():
     steps = _workflow()["jobs"]["retrain"]["steps"]
-    upload = next(step for step in steps if step["name"] == "Upload reports to private R2")
+    upload = next(
+        step for step in steps if step["name"] == "Upload reports to private R2"
+    )
     workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "actions/upload-artifact" not in workflow_text
     assert "reports/weekly_retraining/" in upload["run"]
     assert "reports/runs/${GITHUB_RUN_ID}/" in upload["run"]
     assert upload["env"]["AWS_ACCESS_KEY_ID"] == "${{ secrets.R2_ACCESS_KEY_ID }}"
-    assert upload["env"]["AWS_SECRET_ACCESS_KEY"] == "${{ secrets.R2_SECRET_ACCESS_KEY }}"
+    assert (
+        upload["env"]["AWS_SECRET_ACCESS_KEY"] == "${{ secrets.R2_SECRET_ACCESS_KEY }}"
+    )
     assert "data/" not in upload["run"]
+
+    retrain = next(step for step in steps if step["name"] == "Retrain selected models")
+    assert "--output-dir reports/weekly_retraining" in retrain["run"]
 
 
 def test_weekly_retraining_has_readable_failure_annotation():
     steps = _workflow()["jobs"]["retrain"]["steps"]
-    failure = next(step for step in steps if step["name"] == "Summarize retraining failure")
+    failure = next(
+        step for step in steps if step["name"] == "Summarize retraining failure"
+    )
 
     assert failure["if"] == "failure()"
     assert "::error title=Weekly retraining failed::" in failure["run"]

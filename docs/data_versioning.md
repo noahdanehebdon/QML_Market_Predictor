@@ -45,6 +45,11 @@ Weekly retraining outputs are stored under `reports/runs/<workflow-run-id>/`
 in the same private bucket. Workflows do not use GitHub Actions artifacts for
 provider data, processed data, predictions, reports, or model outputs.
 
+Model bundles live within each weekly report at `model_artifacts/`. Their
+manifest maps the `artifact_id` embedded in every prediction row to the exact
+fitted model, preprocessing/PCA objects, configuration, Git commit, training
+time, and data ranges used to produce it.
+
 ## Local regeneration
 
 Configure `.env` as described in the README, then run from the repository root:
