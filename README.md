@@ -220,9 +220,9 @@ The `Weekly model retraining` GitHub Actions workflow runs Saturdays at 08:00
 UTC, after the final scheduled weekday refresh. It downloads and checksum-
 verifies the latest private R2 processed-data snapshot, rebuilds features
 and walk-forward splits, and retrains the tuned gradient-boosting regressor by
-default. The workflow uploads classification, ranking, portfolio-risk, and
-model diagnostic metrics as a private 30-day artifact; it does not upload
-predictions or source datasets.
+default. The workflow uploads its generated reports to the private R2 bucket
+under `reports/runs/<workflow-run-id>/`; it does not create GitHub Actions
+artifacts or upload source datasets to GitHub.
 
 The workflow can also be started from the repository's **Actions** tab. Manual
 runs can select a different classical baseline and optionally enable VQC with

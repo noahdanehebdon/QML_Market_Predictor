@@ -111,23 +111,26 @@ jobs:
             echo "## Weekly model retraining"
             echo "- Baseline: \`$BASELINE_MODEL\`"
             echo "- QML enabled: \`$RUN_QML\`"
-            echo "- Metrics are attached as the weekly-model-metrics artifact."
+            echo "- Reports are stored in the private R2 bucket under \`reports/runs/${GITHUB_RUN_ID}/\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize retraining failure
         if: failure()
         run: echo "::error title=Weekly retraining failed::Review the first failed step above. Confirm a verified private R2 snapshot exists and that feature inputs are complete."
 
-      - name: Upload metrics
-        uses: actions/upload-artifact@v4
-        with:
-          name: weekly-model-metrics-${{ github.run_id }}
-          path: |
-            reports/weekly_retraining/classification_metrics.parquet
-            reports/weekly_retraining/ranking_metrics.parquet
-            reports/weekly_retraining/portfolio_risk_metrics.parquet
-            reports/weekly_retraining/selection_diagnostics.parquet
-            reports/weekly_retraining/validation_metrics.parquet
-          if-no-files-found: error
-          retention-days: 30
-          compression-level: 6
+      - name: Upload reports to private R2
+        if: success()
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          aws s3 sync \
+            reports/weekly_retraining/ \
+            "s3://${R2_BUCKET_NAME}/reports/runs/${GITHUB_RUN_ID}/" \
+            --endpoint-url "$endpoint" \
+            --only-show-errors
