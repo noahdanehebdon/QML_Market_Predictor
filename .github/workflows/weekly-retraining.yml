@@ -1,0 +1,117 @@
+name: Weekly model retraining
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_model:
+        description: Classical baseline to retrain
+        required: true
+        default: tuned_gradient_boosting_regressor
+        type: choice
+        options:
+          - tuned_gradient_boosting_regressor
+          - gradient_boosting_regressor
+          - logistic_regression
+      run_qml:
+        description: Also run the VQC model (slower)
+        required: true
+        default: false
+        type: boolean
+  schedule:
+    # Saturday morning, after the final weekday data refresh has completed.
+    - cron: "0 8 * * 6"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: weekly-model-retraining
+  cancel-in-progress: false
+
+jobs:
+  retrain:
+    name: Build features and retrain models
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BASELINE_MODEL: ${{ inputs.baseline_model || 'tuned_gradient_boosting_regressor' }}
+      RUN_QML: ${{ inputs.run_qml || 'false' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install --upgrade pip && python -m pip install --editable .
+
+      - name: Download latest refreshed data
+        shell: bash
+        run: |
+          run_id="$(gh run list \
+            --workflow nightly-data-refresh.yml \
+            --branch main \
+            --status success \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')"
+          if [[ -z "$run_id" ]]; then
+            echo "::error title=No refreshed data::Run the Nightly data refresh workflow successfully before retraining."
+            exit 1
+          fi
+          mkdir -p data/processed
+          gh run download "$run_id" \
+            --name "nightly-market-data-$run_id" \
+            --dir data/processed
+          echo "Using processed data from nightly workflow run $run_id."
+
+      - name: Build features and walk-forward splits
+        run: build-features
+
+      - name: Retrain selected models
+        shell: bash
+        run: |
+          models=("$BASELINE_MODEL")
+          if [[ "$RUN_QML" == "true" ]]; then
+            models+=(vqc)
+          fi
+          python -m scripts.run_walk_forward_backtest \
+            --models "${models[@]}" \
+            --output-dir reports/weekly_retraining \
+            --disable-mlflow
+
+      - name: Write run summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "## Weekly model retraining"
+            echo "- Baseline: \`$BASELINE_MODEL\`"
+            echo "- QML enabled: \`$RUN_QML\`"
+            echo "- Metrics are attached as the weekly-model-metrics artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize retraining failure
+        if: failure()
+        run: echo "::error title=Weekly retraining failed::Review the first failed step above. Confirm a successful nightly artifact exists and that feature inputs are complete."
+
+      - name: Upload metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-model-metrics-${{ github.run_id }}
+          path: |
+            reports/weekly_retraining/classification_metrics.parquet
+            reports/weekly_retraining/ranking_metrics.parquet
+            reports/weekly_retraining/portfolio_risk_metrics.parquet
+            reports/weekly_retraining/selection_diagnostics.parquet
+            reports/weekly_retraining/validation_metrics.parquet
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
