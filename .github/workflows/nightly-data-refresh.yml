@@ -45,6 +45,10 @@ jobs:
           [[ -z "$ALPACA_SECRET_KEY" ]] && missing+=(ALPACA_SECRET_KEY)
           [[ -z "$BLS_API_KEY" ]] && missing+=(BLS_API_KEY)
           [[ -z "$SEC_USER_AGENT" ]] && missing+=(SEC_USER_AGENT)
+          [[ -z "${{ secrets.R2_ACCESS_KEY_ID }}" ]] && missing+=(R2_ACCESS_KEY_ID)
+          [[ -z "${{ secrets.R2_SECRET_ACCESS_KEY }}" ]] && missing+=(R2_SECRET_ACCESS_KEY)
+          [[ -z "${{ secrets.R2_ACCOUNT_ID }}" ]] && missing+=(R2_ACCOUNT_ID)
+          [[ -z "${{ secrets.R2_BUCKET_NAME }}" ]] && missing+=(R2_BUCKET_NAME)
           if (( ${#missing[@]} )); then
             echo "::error title=Missing GitHub Secrets::Configure: ${missing[*]}"
             exit 1
@@ -73,16 +77,31 @@ jobs:
       - name: Pull latest SEC company facts
         run: python -m scripts.ingest_sec_company_facts
 
+      - name: Create processed-data manifest
+        run: python -m scripts.data_manifest create
+
+      - name: Upload private R2 snapshot
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          prefix="s3://${R2_BUCKET_NAME}/processed/runs/${GITHUB_RUN_ID}/"
+          aws s3 sync data/processed/ "$prefix" \
+            --endpoint-url "$endpoint" \
+            --only-show-errors
+          printf '%s' "$GITHUB_RUN_ID" > latest-run-id.txt
+          aws s3 cp latest-run-id.txt \
+            "s3://${R2_BUCKET_NAME}/processed/latest-run-id.txt" \
+            --endpoint-url "$endpoint" \
+            --only-show-errors
+          echo "Uploaded private processed-data snapshot for run $GITHUB_RUN_ID."
+
       - name: Summarize refresh failure
         if: failure()
         run: |
           echo "::error title=Nightly data refresh failed::Review the first failed step above. API availability, credentials, SEC identity, and source responses are the most likely causes."
-
-      - name: Upload refreshed data
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightly-market-data-${{ github.run_id }}
-          path: data/processed/
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 6
