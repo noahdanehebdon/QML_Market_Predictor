@@ -12,8 +12,10 @@ import yaml
 from dotenv import load_dotenv
 
 from market_qml.ingestion.sec import (
+    build_sec_session,
     fetch_company_facts,
     normalize_fundamentals,
+    pace_sec_requests,
     save_fundamentals,
     save_raw_company_facts,
 )
@@ -130,13 +132,17 @@ def main() -> None:
     lookup = _filter_symbols(lookup, args.symbols)
 
     company_facts: dict[str, dict] = {}
+    session = build_sec_session()
+    last_request_at: float | None = None
     for row in lookup.itertuples(index=False):
         symbol = str(row.symbol)
         LOGGER.info("Fetching SEC companyfacts for %s.", symbol)
+        last_request_at = pace_sec_requests(last_request_at)
         try:
             payload = fetch_company_facts(
                 cik=row.cik_padded,
                 url_template=url_template,
+                session=session,
             )
         except requests.HTTPError as exc:
             if exc.response is not None and exc.response.status_code == 404:

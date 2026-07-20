@@ -11,8 +11,10 @@ import yaml
 from dotenv import load_dotenv
 
 from market_qml.ingestion.sec import (
+    build_sec_session,
     fetch_company_submission,
     normalize_submissions,
+    pace_sec_requests,
     save_raw_submission,
     save_submissions,
 )
@@ -129,12 +131,16 @@ def main() -> None:
     lookup = _filter_symbols(lookup, args.symbols)
 
     submissions: dict[str, dict] = {}
+    session = build_sec_session()
+    last_request_at: float | None = None
     for row in lookup.itertuples(index=False):
         symbol = str(row.symbol)
         LOGGER.info("Fetching SEC submissions for %s.", symbol)
+        last_request_at = pace_sec_requests(last_request_at)
         payload = fetch_company_submission(
             cik=row.cik_padded,
             url_template=url_template,
+            session=session,
         )
         save_raw_submission(payload, args.raw_dir / f"{symbol}_submissions.json")
         submissions[symbol] = payload

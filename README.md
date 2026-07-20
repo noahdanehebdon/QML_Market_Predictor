@@ -204,11 +204,13 @@ repository secrets before running it:
 - `SEC_USER_AGENT` (for example, `QML Market Predictor you@example.com`)
 
 The workflow refreshes Alpaca prices, BLS/Federal Reserve macro data, and SEC
-ticker, submissions, and company-facts data. It builds the market-aligned macro
-table and uploads `data/raw/` and `data/processed/` as a seven-day GitHub Actions
-artifact. Generated data remains excluded by `.gitignore`; the workflow never
-commits data files to the repository. A failed run emits a GitHub error
-annotation and identifies the failed step in its log.
+ticker, submissions, and company-facts data. SEC requests are paced at no more
+than five per second and retry temporary failures. The workflow builds the
+market-aligned macro table and uploads only `data/processed/` as a seven-day
+GitHub Actions artifact; raw provider responses are not uploaded. Generated
+data remains excluded by `.gitignore`, and the workflow never commits data
+files to the repository. A failed run emits a GitHub error annotation and
+identifies the failed step in its log.
 
 After training the default logistic-regression model, generate the latest
 cross-sectional signal report with:
