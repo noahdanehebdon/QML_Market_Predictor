@@ -41,6 +41,7 @@ def test_nightly_refresh_runs_all_sources_and_uploads_ignored_data():
 
     assert "scripts.ingest_alpaca_prices" in commands
     assert "scripts.pull_macro" in commands
+    assert "--start-year 2020" in commands
     assert "scripts.build_sec_ticker_cik_lookup" in commands
     assert "scripts.ingest_sec_submissions" in commands
     assert "scripts.ingest_sec_company_facts" in commands
