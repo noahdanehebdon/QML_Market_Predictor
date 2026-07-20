@@ -212,6 +212,21 @@ data remains excluded by `.gitignore`, and the workflow never commits data
 files to the repository. A failed run emits a GitHub error annotation and
 identifies the failed step in its log.
 
+### Weekly model retraining
+
+The `Weekly model retraining` GitHub Actions workflow runs Saturdays at 08:00
+UTC, after the final scheduled weekday refresh. It downloads the most recent
+successful `Nightly data refresh` processed-data artifact, rebuilds features
+and walk-forward splits, and retrains the tuned gradient-boosting regressor by
+default. The workflow uploads classification, ranking, portfolio-risk, and
+model diagnostic metrics as a private 30-day artifact; it does not upload
+predictions or source datasets.
+
+The workflow can also be started from the repository's **Actions** tab. Manual
+runs can select a different classical baseline and optionally enable VQC with
+the `run_qml` input. Scheduled runs keep QML disabled so the slower quantum
+workflow remains explicitly opt-in.
+
 After training the default logistic-regression model, generate the latest
 cross-sectional signal report with:
 
