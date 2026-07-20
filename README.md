@@ -224,6 +224,14 @@ default. The workflow uploads its generated reports to the private R2 bucket
 under `reports/runs/<workflow-run-id>/`; it does not create GitHub Actions
 artifacts or upload source datasets to GitHub.
 
+Each weekly run also saves a fitted artifact bundle for every model and
+walk-forward split. Prediction rows contain an `artifact_id` that maps to the
+bundle manifest. Bundles include the fitted estimator, train-only preprocessor,
+QML PCA transformer and explicit parameters when applicable, configuration
+snapshot, Git commit, training timestamp, and train/validation date ranges.
+These files follow the reports into private R2 and are never uploaded as
+GitHub Actions artifacts or committed to Git.
+
 The workflow can also be started from the repository's **Actions** tab. Manual
 runs can select a different classical baseline and optionally enable VQC with
 the `run_qml` input. Scheduled runs keep QML disabled so the slower quantum
