@@ -1,8 +1,10 @@
 backtest:
   benchmark: "SPY"
-  rebalance_frequency: "daily"
+  return_horizon_days: 5
+  rebalance_frequency: 5
+  trading_days_per_year: 252
   initial_capital: 100000
-  transaction_cost_bps: 5
+  transaction_cost_bps: 10
   long_short:
     enabled: false
 

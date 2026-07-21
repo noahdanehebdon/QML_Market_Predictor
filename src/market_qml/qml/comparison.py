@@ -15,7 +15,14 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, brier_score_loss, log_loss, roc_auc_score
 from sklearn.svm import SVC
 
-from market_qml.backtest.portfolio import run_portfolio_backtest, summarize_portfolio_risk
+from market_qml.backtest.portfolio import (
+    DEFAULT_REBALANCE_FREQUENCY,
+    DEFAULT_RETURN_HORIZON_DAYS,
+    DEFAULT_TRANSACTION_COST_BPS,
+    TRADING_DAYS_PER_YEAR,
+    run_portfolio_backtest,
+    summarize_portfolio_risk,
+)
 from market_qml.backtest.ranking_metrics import evaluate_ranking_metrics
 from market_qml.models.predictions import build_prediction_table
 from market_qml.qml.interface import build_qml_train_validation
@@ -63,8 +70,9 @@ class ComparisonConfig:
     interaction_scales: tuple[float, ...] = (0.0, 0.5, 1.0)
     bootstrap_iterations: int = 2000
     portfolio_top_fraction: float = 0.1
-    transaction_cost_bps: float = 10.0
-    rebalance_frequency: int = 5
+    transaction_cost_bps: float = DEFAULT_TRANSACTION_COST_BPS
+    rebalance_frequency: int = DEFAULT_REBALANCE_FREQUENCY
+    return_horizon_days: int = DEFAULT_RETURN_HORIZON_DAYS
 
 
 @dataclass(frozen=True)
@@ -149,6 +157,7 @@ def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = Comparis
         top_fraction=config.portfolio_top_fraction,
         transaction_cost_bps=config.transaction_cost_bps,
         rebalance_frequency=config.rebalance_frequency,
+        return_horizon_days=config.return_horizon_days,
     )
     portfolio_metrics = summarize_portfolio_risk(portfolio_returns)
     return ComparisonResult(
@@ -247,11 +256,22 @@ def render_comparison_report(result: ComparisonResult) -> str:
                  for index, row in display.iterrows())
     return "\n".join([
         "# QML model comparison", "", "All models used identical outer validation rows. VQC, QCNN, and QSVM choices were made only from an inner chronological portion of each training window.", "",
+        f"Portfolio assumptions: {config_text(result.portfolio_returns)}.", "",
         *table, "", f"Classification leader (mean ROC-AUC): **{best}**. Ranking leader (overall rank IC): **{ranking_winner}**. Portfolio leader (overall net Sharpe): **{portfolio_winner}**.", "",
         f"Best QML: **{best_qml}**; best requested classical baseline: **{best_classical}**.", "", f"Decision: {decision}", "",
         "Classification and split-bootstrap uncertainty are recorded in `split_metrics.parquet` and `aggregate_metrics.parquet`. Date-level ranking results are in `ranking_metrics.parquet`; transaction-cost-aware returns and risk metrics are in `portfolio_returns.parquet` and `portfolio_metrics.parquet`.", "",
         "Runtime, peak traced memory, selected configurations, tuning trials, and exact sampled-row hashes are retained beside this report.",
     ])
+
+
+def config_text(portfolio_returns: pd.DataFrame) -> str:
+    row = portfolio_returns.iloc[0]
+    periods = TRADING_DAYS_PER_YEAR / float(row["rebalance_frequency"])
+    return (
+        f"{int(row['return_horizon_days'])}-trading-day returns, rebalance every "
+        f"{int(row['rebalance_frequency'])} prediction dates, {periods:g} periods/year, "
+        f"and {float(row['transaction_cost_bps']):g} bps one-way costs"
+    )
 
 
 def _metric_leader(values: pd.Series) -> str:

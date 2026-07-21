@@ -1,5 +1,10 @@
 # Quantum machine-learning experiments
 
+> **Superseded portfolio metrics:** historical volatility and Sharpe values in
+> this document used 252 annualization periods for non-overlapping five-day
+> returns. Issue #153 corrected this to 50.4; portfolio risk figures must be
+> recomputed before use.
+
 This document is the self-contained guide to the repository's quantum
 machine-learning experiments. It explains what was tested, how data reached the
 circuits, how the models were compared, what the experiments found, and which

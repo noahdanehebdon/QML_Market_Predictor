@@ -20,6 +20,7 @@ def _portfolio_returns() -> pd.DataFrame:
                     "date": date,
                     "net_return": 0.002 * (model_index + 1) + (index % 3 - 1) * 0.001,
                     "benchmark_return": 0.001 + (index % 2) * 0.0005,
+                    "rebalance_frequency": 5,
                 }
             )
     return pd.DataFrame(rows)
@@ -94,6 +95,20 @@ def test_chart_generation_rejects_missing_inputs(tmp_path) -> None:
     with pytest.raises(ValueError, match="missing columns"):
         generate_backtest_charts(
             portfolio_returns=_portfolio_returns().drop(columns="net_return"),
+            model_summary=_model_summary(),
+            regime_metrics=_regime_metrics(),
+            output_dir=tmp_path,
+        )
+
+
+def test_chart_generation_requires_rebalance_metadata_for_annualization(
+    tmp_path,
+) -> None:
+    with pytest.raises(ValueError, match="rebalance_frequency"):
+        generate_backtest_charts(
+            portfolio_returns=_portfolio_returns().drop(
+                columns="rebalance_frequency"
+            ),
             model_summary=_model_summary(),
             regime_metrics=_regime_metrics(),
             output_dir=tmp_path,
