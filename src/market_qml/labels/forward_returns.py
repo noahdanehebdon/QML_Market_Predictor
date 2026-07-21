@@ -9,6 +9,7 @@ import pandas as pd
 
 
 DEFAULT_LABEL_HORIZON = 5
+DEFAULT_LABEL_HORIZONS = (5, 10, 20, 60)
 DEFAULT_BENCHMARK_SYMBOL = "SPY"
 REQUIRED_PRICE_COLUMNS = {"symbol", "date", "close"}
 
@@ -21,6 +22,7 @@ def build_forward_return_labels(
     drop_missing: bool = True,
     neutral_threshold: float = 0.0,
     volatility_window: int = 20,
+    sector_column: str | None = None,
 ) -> pd.DataFrame:
     """Create forward excess return labels from close prices.
 
@@ -45,6 +47,9 @@ def build_forward_return_labels(
     if not benchmark_symbol:
         raise ValueError("Benchmark symbol cannot be empty.")
 
+    if sector_column is not None and sector_column not in prices:
+        raise ValueError(f"Price table is missing sector column: {sector_column}")
+
     labels = prices.copy()
     labels["symbol"] = labels["symbol"].astype(str).str.upper()
     labels["date"] = pd.to_datetime(labels["date"], errors="coerce").dt.normalize()
@@ -66,6 +71,9 @@ def build_forward_return_labels(
     binary_label_column = f"outperform_{benchmark_symbol.lower()}_{horizon}d"
     neutral_label_column = f"outperform_{benchmark_symbol.lower()}_{horizon}d_neutral"
     normalized_return_column = f"vol_normalized_excess_return_{horizon}d"
+    rank_column = f"cross_sectional_rank_{horizon}d"
+    sector_return_column = f"sector_relative_return_{horizon}d"
+    sector_rank_column = f"sector_relative_rank_{horizon}d"
 
     labels["_daily_return"] = labels.groupby("symbol", sort=False)["close"].pct_change(
         fill_method=None
@@ -95,7 +103,10 @@ def build_forward_return_labels(
         ["date", forward_return_column],
     ].rename(columns={forward_return_column: benchmark_return_column})
 
-    result = labels[["symbol", "date", forward_return_column]].merge(
+    identity_columns = ["symbol", "date", forward_return_column]
+    if sector_column is not None:
+        identity_columns.append(sector_column)
+    result = labels[identity_columns].merge(
         benchmark_returns,
         on="date",
         how="left",
@@ -111,6 +122,17 @@ def build_forward_return_labels(
     result[normalized_return_column] = result[normalized_return_column].replace(
         [np.inf, -np.inf], np.nan
     )
+    result[rank_column] = result.groupby("date", sort=False)[
+        excess_return_column
+    ].rank(method="average", pct=True)
+    if sector_column is not None:
+        sector_mean = result.groupby(["date", sector_column], dropna=False)[
+            forward_return_column
+        ].transform("mean")
+        result[sector_return_column] = result[forward_return_column] - sector_mean
+        result[sector_rank_column] = result.groupby(
+            ["date", sector_column], dropna=False, sort=False
+        )[sector_return_column].rank(method="average", pct=True)
 
     result[binary_label_column] = pd.NA
     valid_excess = result[excess_return_column].notna()
@@ -131,10 +153,17 @@ def build_forward_return_labels(
         "symbol",
         "date",
         "label_horizon_days",
+        *([sector_column] if sector_column is not None else []),
         forward_return_column,
         benchmark_return_column,
         excess_return_column,
         normalized_return_column,
+        rank_column,
+        *(
+            [sector_return_column, sector_rank_column]
+            if sector_column is not None
+            else []
+        ),
         binary_label_column,
         neutral_label_column,
     ]
@@ -151,6 +180,37 @@ def build_forward_return_labels(
         ).reset_index(drop=True)
 
     return result
+
+
+def build_multi_horizon_target_table(
+    prices: pd.DataFrame,
+    *,
+    horizons: tuple[int, ...] | list[int] = DEFAULT_LABEL_HORIZONS,
+    benchmark_symbol: str = DEFAULT_BENCHMARK_SYMBOL,
+    drop_missing: bool = False,
+    neutral_threshold: float = 0.005,
+    volatility_window: int = 20,
+    sector_column: str | None = None,
+) -> pd.DataFrame:
+    """Build a long, auditable table of candidate targets for each horizon."""
+    unique_horizons = tuple(dict.fromkeys(int(value) for value in horizons))
+    if not unique_horizons:
+        raise ValueError("At least one label horizon is required.")
+    tables = [
+        build_forward_return_labels(
+            prices,
+            horizon=horizon,
+            benchmark_symbol=benchmark_symbol,
+            drop_missing=drop_missing,
+            neutral_threshold=neutral_threshold,
+            volatility_window=volatility_window,
+            sector_column=sector_column,
+        )
+        for horizon in unique_horizons
+    ]
+    return pd.concat(tables, ignore_index=True).sort_values(
+        ["label_horizon_days", "symbol", "date"]
+    ).reset_index(drop=True)
 
 
 def build_forward_return_label_table(
