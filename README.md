@@ -382,6 +382,22 @@ periods per year. Results produced before Issue #153 used 252 periods per year
 and therefore overstated annualized volatility and Sharpe ratios; those earlier
 portfolio risk figures are superseded.
 
+Validation follows a locked-test protocol. The most recent 252 trading days are
+excluded from routine split generation, with a five-day embargo between
+development and the final test. Hyperparameters are selected across three
+expanding chronological inner folds with label-horizon purging. Routine model
+comparisons report date-block bootstrap intervals, paired sign-permutation
+tests, Holm-adjusted p-values, observed effect sizes, and a 0.02 practical
+ROC-AUC threshold. Do not inspect the locked period during feature or model
+research. Final access must be deliberate and audited first:
+
+```powershell
+python -m scripts.log_locked_test_access `
+  --reason "Milestone 6 final evaluation; configurations frozen"
+```
+
+The audit file authorizes evaluation; it does not copy market data into Git.
+
 ```powershell
 python -m scripts.run_walk_forward_backtest `
   --models vol_normalized_gradient_boosting_regressor `
