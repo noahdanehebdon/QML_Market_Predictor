@@ -1,0 +1,22 @@
+xgboost_classifier:
+  objective: binary:logistic
+  evaluation_metric: logloss
+  n_estimators: 500
+  learning_rate: 0.05
+  max_depth: 4
+  early_stopping_rounds: 30
+  date_aware_sample_weights: true
+xgboost_ranker:
+  objective: rank:ndcg
+  evaluation_metric: ndcg
+  query_group: date
+  relevance_levels: 5
+  n_estimators: 500
+  learning_rate: 0.05
+  max_depth: 4
+  early_stopping_rounds: 30
+evidence:
+  practical_rank_ic_margin: 0.01
+  bootstrap_samples: 2000
+  confidence_level: 0.95
+  seed: 42
