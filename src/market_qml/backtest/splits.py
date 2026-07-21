@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from market_qml.backtest.validation import PROTOCOL_VERSION, partition_locked_test
+
 
 REQUIRED_DATE_COLUMN = "date"
 DEFAULT_SPLIT_OUTPUT_PATH = Path("data/processed/walk_forward_splits.parquet")
@@ -20,6 +22,8 @@ def generate_walk_forward_splits(
     step_days: int | None = None,
     yearly_validation: bool = False,
     purge_days: int = 0,
+    locked_test_days: int = 0,
+    embargo_days: int = 0,
 ) -> pd.DataFrame:
     """Generate time-ordered walk-forward split metadata.
 
@@ -33,20 +37,31 @@ def generate_walk_forward_splits(
     if purge_days < 0:
         raise ValueError("purge_days cannot be negative.")
 
+    locked_manifest = None
+    if locked_test_days:
+        if not isinstance(data, pd.DataFrame):
+            raise ValueError("Locked-test partitioning requires a DataFrame.")
+        data, _, locked_manifest = partition_locked_test(
+            data,
+            locked_test_days=locked_test_days,
+            embargo_days=embargo_days,
+            date_column=date_column,
+        )
     dates = _unique_dates(data, date_column=date_column)
     if len(dates) <= train_window_days:
         return _empty_split_metadata()
 
     if yearly_validation:
-        return _generate_yearly_splits(
+        result = _generate_yearly_splits(
             data=data,
             dates=dates,
             train_window_days=train_window_days,
             date_column=date_column,
             purge_days=purge_days,
         )
+        return _attach_locked_test_metadata(result, locked_manifest)
 
-    return _generate_fixed_window_splits(
+    result = _generate_fixed_window_splits(
         data=data,
         dates=dates,
         train_window_days=train_window_days,
@@ -55,6 +70,7 @@ def generate_walk_forward_splits(
         date_column=date_column,
         purge_days=purge_days,
     )
+    return _attach_locked_test_metadata(result, locked_manifest)
 
 
 def save_walk_forward_splits(splits: pd.DataFrame, output_path: str | Path) -> None:
@@ -74,6 +90,8 @@ def build_walk_forward_split_table(
     step_days: int | None = None,
     yearly_validation: bool = False,
     purge_days: int = 0,
+    locked_test_days: int = 0,
+    embargo_days: int = 0,
 ) -> pd.DataFrame:
     """Generate and save walk-forward split metadata from row metadata."""
     splits = generate_walk_forward_splits(
@@ -84,6 +102,8 @@ def build_walk_forward_split_table(
         step_days=step_days,
         yearly_validation=yearly_validation,
         purge_days=purge_days,
+        locked_test_days=locked_test_days,
+        embargo_days=embargo_days,
     )
     save_walk_forward_splits(splits, output_path)
     return splits
@@ -261,3 +281,22 @@ def _split_metadata_columns() -> list[str]:
         "validation_rows",
         "purge_days",
     ]
+
+
+def _attach_locked_test_metadata(
+    splits: pd.DataFrame, manifest: dict[str, object] | None
+) -> pd.DataFrame:
+    if manifest is None:
+        return splits
+    result = splits.copy()
+    result["protocol_version"] = PROTOCOL_VERSION
+    for column in [
+        "development_end_date",
+        "locked_test_start_date",
+        "locked_test_end_date",
+        "locked_test_days",
+        "embargo_days",
+        "locked_test_accessed",
+    ]:
+        result[column] = manifest[column]
+    return result

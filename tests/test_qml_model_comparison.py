@@ -37,6 +37,7 @@ def test_comparison_uses_identical_rows_and_training_only_qsvm_selection():
         vqc_optimizers=("spsa",), qcnn_learning_rates=(0.05,),
         qcnn_initialization_scales=(0.1,),
         feature_selection_names=("broad_market",), bootstrap_iterations=20,
+        inner_purge_days=0,
     ))
     assert set(result.predictions.model_name) == {
         "vqc", "qcnn", "qsvm", "qsvm_tuned", "linear_svm", "rbf_svm",
@@ -51,10 +52,18 @@ def test_comparison_uses_identical_rows_and_training_only_qsvm_selection():
     assert (result.qsvm_tuning_trials.inner_train_end < result.qsvm_tuning_trials.inner_validation_start).all()
     assert (result.vqc_tuning_trials.inner_train_end < result.vqc_tuning_trials.inner_validation_start).all()
     assert (result.qcnn_tuning_trials.inner_train_end < result.qcnn_tuning_trials.inner_validation_start).all()
+    assert result.qsvm_tuning_trials.inner_fold_id.nunique() >= 2
+    assert result.vqc_tuning_trials.inner_fold_id.nunique() >= 2
+    assert result.qcnn_tuning_trials.inner_fold_id.nunique() >= 2
     assert set(result.aggregate_metrics.columns) >= {"mean", "median", "std", "ci_lower", "ci_upper"}
     assert set(result.ranking_metrics.scope) == {"date", "split", "overall"}
     assert set(result.portfolio_metrics.scope) == {"split", "overall"}
     assert set(result.portfolio_metrics.model_name) == set(result.predictions.model_name)
+    assert set(result.paired_comparisons.columns) >= {
+        "mean_difference", "ci_lower", "ci_upper", "permutation_p_value",
+        "holm_adjusted_p_value", "practically_meaningful", "decision",
+    }
+    assert not result.date_block_metrics.empty
 
 
 def test_aggregate_and_save_outputs(tmp_path):
@@ -71,6 +80,7 @@ def test_aggregate_and_save_outputs(tmp_path):
         vqc_optimizers=("spsa",), qcnn_learning_rates=(0.05,),
         qcnn_initialization_scales=(0.1,),
         bootstrap_iterations=10,
+        inner_purge_days=0,
     ))
     paths = save_comparison_result(result, tmp_path)
     assert all(path.exists() for path in paths.values())
@@ -79,4 +89,6 @@ def test_aggregate_and_save_outputs(tmp_path):
         "ranking_metrics", "portfolio_returns", "portfolio_metrics",
         "vqc_tuning_trials", "vqc_selected_configs",
         "qcnn_tuning_trials", "qcnn_selected_configs",
+        "paired_comparisons",
+        "date_block_metrics",
     } <= set(paths)
