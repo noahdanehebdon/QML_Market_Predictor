@@ -11,6 +11,11 @@ backtest:
 walk_forward:
   train_window_days: 756
   validation_window_days: 126
-  test_window_days: 63
+  # Final 12-month period is excluded from routine research and tuning.
+  locked_test_days: 252
+  embargo_days: 5
   # Remove training labels whose five-day outcome overlaps validation.
   purge_days: 5
+  inner_folds: 3
+  bootstrap_block_days: 20
+  practical_auc_threshold: 0.02
