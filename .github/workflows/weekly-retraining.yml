@@ -32,11 +32,6 @@ on:
         required: true
         default: "30"
         type: string
-      results_run_id:
-        description: Internal aggregate-only result retrieval run ID
-        required: false
-        default: ""
-        type: string
   schedule:
     # Saturday morning, after the final weekday data refresh has completed.
     - cron: "0 8 * * 6"
@@ -50,7 +45,6 @@ concurrency:
 
 jobs:
   retrain:
-    if: inputs.results_run_id == ''
     name: Build features and retrain models
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -190,45 +184,3 @@ jobs:
             "s3://${R2_BUCKET_NAME}/reports/runs/${GITHUB_RUN_ID}/" \
             --endpoint-url "$endpoint" \
             --only-show-errors
-
-  summarize-private-results:
-    if: inputs.results_run_id != ''
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - run: python -m pip install pandas pyarrow
-      - name: Read aggregate results from private R2
-        shell: bash
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          RESULTS_RUN_ID: ${{ inputs.results_run_id }}
-        run: |
-          [[ "$RESULTS_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
-          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          root="s3://${R2_BUCKET_NAME}/reports/runs/${RESULTS_RUN_ID}"
-          mkdir results
-          aws s3 cp "$root/qml_tuned_full/comparison_report.md" results/qml.md --endpoint-url "$endpoint" --only-show-errors
-          for name in classification_metrics ranking_metrics portfolio_risk_metrics; do
-            aws s3 cp "$root/classical_full/${name}.parquet" "results/${name}.parquet" --endpoint-url "$endpoint" --only-show-errors
-          done
-          echo "AGGREGATE_QML_REPORT_BEGIN"
-          cat results/qml.md
-          echo "AGGREGATE_QML_REPORT_END"
-          python - <<'PY'
-          import pandas as pd
-          for name in ["classification_metrics", "ranking_metrics", "portfolio_risk_metrics"]:
-              data = pd.read_parquet(f"results/{name}.parquet")
-              if "scope" in data:
-                  data = data[data["scope"].eq("overall")]
-              print(f"AGGREGATE_{name.upper()}_BEGIN")
-              print(data.to_json(orient="records", date_format="iso"))
-              print(f"AGGREGATE_{name.upper()}_END")
-          PY
