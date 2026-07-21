@@ -52,6 +52,18 @@ def test_weekly_retraining_builds_features_and_gates_qml():
     assert "--disable-mlflow" in commands
 
 
+def test_weekly_retraining_audits_features_before_training():
+    steps = _workflow()["jobs"]["retrain"]["steps"]
+    names = [step["name"] for step in steps]
+    commands = "\n".join(step.get("run", "") for step in steps)
+
+    assert names.index("Audit feature quality and predictive stability") < names.index(
+        "Retrain selected models"
+    )
+    assert "scripts.audit_feature_quality" in commands
+    assert "reports/weekly_retraining/feature_audit" in commands
+
+
 def test_weekly_retraining_uploads_reports_only_to_private_r2():
     steps = _workflow()["jobs"]["retrain"]["steps"]
     upload = next(

@@ -335,6 +335,8 @@ See [docs/data_versioning.md](docs/data_versioning.md) for the private-data
 retention policy, snapshot identity, regeneration procedure, and Git safeguards.
 See [docs/point_in_time_universe.md](docs/point_in_time_universe.md) for the
 prospective liquid-equity universe, survivorship limits, and provider controls.
+See [docs/feature_audit.md](docs/feature_audit.md) for leakage-safe feature quality,
+drift, stability, redundancy, exposure, and family-ablation diagnostics.
 
 After training the default logistic-regression model, generate the latest
 cross-sectional signal report with:
