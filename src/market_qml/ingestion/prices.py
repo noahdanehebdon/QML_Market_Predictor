@@ -18,6 +18,7 @@ import requests
 
 
 ALPACA_STOCK_BARS_URL = "https://data.alpaca.markets/v2/stocks/bars"
+ALPACA_ASSETS_URL = "https://api.alpaca.markets/v2/assets"
 
 
 @dataclass(frozen=True)
@@ -211,6 +212,67 @@ def fetch_alpaca_bars(request: PriceRequest) -> tuple[pd.DataFrame, list[dict[st
 
     df = _normalize_bar_pages(pages)
     return df, pages
+
+
+def normalize_asset_snapshot(
+    payload: list[dict[str, Any]], *, snapshot_date: str | pd.Timestamp
+) -> pd.DataFrame:
+    """Normalize a current Alpaca asset master without pretending it is historical."""
+    effective_date = pd.Timestamp(snapshot_date).normalize()
+    columns = [
+        "symbol",
+        "effective_date",
+        "asset_id",
+        "asset_class",
+        "exchange",
+        "status",
+        "tradable",
+        "fractionable",
+        "marginable",
+        "shortable",
+        "borrow_status",
+    ]
+    rows = []
+    for asset in payload:
+        rows.append(
+            {
+                "symbol": str(asset.get("symbol", "")).upper(),
+                "effective_date": effective_date,
+                "asset_id": asset.get("id"),
+                "asset_class": asset.get("class"),
+                "exchange": asset.get("exchange"),
+                "status": asset.get("status"),
+                "tradable": bool(asset.get("tradable", False)),
+                "fractionable": bool(asset.get("fractionable", False)),
+                "marginable": bool(asset.get("marginable", False)),
+                "shortable": bool(asset.get("shortable", False)),
+                "borrow_status": asset.get("borrow_status"),
+            }
+        )
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    result = pd.DataFrame(rows, columns=columns).dropna(subset=["symbol"])
+    result = result.loc[result["symbol"].ne("")]
+    return result.drop_duplicates(["symbol", "effective_date"]).sort_values("symbol")
+
+
+def fetch_alpaca_asset_snapshot(
+    *, snapshot_date: str | pd.Timestamp | None = None
+) -> pd.DataFrame:
+    """Fetch all current US-equity asset states for prospective daily archiving."""
+    response = requests.get(
+        ALPACA_ASSETS_URL,
+        headers=_headers(),
+        params={"status": "all", "asset_class": "us_equity"},
+        timeout=30,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(
+            "Alpaca asset request failed. "
+            f"Status={response.status_code}. Response={response.text[:500]}"
+        )
+    date = snapshot_date or pd.Timestamp.now(tz="UTC").normalize().tz_localize(None)
+    return normalize_asset_snapshot(response.json(), snapshot_date=date)
 
 
 def save_raw_pages(pages: list[dict[str, Any]], output_path: str | Path) -> None:

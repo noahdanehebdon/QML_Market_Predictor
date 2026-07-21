@@ -196,6 +196,12 @@ def parse_args() -> argparse.Namespace:
         help="Path to walk-forward split metadata parquet.",
     )
     parser.add_argument(
+        "--universe-membership",
+        type=Path,
+        default=None,
+        help="Optional point-in-time membership parquet used to filter model rows.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=DEFAULT_OUTPUT_DIR,
@@ -273,6 +279,11 @@ def main() -> None:
         features=pd.read_parquet(args.features),
         labels=pd.read_parquet(args.labels),
         splits=pd.read_parquet(args.splits),
+        universe_membership=(
+            pd.read_parquet(args.universe_membership)
+            if args.universe_membership is not None
+            else None
+        ),
         model_names=args.models,
         output_dir=args.output_dir,
         artifact_dir=args.artifact_dir,
@@ -297,6 +308,7 @@ def run_walk_forward_backtest(
     features: pd.DataFrame,
     labels: pd.DataFrame,
     splits: pd.DataFrame,
+    universe_membership: pd.DataFrame | None = None,
     model_names: list[str],
     output_dir: str | Path = DEFAULT_OUTPUT_DIR,
     artifact_dir: str | Path | None = None,
@@ -332,6 +344,7 @@ def run_walk_forward_backtest(
     prediction_result = _walk_forward_predictions(
         features=features,
         labels=labels,
+        universe_membership=universe_membership,
         splits=selected_splits,
         model_names=model_names,
         artifact_dir=artifact_dir,
@@ -436,6 +449,7 @@ def _walk_forward_predictions(
     *,
     features: pd.DataFrame,
     labels: pd.DataFrame,
+    universe_membership: pd.DataFrame | None,
     splits: pd.DataFrame,
     model_names: list[str],
     artifact_dir: Path,
@@ -453,6 +467,7 @@ def _walk_forward_predictions(
             datasets = build_train_validation_datasets(
                 features=features,
                 labels=labels,
+                universe_membership=universe_membership,
                 target_column=spec.target_column,
                 train_start_date=split.train_start_date,
                 train_end_date=split.train_end_date,

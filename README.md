@@ -332,7 +332,9 @@ the `run_qml` input. Scheduled runs keep QML disabled so the slower quantum
 workflow remains explicitly opt-in.
 
 See [docs/data_versioning.md](docs/data_versioning.md) for the private-data
-policy, snapshot identity, regeneration procedure, and Git safeguards.
+retention policy, snapshot identity, regeneration procedure, and Git safeguards.
+See [docs/point_in_time_universe.md](docs/point_in_time_universe.md) for the
+prospective liquid-equity universe, survivorship limits, and provider controls.
 
 After training the default logistic-regression model, generate the latest
 cross-sectional signal report with:
