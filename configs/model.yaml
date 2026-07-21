@@ -1,7 +1,10 @@
 target:
   name: "forward_return_5d"
   horizon_trading_days: 5
+  candidate_horizons: [5, 10, 20, 60]
   benchmark: "SPY"
+  neutral_threshold: 0.005
+  selection_scope: "development_only"
 
 models:
   classical:
