@@ -42,3 +42,34 @@ alpaca:
   timeframe: "1Day"
   adjustment: "all"
   feed: null
+
+point_in_time:
+  enabled: true
+  asset_history_path: "data/processed/asset_history.parquet"
+  candidate_exchanges: ["NYSE", "NASDAQ", "ARCA", "BATS", "AMEX"]
+  candidate_limit: 1000
+  provider:
+    name: "Alpaca"
+    permissions_basis: "user account, subscription, and exchange permissions"
+    redistribution: "prohibited without written provider consent"
+    storage: "private local workspace and private R2 only"
+  rules:
+    min_price: 5.0
+    min_median_dollar_volume: 5000000.0
+    liquidity_window: 20
+    min_history_days: 252
+    min_names: 100
+    min_sectors: 8
+    min_sector_names: 3
+  limitations:
+    historical_security_master: >-
+      Alpaca asset snapshots are current-state observations, not a historical
+      security master. Point-in-time tradability begins on the first archived
+      snapshot date and is never backfilled.
+    survivorship: >-
+      Research before the first archived asset snapshot remains limited to the
+      pre-existing seed universe and must be labeled survivorship-biased.
+    delistings: >-
+      Removed and inactive securities remain in archived snapshots and membership
+      history when available. OTC data may require separate permissions and may
+      be unavailable after an exchange delisting.

@@ -111,6 +111,29 @@ def test_build_modeling_dataset_supports_requested_feature_columns():
     assert list(dataset.X.columns) == ["close", "sec_recent_filing_30d"]
 
 
+def test_build_modeling_dataset_applies_point_in_time_membership():
+    membership = pd.DataFrame(
+        {
+            "symbol": ["AAPL", "AAPL", "MSFT"],
+            "date": pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-02"]),
+            "is_member": [False, True, True],
+            "sector": ["Technology", "Technology", "Technology"],
+            "size_bucket": ["large", "large", "large"],
+        }
+    )
+
+    dataset = build_modeling_dataset(
+        _features(), _labels(), universe_membership=membership
+    )
+
+    assert dataset.metadata[["symbol", "date"]].values.tolist() == [
+        ["AAPL", pd.Timestamp("2024-01-02")],
+        ["MSFT", pd.Timestamp("2024-01-02")],
+    ]
+    assert "sector" in dataset.metadata
+    assert "sector" not in dataset.X
+
+
 def test_build_modeling_dataset_drops_rows_with_too_many_missing_features():
     dataset = build_modeling_dataset(
         _features(),
