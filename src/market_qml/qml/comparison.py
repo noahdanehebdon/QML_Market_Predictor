@@ -24,6 +24,10 @@ from market_qml.backtest.portfolio import (
     summarize_portfolio_risk,
 )
 from market_qml.backtest.ranking_metrics import evaluate_ranking_metrics
+from market_qml.backtest.validation import (
+    paired_model_comparisons,
+    prediction_date_block_metrics,
+)
 from market_qml.models.predictions import build_prediction_table
 from market_qml.qml.interface import build_qml_train_validation
 from market_qml.qml.qcnn import train_qcnn
@@ -73,6 +77,10 @@ class ComparisonConfig:
     transaction_cost_bps: float = DEFAULT_TRANSACTION_COST_BPS
     rebalance_frequency: int = DEFAULT_REBALANCE_FREQUENCY
     return_horizon_days: int = DEFAULT_RETURN_HORIZON_DAYS
+    inner_folds: int = 3
+    inner_purge_days: int = DEFAULT_RETURN_HORIZON_DAYS
+    practical_auc_threshold: float = 0.02
+    bootstrap_block_days: int = 20
 
 
 @dataclass(frozen=True)
@@ -91,6 +99,8 @@ class ComparisonResult:
     ranking_metrics: pd.DataFrame
     portfolio_returns: pd.DataFrame
     portfolio_metrics: pd.DataFrame
+    paired_comparisons: pd.DataFrame
+    date_block_metrics: pd.DataFrame
 
 
 def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = ComparisonConfig()) -> ComparisonResult:
@@ -160,6 +170,17 @@ def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = Comparis
         return_horizon_days=config.return_horizon_days,
     )
     portfolio_metrics = summarize_portfolio_risk(portfolio_returns)
+    date_block_metrics = prediction_date_block_metrics(
+        prediction_table, block_days=config.bootstrap_block_days
+    )
+    paired_comparisons = paired_model_comparisons(
+        date_block_metrics,
+        metric="roc_auc",
+        baseline_model="logistic_regression",
+        bootstrap_iterations=config.bootstrap_iterations,
+        practical_threshold=config.practical_auc_threshold,
+        random_state=config.random_state,
+    )
     return ComparisonResult(
         predictions=prediction_table,
         split_metrics=split_metrics,
@@ -175,6 +196,8 @@ def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = Comparis
         ranking_metrics=ranking_metrics,
         portfolio_returns=portfolio_returns,
         portfolio_metrics=portfolio_metrics,
+        paired_comparisons=paired_comparisons,
+        date_block_metrics=date_block_metrics,
     )
 
 
@@ -215,6 +238,8 @@ def save_comparison_result(result: ComparisonResult, output_dir: str | Path) -> 
         "ranking_metrics": result.ranking_metrics,
         "portfolio_returns": result.portfolio_returns,
         "portfolio_metrics": result.portfolio_metrics,
+        "paired_comparisons": result.paired_comparisons,
+        "date_block_metrics": result.date_block_metrics,
     }
     paths = {}
     for name, table in tables.items():
@@ -259,7 +284,7 @@ def render_comparison_report(result: ComparisonResult) -> str:
         f"Portfolio assumptions: {config_text(result.portfolio_returns)}.", "",
         *table, "", f"Classification leader (mean ROC-AUC): **{best}**. Ranking leader (overall rank IC): **{ranking_winner}**. Portfolio leader (overall net Sharpe): **{portfolio_winner}**.", "",
         f"Best QML: **{best_qml}**; best requested classical baseline: **{best_classical}**.", "", f"Decision: {decision}", "",
-        "Classification and split-bootstrap uncertainty are recorded in `split_metrics.parquet` and `aggregate_metrics.parquet`. Date-level ranking results are in `ranking_metrics.parquet`; transaction-cost-aware returns and risk metrics are in `portfolio_returns.parquet` and `portfolio_metrics.parquet`.", "",
+        "Classification uncertainty is recorded in `aggregate_metrics.parquet`; paired bootstrap intervals, sign-permutation tests, Holm correction, effect sizes, and the practical decision threshold are recorded in `paired_comparisons.parquet`. Date-level ranking results are in `ranking_metrics.parquet`; transaction-cost-aware returns and risk metrics are in `portfolio_returns.parquet` and `portfolio_metrics.parquet`.", "",
         "Runtime, peak traced memory, selected configurations, tuning trials, and exact sampled-row hashes are retained beside this report.",
     ])
 
@@ -288,62 +313,55 @@ def _format_report_value(value) -> str:
 
 
 def _select_qsvm(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
-    train = _inner_training_frame(sampled)
     trial_rows = []
     for selection in config.feature_selection_names:
-        inner = build_qml_train_validation(train, split_id=split_id,
-                                           feature_columns=_feature_columns(train, selection))
         for reps in config.qsvm_repetitions:
             for C in config.qsvm_c_values:
                 for interaction_scale in config.interaction_scales:
-                    started = time.perf_counter()
-                    pred = _qsvm_predictions(
-                        inner,
-                        C,
-                        reps,
-                        interaction_scale,
-                        "qsvm_candidate",
-                        config.random_state,
-                    )
-                    score = roc_auc_score(pred.y_true, pred.y_score)
-                    trial_rows.append({"split_id": split_id, "feature_selection": selection,
-                                       "repetitions": reps, "C": C,
-                                       "interaction_scale": interaction_scale,
-                                       "inner_roc_auc": score,
-                                       "runtime_seconds": time.perf_counter() - started,
-                                       "inner_train_end": pd.to_datetime(inner.train.metadata.date).max(),
-                                       "inner_validation_start": pd.to_datetime(inner.validation.metadata.date).min()})
-    trials = pd.DataFrame(trial_rows).sort_values(
-        ["inner_roc_auc", "feature_selection", "repetitions", "C", "interaction_scale"],
-        ascending=[False, True, True, True, True], kind="stable")
+                    for fold_id, fold in enumerate(_inner_training_folds(sampled, config)):
+                        inner = build_qml_train_validation(
+                            fold, split_id=split_id,
+                            feature_columns=_feature_columns(fold, selection),
+                        )
+                        started = time.perf_counter()
+                        pred = _qsvm_predictions(inner, C, reps, interaction_scale,
+                                                 "qsvm_candidate", config.random_state)
+                        trial_rows.append({"split_id": split_id, "inner_fold_id": fold_id,
+                                           "feature_selection": selection, "repetitions": reps,
+                                           "C": C, "interaction_scale": interaction_scale,
+                                           "inner_roc_auc": roc_auc_score(pred.y_true, pred.y_score),
+                                           "runtime_seconds": time.perf_counter() - started,
+                                           "inner_train_end": pd.to_datetime(inner.train.metadata.date).max(),
+                                           "inner_validation_start": pd.to_datetime(inner.validation.metadata.date).min()})
+    trials = pd.DataFrame(trial_rows)
+    keys = ["feature_selection", "repetitions", "C", "interaction_scale"]
+    means = trials.groupby(keys, as_index=False).inner_roc_auc.mean().rename(
+        columns={"inner_roc_auc": "mean_inner_roc_auc"})
+    trials = trials.merge(means, on=keys).sort_values(
+        ["mean_inner_roc_auc", *keys], ascending=[False, True, True, True, True], kind="stable")
     chosen = trials.iloc[0].to_dict()
     return chosen, trials.reset_index(drop=True)
 
 
 def _select_vqc(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
-    inner = build_qml_train_validation(
-        _inner_training_frame(sampled),
-        split_id=split_id,
-        feature_columns=_feature_columns(sampled, config.feature_selection_names[0]),
-    )
     rows = []
     for depth, learning_rate, optimizer in product(
         config.vqc_ansatz_depths,
         config.vqc_learning_rates,
         config.vqc_optimizers,
     ):
-        started = time.perf_counter()
-        predictions = train_vqc(
-            inner,
-            ansatz_depth=depth,
-            learning_rate=learning_rate,
-            optimizer=optimizer,
-            max_iter=config.vqc_iterations,
-            random_state=config.random_state + split_id,
-        ).predictions
-        rows.append(
-            {
+        for fold_id, fold in enumerate(_inner_training_folds(sampled, config)):
+            inner = build_qml_train_validation(
+                fold, split_id=split_id,
+                feature_columns=_feature_columns(fold, config.feature_selection_names[0]))
+            started = time.perf_counter()
+            predictions = train_vqc(
+                inner, ansatz_depth=depth, learning_rate=learning_rate,
+                optimizer=optimizer, max_iter=config.vqc_iterations,
+                random_state=config.random_state + split_id).predictions
+            rows.append({
                 "split_id": split_id,
+                "inner_fold_id": fold_id,
                 "ansatz_depth": depth,
                 "learning_rate": learning_rate,
                 "optimizer": optimizer,
@@ -355,38 +373,37 @@ def _select_vqc(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
                 "inner_validation_start": pd.to_datetime(
                     inner.validation.metadata.date
                 ).min(),
-            }
-        )
-    trials = pd.DataFrame(rows).sort_values(
-        ["inner_roc_auc", "ansatz_depth", "learning_rate", "optimizer"],
-        ascending=[False, True, True, True],
+            })
+    trials = pd.DataFrame(rows)
+    keys = ["ansatz_depth", "learning_rate", "optimizer"]
+    means = trials.groupby(keys, as_index=False).inner_roc_auc.mean().rename(
+        columns={"inner_roc_auc": "mean_inner_roc_auc"})
+    trials = trials.merge(means, on=keys).sort_values(
+        ["mean_inner_roc_auc", *keys], ascending=[False, True, True, True],
         kind="stable",
     )
     return trials.iloc[0].to_dict(), trials.reset_index(drop=True)
 
 
 def _select_qcnn(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
-    inner = build_qml_train_validation(
-        _inner_training_frame(sampled),
-        split_id=split_id,
-        feature_columns=_feature_columns(sampled, config.feature_selection_names[0]),
-    )
     rows = []
     for learning_rate, initialization_scale in product(
         config.qcnn_learning_rates,
         config.qcnn_initialization_scales,
     ):
-        started = time.perf_counter()
-        predictions = train_qcnn(
-            inner,
-            learning_rate=learning_rate,
-            initialization_scale=initialization_scale,
-            max_iter=config.qcnn_iterations,
-            random_state=config.random_state + split_id,
-        ).predictions
-        rows.append(
-            {
+        for fold_id, fold in enumerate(_inner_training_folds(sampled, config)):
+            inner = build_qml_train_validation(
+                fold, split_id=split_id,
+                feature_columns=_feature_columns(fold, config.feature_selection_names[0]))
+            started = time.perf_counter()
+            predictions = train_qcnn(
+                inner, learning_rate=learning_rate,
+                initialization_scale=initialization_scale,
+                max_iter=config.qcnn_iterations,
+                random_state=config.random_state + split_id).predictions
+            rows.append({
                 "split_id": split_id,
+                "inner_fold_id": fold_id,
                 "learning_rate": learning_rate,
                 "initialization_scale": initialization_scale,
                 "inner_roc_auc": roc_auc_score(
@@ -397,34 +414,41 @@ def _select_qcnn(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig)
                 "inner_validation_start": pd.to_datetime(
                     inner.validation.metadata.date
                 ).min(),
-            }
-        )
-    trials = pd.DataFrame(rows).sort_values(
-        ["inner_roc_auc", "learning_rate", "initialization_scale"],
-        ascending=[False, True, True],
+            })
+    trials = pd.DataFrame(rows)
+    keys = ["learning_rate", "initialization_scale"]
+    means = trials.groupby(keys, as_index=False).inner_roc_auc.mean().rename(
+        columns={"inner_roc_auc": "mean_inner_roc_auc"})
+    trials = trials.merge(means, on=keys).sort_values(
+        ["mean_inner_roc_auc", *keys], ascending=[False, True, True],
         kind="stable",
     )
     return trials.iloc[0].to_dict(), trials.reset_index(drop=True)
 
 
-def _inner_training_frame(sampled: pd.DataFrame) -> pd.DataFrame:
+def _inner_training_folds(sampled: pd.DataFrame, config: ComparisonConfig) -> list[pd.DataFrame]:
     train = sampled[sampled.sample_role == "train"].copy().sort_values(
         ["date", "symbol"]
     )
-    dates = np.asarray(sorted(pd.to_datetime(train.date).unique()))
-    cutoff = dates[max(1, int(len(dates) * 0.8)) - 1]
-    train["sample_role"] = np.where(
-        pd.to_datetime(train.date) <= cutoff, "train", "validation"
-    )
-    if train.groupby("sample_role").target.nunique().min() < 2:
-        # Deterministic fallback only for tiny synthetic tests.
-        ordered = train.sort_values(["date", "symbol"]).reset_index(drop=True)
-        ordered["sample_role"] = "train"
-        ordered.loc[
-            ordered.index >= max(2, int(len(ordered) * 0.8)), "sample_role"
-        ] = "validation"
-        train = ordered
-    return train
+    dates = pd.DatetimeIndex(sorted(pd.to_datetime(train.date).unique()))
+    if config.inner_folds < 2:
+        raise ValueError("inner_folds must be at least 2")
+    minimum_train = max(2, len(dates) // (config.inner_folds + 1))
+    validation_blocks = np.array_split(dates[minimum_train:], config.inner_folds)
+    folds = []
+    for block in validation_blocks:
+        if not len(block):
+            continue
+        validation_start = pd.Timestamp(block[0])
+        earlier_dates = dates[dates < validation_start]
+        usable_train_dates = earlier_dates[: max(0, len(earlier_dates) - config.inner_purge_days)]
+        fold = train.loc[train.date.isin(usable_train_dates) | train.date.isin(block)].copy()
+        fold["sample_role"] = np.where(fold.date.isin(block), "validation", "train")
+        if (fold.groupby("sample_role").target.nunique() >= 2).all():
+            folds.append(fold)
+    if len(folds) < 2:
+        raise ValueError("Training data cannot form at least two valid chronological inner folds")
+    return folds
 
 
 def _qsvm_predictions(data, C, repetitions, interaction_scale, model_name, seed):
@@ -543,6 +567,12 @@ def _validate_inputs(data, config):
         raise ValueError("Comparison data is missing: " + ", ".join(sorted(missing)))
     if config.bootstrap_iterations <= 0:
         raise ValueError("bootstrap_iterations must be positive")
+    if config.inner_folds < 2:
+        raise ValueError("inner_folds must be at least 2")
+    if config.inner_purge_days < 0:
+        raise ValueError("inner_purge_days cannot be negative")
+    if config.bootstrap_block_days <= 0:
+        raise ValueError("bootstrap_block_days must be positive")
     if not config.interaction_scales or any(value < 0 for value in config.interaction_scales):
         raise ValueError("interaction_scales must contain non-negative values")
     if not 0 < config.portfolio_top_fraction <= 0.5:

@@ -110,6 +110,28 @@ def test_generate_walk_forward_splits_purges_overlapping_training_labels():
     assert first["purge_days"] == 2
 
 
+def test_generate_walk_forward_splits_excludes_locked_test_and_embargo():
+    result = generate_walk_forward_splits(
+        _metadata(pd.date_range("2024-01-01", periods=20, freq="D")),
+        train_window_days=4,
+        validation_window_days=2,
+        step_days=2,
+        purge_days=1,
+        locked_test_days=4,
+        embargo_days=2,
+    )
+
+    assert result["locked_test_start_date"].unique().tolist() == [
+        pd.Timestamp("2024-01-17")
+    ]
+    assert result["development_end_date"].unique().tolist() == [
+        pd.Timestamp("2024-01-14")
+    ]
+    assert result["validation_end_date"].max() <= pd.Timestamp("2024-01-14")
+    assert not result["locked_test_accessed"].any()
+    assert result["protocol_version"].eq("locked-test-v1").all()
+
+
 def test_generate_walk_forward_splits_validates_inputs():
     with pytest.raises(ValueError, match="train_window_days"):
         generate_walk_forward_splits(_metadata(), train_window_days=0)
