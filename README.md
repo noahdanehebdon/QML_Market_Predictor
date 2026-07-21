@@ -4,6 +4,20 @@ A research platform for testing whether quantum machine-learning models add
 useful signal beyond strong classical baselines when ranking US equities by
 future performance relative to `SPY`.
 
+## Research snapshot
+
+| Question | Current evidence |
+| --- | --- |
+| Do QML models beat strong classical baselines? | No demonstrated quantum advantage; classical models lead classification overall and across documented regimes. |
+| Is evaluation leakage-aware? | Point-in-time joins, train-only preprocessing, horizon purging, nested chronological validation, and an untouched 252-day locked test. |
+| Are backtests execution-aware? | Non-overlapping return windows, configurable transaction costs, turnover, drawdown, and horizon-correct annualization. |
+| What is the latest target result? | Development-only research favors 10-day classification and cross-sectional-ranking candidates; locked-test rows inspected: zero. |
+
+The project is best read as an auditable empirical research system, including
+negative and superseded experiments—not as a production trading strategy. Start
+with the [current result status](docs/results_status.md), then review the
+[QML methodology and findings](docs/qml_experiments.md).
+
 ## Five-minute overview
 
 The project turns daily market, macroeconomic, and SEC filing information into
@@ -87,7 +101,22 @@ SEC_USER_AGENT=QML Market Predictor contact@example.com
 
 ### Quick start
 
-Preview the configured pipeline without making API requests or writing data:
+Run a credential-free demonstration using deterministic synthetic prices:
+
+```powershell
+python -m scripts.generate_demo_prices
+python -m scripts.research_prediction_targets `
+  --prices data/processed/demo_prices.parquet `
+  --sector-column sector
+```
+
+The demo exercises multi-horizon label construction, point-in-time
+cross-sectional and sector-relative targets, purging, locked-test isolation, and
+nested development selection. Its outputs are synthetic research artifacts and
+remain ignored by Git.
+
+For the provider-backed workflow, preview the configured pipeline without making
+API requests or writing data:
 
 ```powershell
 ingest-prices --dry-run
