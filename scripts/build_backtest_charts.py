@@ -36,7 +36,6 @@ def parse_args() -> argparse.Namespace:
         "--report-output", type=Path, default=Path("reports/backtest_charts.md")
     )
     parser.add_argument("--rolling-window", type=int, default=20)
-    parser.add_argument("--periods-per-year", type=int, default=252)
     return parser.parse_args()
 
 
@@ -53,7 +52,6 @@ def main() -> None:
         regime_metrics=pd.read_parquet(args.regime_metrics),
         output_dir=args.output_dir,
         rolling_window=args.rolling_window,
-        periods_per_year=args.periods_per_year,
     )
     markdown = render_chart_report(paths, report_path=args.report_output)
     save_chart_report(markdown, args.report_output)

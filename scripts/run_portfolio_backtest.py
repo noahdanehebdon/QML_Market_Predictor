@@ -6,6 +6,8 @@ import argparse
 from pathlib import Path
 
 from market_qml.backtest.portfolio import (
+    DEFAULT_REBALANCE_FREQUENCY,
+    DEFAULT_TRANSACTION_COST_BPS,
     load_prediction_tables,
     run_portfolio_backtest,
     save_portfolio_returns,
@@ -61,20 +63,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--transaction-cost-bps",
         type=float,
-        default=0.0,
+        default=DEFAULT_TRANSACTION_COST_BPS,
         help="One-way transaction cost in basis points applied to turnover.",
     )
     parser.add_argument(
         "--rebalance-frequency",
         type=int,
-        default=5,
+        default=DEFAULT_REBALANCE_FREQUENCY,
         help="Number of prediction dates between portfolio rebalances.",
-    )
-    parser.add_argument(
-        "--periods-per-year",
-        type=int,
-        default=252,
-        help="Annualization periods used for volatility and Sharpe ratio.",
     )
     return parser.parse_args()
 
@@ -95,10 +91,7 @@ def main() -> None:
         transaction_cost_bps=args.transaction_cost_bps,
         rebalance_frequency=args.rebalance_frequency,
     )
-    risk_metrics = summarize_portfolio_risk(
-        portfolio_returns,
-        periods_per_year=args.periods_per_year,
-    )
+    risk_metrics = summarize_portfolio_risk(portfolio_returns)
     save_portfolio_returns(portfolio_returns, args.output)
     save_portfolio_risk_metrics(risk_metrics, args.risk_output)
 

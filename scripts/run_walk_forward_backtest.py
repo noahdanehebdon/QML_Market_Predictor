@@ -15,6 +15,10 @@ from market_qml.backtest.classification_metrics import (
     save_classification_metrics,
 )
 from market_qml.backtest.portfolio import (
+    DEFAULT_REBALANCE_FREQUENCY,
+    DEFAULT_RETURN_HORIZON_DAYS,
+    DEFAULT_TRANSACTION_COST_BPS,
+    TRADING_DAYS_PER_YEAR,
     run_portfolio_backtest,
     save_portfolio_returns,
     save_portfolio_risk_metrics,
@@ -231,20 +235,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--transaction-cost-bps",
         type=float,
-        default=0.0,
+        default=DEFAULT_TRANSACTION_COST_BPS,
         help="One-way transaction cost in basis points applied to turnover.",
     )
     parser.add_argument(
         "--rebalance-frequency",
         type=int,
-        default=5,
+        default=DEFAULT_REBALANCE_FREQUENCY,
         help="Number of prediction dates between portfolio rebalances.",
-    )
-    parser.add_argument(
-        "--periods-per-year",
-        type=int,
-        default=252,
-        help="Annualization periods used for volatility and Sharpe ratio.",
     )
     parser.add_argument(
         "--mlflow-experiment",
@@ -283,7 +281,6 @@ def main() -> None:
         top_fraction=args.top_fraction,
         transaction_cost_bps=args.transaction_cost_bps,
         rebalance_frequency=args.rebalance_frequency,
-        periods_per_year=args.periods_per_year,
         enable_mlflow=not args.disable_mlflow,
         mlflow_experiment=args.mlflow_experiment,
         mlflow_run_name=args.mlflow_run_name,
@@ -306,9 +303,9 @@ def run_walk_forward_backtest(
     max_splits: int | None = None,
     top_k: int | None = None,
     top_fraction: float = 0.1,
-    transaction_cost_bps: float = 0.0,
-    rebalance_frequency: int = 5,
-    periods_per_year: int = 252,
+    transaction_cost_bps: float = DEFAULT_TRANSACTION_COST_BPS,
+    rebalance_frequency: int = DEFAULT_REBALANCE_FREQUENCY,
+    return_horizon_days: int = DEFAULT_RETURN_HORIZON_DAYS,
     enable_mlflow: bool = False,
     mlflow_experiment: str = DEFAULT_EXPERIMENT_NAME,
     mlflow_run_name: str | None = None,
@@ -330,7 +327,7 @@ def run_walk_forward_backtest(
         "top_fraction": top_fraction,
         "transaction_cost_bps": transaction_cost_bps,
         "rebalance_frequency": rebalance_frequency,
-        "periods_per_year": periods_per_year,
+        "return_horizon_days": return_horizon_days,
     }
     prediction_result = _walk_forward_predictions(
         features=features,
@@ -359,10 +356,10 @@ def run_walk_forward_backtest(
         top_fraction=top_fraction,
         transaction_cost_bps=transaction_cost_bps,
         rebalance_frequency=rebalance_frequency,
+        return_horizon_days=return_horizon_days,
     )
     portfolio_risk_metrics = summarize_portfolio_risk(
         portfolio_returns,
-        periods_per_year=periods_per_year,
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -425,7 +422,7 @@ def run_walk_forward_backtest(
             top_fraction=top_fraction,
             transaction_cost_bps=transaction_cost_bps,
             rebalance_frequency=rebalance_frequency,
-            periods_per_year=periods_per_year,
+            periods_per_year=TRADING_DAYS_PER_YEAR / rebalance_frequency,
             max_splits=max_splits,
             experiment_name=mlflow_experiment,
             run_name=mlflow_run_name,

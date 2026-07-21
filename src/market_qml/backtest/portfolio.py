@@ -9,12 +9,18 @@ import pandas as pd
 
 from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
 
+TRADING_DAYS_PER_YEAR = 252
+DEFAULT_RETURN_HORIZON_DAYS = 5
+DEFAULT_REBALANCE_FREQUENCY = 5
+DEFAULT_TRANSACTION_COST_BPS = 10.0
 
 PORTFOLIO_RETURN_COLUMNS = [
     "model_name",
     "split_id",
     "date",
+    "return_horizon_days",
     "rebalance_frequency",
+    "transaction_cost_bps",
     "selected_count",
     "turnover",
     "transaction_cost",
@@ -35,6 +41,10 @@ PORTFOLIO_RISK_COLUMNS = [
     "scope",
     "split_id",
     "rows",
+    "return_horizon_days",
+    "rebalance_frequency",
+    "periods_per_year",
+    "transaction_cost_bps",
     "cumulative_gross_return",
     "cumulative_net_return",
     "benchmark_cumulative_return",
@@ -62,14 +72,22 @@ def run_portfolio_backtest(
     *,
     top_k: int | None = None,
     top_fraction: float = 0.1,
-    transaction_cost_bps: float = 0.0,
-    rebalance_frequency: int = 5,
+    transaction_cost_bps: float = DEFAULT_TRANSACTION_COST_BPS,
+    rebalance_frequency: int = DEFAULT_REBALANCE_FREQUENCY,
+    return_horizon_days: int = DEFAULT_RETURN_HORIZON_DAYS,
 ) -> pd.DataFrame:
     """Run an equal-weight long-only backtest from model scores."""
     _validate_prediction_table(predictions)
     _validate_selection(top_k=top_k, top_fraction=top_fraction)
     _validate_transaction_cost(transaction_cost_bps)
     _validate_rebalance_frequency(rebalance_frequency)
+    if return_horizon_days <= 0:
+        raise ValueError("return_horizon_days must be positive.")
+    if rebalance_frequency < return_horizon_days:
+        raise ValueError(
+            "rebalance_frequency must be at least return_horizon_days to avoid "
+            "overlapping forward returns."
+        )
 
     rows = []
     grouped = predictions.groupby(["model_name", "split_id"], sort=True)
@@ -94,7 +112,9 @@ def run_portfolio_backtest(
                     "model_name": str(model_name),
                     "split_id": int(split_id),
                     "date": pd.Timestamp(date).normalize(),
+                    "return_horizon_days": return_horizon_days,
                     "rebalance_frequency": rebalance_frequency,
+                    "transaction_cost_bps": transaction_cost_bps,
                     "selected_count": len(selected),
                     "turnover": turnover,
                     "transaction_cost": transaction_cost,
@@ -154,10 +174,14 @@ def save_portfolio_returns(portfolio_returns: pd.DataFrame, output_path: str | P
 def summarize_portfolio_risk(
     portfolio_returns: pd.DataFrame,
     *,
-    periods_per_year: int = 252,
+    periods_per_year: float | None = None,
 ) -> pd.DataFrame:
     """Summarize risk-adjusted performance by split and overall."""
     _validate_portfolio_returns(portfolio_returns)
+    settings = _portfolio_settings(portfolio_returns)
+    inferred_periods = TRADING_DAYS_PER_YEAR / settings["rebalance_frequency"]
+    if periods_per_year is None:
+        periods_per_year = inferred_periods
     if periods_per_year <= 0:
         raise ValueError("periods_per_year must be positive.")
 
@@ -251,6 +275,10 @@ def _risk_row(
         "scope": scope,
         "split_id": split_id,
         "rows": len(ordered),
+        "return_horizon_days": int(ordered["return_horizon_days"].iloc[0]),
+        "rebalance_frequency": int(ordered["rebalance_frequency"].iloc[0]),
+        "periods_per_year": periods_per_year,
+        "transaction_cost_bps": float(ordered["transaction_cost_bps"].iloc[0]),
         "cumulative_gross_return": _cumulative_return(gross),
         "cumulative_net_return": _cumulative_return(net),
         "benchmark_cumulative_return": _cumulative_return(benchmark),
@@ -278,13 +306,13 @@ def _cumulative_return(returns: pd.Series) -> float:
     return float((1 + returns).prod() - 1)
 
 
-def _annualized_volatility(returns: pd.Series, periods_per_year: int):
+def _annualized_volatility(returns: pd.Series, periods_per_year: float):
     if len(returns) < 2:
         return pd.NA
     return float(returns.std(ddof=1) * math.sqrt(periods_per_year))
 
 
-def _annualized_sharpe(returns: pd.Series, periods_per_year: int):
+def _annualized_sharpe(returns: pd.Series, periods_per_year: float):
     if len(returns) < 2:
         return pd.NA
     volatility = returns.std(ddof=1)
@@ -345,3 +373,18 @@ def _validate_transaction_cost(transaction_cost_bps: float) -> None:
 def _validate_rebalance_frequency(rebalance_frequency: int) -> None:
     if rebalance_frequency <= 0:
         raise ValueError("rebalance_frequency must be positive.")
+
+
+def _portfolio_settings(portfolio_returns: pd.DataFrame) -> dict[str, float]:
+    columns = [
+        "return_horizon_days",
+        "rebalance_frequency",
+        "transaction_cost_bps",
+    ]
+    settings = {}
+    for column in columns:
+        values = portfolio_returns[column].dropna().unique()
+        if len(values) != 1:
+            raise ValueError(f"Portfolio returns must have one consistent {column}.")
+        settings[column] = float(values[0])
+    return settings
