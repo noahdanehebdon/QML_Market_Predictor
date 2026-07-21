@@ -376,6 +376,12 @@ at the end of training from overlapping the validation period. The canonical
 feature table includes same-date cross-sectional ranks, and the normalized
 target can be evaluated with:
 
+Portfolio evaluation uses non-overlapping five-trading-day returns, rebalances
+every five prediction dates, and derives annualization as `252 / 5 = 50.4`
+periods per year. Results produced before Issue #153 used 252 periods per year
+and therefore overstated annualized volatility and Sharpe ratios; those earlier
+portfolio risk figures are superseded.
+
 ```powershell
 python -m scripts.run_walk_forward_backtest `
   --models vol_normalized_gradient_boosting_regressor `

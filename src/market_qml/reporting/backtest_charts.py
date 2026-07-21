@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from market_qml.backtest.portfolio import TRADING_DAYS_PER_YEAR
+
 
 FIGURE_FILENAMES = {
     "cumulative_returns": "cumulative_returns.png",
@@ -32,9 +34,11 @@ def generate_backtest_charts(
     regime_metrics: pd.DataFrame,
     output_dir: str | Path = "reports/figures",
     rolling_window: int = 20,
-    periods_per_year: int = 252,
+    periods_per_year: float | None = None,
 ) -> dict[str, Path]:
     """Generate the complete deterministic chart set and Markdown index."""
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(portfolio_returns)
     _validate_inputs(
         portfolio_returns,
         model_summary,
@@ -118,7 +122,7 @@ def plot_rolling_sharpe(
     output_path: str | Path,
     *,
     rolling_window: int,
-    periods_per_year: int,
+    periods_per_year: float,
 ) -> None:
     """Plot annualized rolling Sharpe using net portfolio returns."""
     series = _portfolio_series(data)
@@ -262,7 +266,7 @@ def _validate_inputs(
     regime_metrics: pd.DataFrame,
     *,
     rolling_window: int,
-    periods_per_year: int,
+    periods_per_year: float,
 ) -> None:
     requirements = [
         (
@@ -304,6 +308,20 @@ def _validate_inputs(
         raise ValueError("periods_per_year must be positive.")
     if not regime_metrics["meets_minimum_rows"].astype(bool).any():
         raise ValueError("At least one regime slice must meet the minimum row threshold.")
+
+
+def _infer_periods_per_year(portfolio_returns: pd.DataFrame) -> float:
+    if "rebalance_frequency" not in portfolio_returns.columns:
+        raise ValueError(
+            "Portfolio returns must include rebalance_frequency when "
+            "periods_per_year is not provided."
+        )
+    frequencies = pd.to_numeric(
+        portfolio_returns["rebalance_frequency"], errors="coerce"
+    ).dropna().unique()
+    if len(frequencies) != 1 or frequencies[0] <= 0:
+        raise ValueError("Portfolio returns must have one positive rebalance_frequency.")
+    return TRADING_DAYS_PER_YEAR / float(frequencies[0])
 
 
 def _line_style(index: int) -> dict:

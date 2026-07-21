@@ -28,7 +28,7 @@ def log_walk_forward_backtest_run(
     top_fraction: float,
     transaction_cost_bps: float,
     rebalance_frequency: int,
-    periods_per_year: int,
+    periods_per_year: float,
     max_splits: int | None,
     experiment_name: str = DEFAULT_EXPERIMENT_NAME,
     run_name: str | None = None,
@@ -80,7 +80,7 @@ def _log_params(
     top_fraction: float,
     transaction_cost_bps: float,
     rebalance_frequency: int,
-    periods_per_year: int,
+    periods_per_year: float,
     max_splits: int | None,
 ) -> None:
     split_summary = _split_summary(splits)
