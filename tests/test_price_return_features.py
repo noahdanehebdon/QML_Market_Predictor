@@ -1,11 +1,18 @@
 import pandas as pd
 import pytest
+import yaml
 
 from market_qml.features.returns import (
     RETURN_WINDOWS,
     add_return_features,
     build_price_return_features,
 )
+
+
+def test_alpaca_prices_are_requested_with_corporate_action_adjustments():
+    config = yaml.safe_load(open("configs/universe.yaml", encoding="utf-8"))
+
+    assert config["alpaca"]["adjustment"] == "all"
 
 
 def _price_rows(symbol: str, closes: list[float]) -> list[dict]:
