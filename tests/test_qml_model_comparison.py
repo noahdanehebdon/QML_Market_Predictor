@@ -33,6 +33,9 @@ def test_comparison_uses_identical_rows_and_training_only_qsvm_selection():
         train_rows=16, validation_rows=16, vqc_iterations=1, qcnn_iterations=1,
         qsvm_c_values=(1.0,), qsvm_repetitions=(1,),
         interaction_scales=(0.0,),
+        vqc_ansatz_depths=(1,), vqc_learning_rates=(0.1,),
+        vqc_optimizers=("spsa",), qcnn_learning_rates=(0.05,),
+        qcnn_initialization_scales=(0.1,),
         feature_selection_names=("broad_market",), bootstrap_iterations=20,
     ))
     assert set(result.predictions.model_name) == {
@@ -46,6 +49,8 @@ def test_comparison_uses_identical_rows_and_training_only_qsvm_selection():
     ).groupby(["split_id", "model_name"]).key.apply(lambda values: tuple(sorted(values)))
     assert key_hashes.groupby(level=0).nunique().eq(1).all()
     assert (result.qsvm_tuning_trials.inner_train_end < result.qsvm_tuning_trials.inner_validation_start).all()
+    assert (result.vqc_tuning_trials.inner_train_end < result.vqc_tuning_trials.inner_validation_start).all()
+    assert (result.qcnn_tuning_trials.inner_train_end < result.qcnn_tuning_trials.inner_validation_start).all()
     assert set(result.aggregate_metrics.columns) >= {"mean", "median", "std", "ci_lower", "ci_upper"}
     assert set(result.ranking_metrics.scope) == {"date", "split", "overall"}
     assert set(result.portfolio_metrics.scope) == {"split", "overall"}
@@ -62,9 +67,16 @@ def test_aggregate_and_save_outputs(tmp_path):
         train_rows=16, validation_rows=16, vqc_iterations=1, qcnn_iterations=1,
         qsvm_c_values=(1.0,), qsvm_repetitions=(1,), feature_selection_names=("broad_market",),
         interaction_scales=(0.0,),
+        vqc_ansatz_depths=(1,), vqc_learning_rates=(0.1,),
+        vqc_optimizers=("spsa",), qcnn_learning_rates=(0.05,),
+        qcnn_initialization_scales=(0.1,),
         bootstrap_iterations=10,
     ))
     paths = save_comparison_result(result, tmp_path)
     assert all(path.exists() for path in paths.values())
     assert "Decision:" in paths["report"].read_text()
-    assert {"ranking_metrics", "portfolio_returns", "portfolio_metrics"} <= set(paths)
+    assert {
+        "ranking_metrics", "portfolio_returns", "portfolio_metrics",
+        "vqc_tuning_trials", "vqc_selected_configs",
+        "qcnn_tuning_trials", "qcnn_selected_configs",
+    } <= set(paths)
