@@ -54,8 +54,19 @@ jobs:
             exit 1
           fi
 
+      - name: Snapshot point-in-time Alpaca asset states
+        run: python -m scripts.snapshot_alpaca_assets
+
       - name: Pull latest Alpaca prices
         run: python -m scripts.ingest_alpaca_prices
+
+      - name: Build point-in-time universe
+        run: >-
+          python -m scripts.build_point_in_time_universe
+          --confirm-provider-permissions
+          --coverage data/processed/universe_coverage.parquet
+          --transitions data/processed/universe_transitions.parquet
+          --manifest data/processed/universe_manifest.json
 
       - name: Pull latest macro data
         run: >-

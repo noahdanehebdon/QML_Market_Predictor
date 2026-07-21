@@ -38,6 +38,7 @@ def build_modeling_dataset(
     features: pd.DataFrame,
     labels: pd.DataFrame,
     *,
+    universe_membership: pd.DataFrame | None = None,
     target_column: str = DEFAULT_TARGET_COLUMN,
     feature_columns: list[str] | None = None,
     metadata_columns: list[str] | None = None,
@@ -47,6 +48,8 @@ def build_modeling_dataset(
 ) -> ModelingDataset:
     """Join canonical features and labels into X, y, and metadata."""
     feature_table = build_canonical_features(features)
+    if universe_membership is not None:
+        feature_table = _apply_universe_membership(feature_table, universe_membership)
     label_table = _prepare_labels(labels=labels, target_column=target_column)
 
     merged = feature_table.merge(
@@ -88,6 +91,33 @@ def build_modeling_dataset(
     metadata = merged[metadata_columns].copy()
 
     return ModelingDataset(X=X, y=y, metadata=metadata)
+
+
+def _apply_universe_membership(
+    features: pd.DataFrame, membership: pd.DataFrame
+) -> pd.DataFrame:
+    """Keep only effective-date universe members and attach PIT classifications."""
+    required = set(KEY_COLUMNS + ["is_member"])
+    missing = required - set(membership)
+    if missing:
+        raise ValueError(
+            "Universe membership is missing required columns: "
+            + ", ".join(sorted(missing))
+        )
+    selected = membership.copy()
+    selected["symbol"] = selected["symbol"].astype(str).str.upper()
+    selected["date"] = pd.to_datetime(selected["date"], errors="coerce").dt.normalize()
+    if selected["date"].isna().any():
+        raise ValueError("Universe membership contains invalid dates.")
+    if selected.duplicated(KEY_COLUMNS).any():
+        raise ValueError("Universe membership contains duplicate symbol/date rows.")
+    metadata = [
+        column
+        for column in ["sector", "industry", "size_bucket"]
+        if column in selected
+    ]
+    selected = selected.loc[selected["is_member"].eq(True), KEY_COLUMNS + metadata]
+    return features.merge(selected, on=KEY_COLUMNS, how="inner", validate="one_to_one")
 
 
 def load_modeling_dataset(

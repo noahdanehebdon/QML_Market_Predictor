@@ -40,6 +40,9 @@ def test_nightly_refresh_runs_all_sources_and_uploads_private_r2_snapshot():
     upload = next(step for step in steps if step["name"] == "Upload private R2 snapshot")
 
     assert "scripts.ingest_alpaca_prices" in commands
+    assert "scripts.snapshot_alpaca_assets" in commands
+    assert "scripts.build_point_in_time_universe" in commands
+    assert "--confirm-provider-permissions" in commands
     assert "scripts.pull_macro" in commands
     assert "--start-year 2020" in commands
     assert "scripts.build_sec_ticker_cik_lookup" in commands

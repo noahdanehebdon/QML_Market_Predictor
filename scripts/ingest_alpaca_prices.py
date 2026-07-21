@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import hashlib
 from pathlib import Path
 
+import pandas as pd
 import yaml
 from dotenv import load_dotenv
 
@@ -16,6 +18,55 @@ from market_qml.ingestion.prices import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+def load_candidate_symbols(
+    asset_history_path: Path,
+    *,
+    exchanges: list[str],
+    limit: int,
+    benchmark: str,
+) -> list[str]:
+    """Select a stable broad candidate pool from the latest archived snapshot."""
+    if limit <= 0:
+        raise ValueError("candidate_limit must be positive.")
+    assets = pd.read_parquet(asset_history_path)
+    required = {"symbol", "effective_date", "asset_class", "exchange", "status", "tradable"}
+    missing = required - set(assets)
+    if missing:
+        raise ValueError("Asset history is missing: " + ", ".join(sorted(missing)))
+    assets["effective_date"] = pd.to_datetime(assets["effective_date"]).dt.normalize()
+    latest_date = assets["effective_date"].max()
+    latest = assets.loc[assets["effective_date"].eq(latest_date)].copy()
+    latest = latest.loc[
+        latest["asset_class"].eq("us_equity")
+        & latest["exchange"].isin(exchanges)
+        & latest["status"].eq("active")
+        & latest["tradable"].fillna(False)
+    ]
+    latest["selection_key"] = latest["symbol"].astype(str).map(
+        lambda symbol: hashlib.sha256(symbol.encode("utf-8")).hexdigest()
+    )
+    symbols = latest.sort_values("selection_key")["symbol"].astype(str).head(limit).tolist()
+    benchmark = benchmark.upper()
+    if benchmark not in symbols:
+        symbols.append(benchmark)
+    return symbols
+
+
+def merge_price_history(existing: pd.DataFrame, fresh: pd.DataFrame) -> pd.DataFrame:
+    """Preserve removed symbols while replacing overlapping bars with fresh data."""
+    required = {"symbol", "timestamp"}
+    for name, frame in [("Existing prices", existing), ("Fresh prices", fresh)]:
+        missing = required - set(frame)
+        if missing:
+            raise ValueError(f"{name} are missing: " + ", ".join(sorted(missing)))
+    combined = pd.concat([existing, fresh], ignore_index=True)
+    combined["symbol"] = combined["symbol"].astype(str).str.upper()
+    combined["timestamp"] = pd.to_datetime(combined["timestamp"], utc=True)
+    return combined.drop_duplicates(["symbol", "timestamp"], keep="last").sort_values(
+        ["symbol", "timestamp"]
+    ).reset_index(drop=True)
 
 
 def _clean_feed(value: object) -> str | None:
@@ -41,8 +92,27 @@ def main() -> None:
     dates = config["dates"]
     alpaca = config.get("alpaca", {})
 
-    symbols = universe["symbols"]
+    symbols = list(universe["symbols"])
     benchmark = universe["benchmark"]
+
+    point_in_time = config.get("point_in_time", {})
+    asset_history_path = Path(
+        point_in_time.get("asset_history_path", "data/processed/asset_history.parquet")
+    )
+    if point_in_time.get("enabled") and asset_history_path.exists():
+        symbols = load_candidate_symbols(
+            asset_history_path,
+            exchanges=point_in_time["candidate_exchanges"],
+            limit=int(point_in_time["candidate_limit"]),
+            benchmark=benchmark,
+        )
+        LOGGER.info(
+            "Using prospective candidate pool from latest private asset snapshot."
+        )
+    elif point_in_time.get("enabled"):
+        LOGGER.warning(
+            "No point-in-time asset history exists yet; using the legacy seed universe."
+        )
 
     if benchmark not in symbols:
         symbols.append(benchmark)
@@ -72,6 +142,8 @@ def main() -> None:
     processed_path = Path("data/processed/prices.parquet")
 
     save_raw_bars(raw_pages, raw_path)
+    if point_in_time.get("enabled") and processed_path.exists():
+        prices = merge_price_history(pd.read_parquet(processed_path), prices)
     save_prices(prices, processed_path)
 
     LOGGER.info("Saved raw bars to: %s", raw_path)
