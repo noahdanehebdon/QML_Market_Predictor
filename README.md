@@ -584,3 +584,9 @@ SEC EDGAR data are used as inputs to local research, feature engineering, and mo
 This project is not sponsored, endorsed, certified, or approved by the U.S. Securities and Exchange Commission. The SEC does not endorse this project, its models, its outputs, or any investment-related interpretation derived from EDGAR data.
 
 Source: U.S. Securities and Exchange Commission EDGAR.
+
+## License
+
+The source code is available under the [MIT License](LICENSE). Provider-derived
+data remain subject to their respective provider and exchange terms and are not
+redistributed by this repository.
