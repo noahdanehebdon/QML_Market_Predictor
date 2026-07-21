@@ -10,6 +10,7 @@ from typing import Callable
 import pandas as pd
 
 from market_qml.reporting.baseline_evidence import compare_to_naive_baselines
+from market_qml.reporting.ensemble_evidence import compare_ensemble_performance
 
 from market_qml.backtest.classification_metrics import (
     CLASSIFICATION_METRIC_COLUMNS,
@@ -74,6 +75,7 @@ from market_qml.models.naive_rankers import (
     train_sector_neutral_rank,
     train_sign_rank,
 )
+from market_qml.models.ensembles import build_chronological_ensembles
 from market_qml.models.random_forest import (
     MODEL_NAME as RANDOM_FOREST_MODEL_NAME,
     train_random_forest,
@@ -382,6 +384,11 @@ def run_walk_forward_backtest(
         git_sha=resolve_git_sha(),
     )
     predictions = prediction_result.predictions
+    ensemble_result = build_chronological_ensembles(predictions)
+    if not ensemble_result.predictions.empty:
+        predictions = pd.concat(
+            [predictions, ensemble_result.predictions], ignore_index=True
+        )
     binary_predictions = _binary_predictions(predictions)
 
     classification_metrics = (
@@ -404,6 +411,9 @@ def run_walk_forward_backtest(
     portfolio_risk_metrics = summarize_portfolio_risk(
         portfolio_returns,
     )
+    ensemble_evidence = compare_ensemble_performance(
+        ranking_metrics, portfolio_risk_metrics
+    )
     baseline_evidence = compare_to_naive_baselines(predictions)
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -414,6 +424,9 @@ def run_walk_forward_backtest(
         "portfolio_backtest": output_dir / "portfolio_backtest.parquet",
         "portfolio_risk_metrics": output_dir / "portfolio_risk_metrics.parquet",
         "baseline_evidence": output_dir / "baseline_evidence.parquet",
+        "ensemble_diagnostics": output_dir / "ensemble_diagnostics.parquet",
+        "ensemble_sensitivity": output_dir / "ensemble_sensitivity.parquet",
+        "ensemble_evidence": output_dir / "ensemble_evidence.parquet",
         "artifact_manifest": save_artifact_manifest(
             artifact_dir, prediction_result.artifact_records
         ),
@@ -429,6 +442,13 @@ def run_walk_forward_backtest(
 
     predictions.to_parquet(output_paths["predictions"], index=False)
     baseline_evidence.to_parquet(output_paths["baseline_evidence"], index=False)
+    ensemble_result.diagnostics.to_parquet(
+        output_paths["ensemble_diagnostics"], index=False
+    )
+    ensemble_result.sensitivity.to_parquet(
+        output_paths["ensemble_sensitivity"], index=False
+    )
+    ensemble_evidence.to_parquet(output_paths["ensemble_evidence"], index=False)
     if "training_loss" in output_paths:
         prediction_result.training_loss.to_parquet(
             output_paths["training_loss"],
