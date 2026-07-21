@@ -339,6 +339,8 @@ See [docs/feature_audit.md](docs/feature_audit.md) for leakage-safe feature qual
 drift, stability, redundancy, exposure, and family-ablation diagnostics.
 See [docs/strong_baselines.md](docs/strong_baselines.md) for the XGBoost classifier,
 date-grouped LambdaMART ranker, naive controls, and evidence threshold.
+See [docs/ensembles.md](docs/ensembles.md) for chronological calibration, constrained
+stacking, turnover/stability penalties, and constituent-removal sensitivity.
 
 After training the default logistic-regression model, generate the latest
 cross-sectional signal report with:
