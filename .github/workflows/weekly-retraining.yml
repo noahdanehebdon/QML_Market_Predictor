@@ -109,6 +109,11 @@ jobs:
       - name: Build features and walk-forward splits
         run: build-features
 
+      - name: Audit feature quality and predictive stability
+        run: >-
+          python -m scripts.audit_feature_quality
+          --output-dir reports/weekly_retraining/feature_audit
+
       - name: Retrain selected models
         if: env.FULL_EXPERIMENT != 'true'
         shell: bash
