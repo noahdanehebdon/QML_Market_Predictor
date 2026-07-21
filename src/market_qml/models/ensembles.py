@@ -62,7 +62,6 @@ def build_chronological_ensembles(predictions: pd.DataFrame, *, min_history_rows
                     calibrated_current[model], calibrated_history[model] = _calibrate(
                         history_wide, current_wide, model, min_history_rows
                     )
-            equal_weights = np.full(len(model_columns), 1 / len(model_columns))
             learned, source = _learn_weights(calibrated_history, model_columns, task, min_history_rows, turnover_penalty, instability_penalty)
             methods = {
                 "simple_average_ensemble": calibrated_current[model_columns].mean(axis=1),
