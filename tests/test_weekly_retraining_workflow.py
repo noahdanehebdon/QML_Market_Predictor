@@ -18,6 +18,9 @@ def test_weekly_retraining_supports_manual_and_scheduled_runs():
     inputs = triggers["workflow_dispatch"]["inputs"]
     assert inputs["baseline_model"]["default"] == "tuned_gradient_boosting_regressor"
     assert inputs["run_qml"]["default"] == "false"
+    assert inputs["full_experiment"]["default"] == "false"
+    assert inputs["quantum_sample_rows"]["default"] == "512"
+    assert inputs["quantum_iterations"]["default"] == "30"
 
 
 def test_weekly_retraining_downloads_and_verifies_latest_r2_snapshot():
@@ -77,3 +80,22 @@ def test_weekly_retraining_has_readable_failure_annotation():
 
     assert failure["if"] == "failure()"
     assert "::error title=Weekly retraining failed::" in failure["run"]
+
+
+def test_weekly_retraining_full_experiment_is_explicit_and_private():
+    workflow = _workflow()
+    job = workflow["jobs"]["retrain"]
+    steps = job["steps"]
+    experiment = next(
+        step
+        for step in steps
+        if step["name"] == "Run full classical and tuned quantum experiment"
+    )
+
+    assert job["timeout-minutes"] == "360"
+    assert experiment["if"] == "env.FULL_EXPERIMENT == 'true'"
+    assert "tuned_gradient_boosting_regressor" in experiment["run"]
+    assert "scripts/compare_qml_models.py" in experiment["run"]
+    assert '--train-rows "$QUANTUM_SAMPLE_ROWS"' in experiment["run"]
+    assert '--iterations "$QUANTUM_ITERATIONS"' in experiment["run"]
+    assert "actions/upload-artifact" not in WORKFLOW_PATH.read_text(encoding="utf-8")

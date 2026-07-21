@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import product
 from pathlib import Path
 import time
 import tracemalloc
@@ -51,6 +52,11 @@ class ComparisonConfig:
     random_state: int = 42
     vqc_iterations: int = 10
     qcnn_iterations: int = 10
+    vqc_ansatz_depths: tuple[int, ...] = (1, 2)
+    vqc_learning_rates: tuple[float, ...] = (0.05, 0.1)
+    vqc_optimizers: tuple[str, ...] = ("spsa", "finite_difference")
+    qcnn_learning_rates: tuple[float, ...] = (0.03, 0.05, 0.1)
+    qcnn_initialization_scales: tuple[float, ...] = (0.05, 0.1)
     qsvm_c_values: tuple[float, ...] = (0.01, 0.1, 1.0, 10.0)
     qsvm_repetitions: tuple[int, ...] = (1, 2, 3)
     feature_selection_names: tuple[str, ...] = ("classical_selected",)
@@ -69,6 +75,10 @@ class ComparisonResult:
     resource_usage: pd.DataFrame
     qsvm_tuning_trials: pd.DataFrame
     qsvm_selected_configs: pd.DataFrame
+    vqc_tuning_trials: pd.DataFrame
+    vqc_selected_configs: pd.DataFrame
+    qcnn_tuning_trials: pd.DataFrame
+    qcnn_selected_configs: pd.DataFrame
     sample_manifest: pd.DataFrame
     ranking_metrics: pd.DataFrame
     portfolio_returns: pd.DataFrame
@@ -79,6 +89,7 @@ def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = Comparis
     """Compare all models on identical outer rows and tune QSVM on train rows only."""
     _validate_inputs(data, config)
     predictions, resources, trials, selected, manifests = [], [], [], [], []
+    vqc_trials, vqc_selected, qcnn_trials, qcnn_selected = [], [], [], []
     for split_id in sorted(data["split_id"].unique()):
         sampled = _sample_split(data, int(split_id), config)
         manifests.append(_sample_manifest(sampled, int(split_id)))
@@ -89,13 +100,25 @@ def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = Comparis
         chosen, split_trials = _select_qsvm(sampled, int(split_id), config)
         trials.append(split_trials)
         selected.append(chosen)
+        chosen_vqc, split_vqc_trials = _select_vqc(sampled, int(split_id), config)
+        vqc_trials.append(split_vqc_trials)
+        vqc_selected.append(chosen_vqc)
+        chosen_qcnn, split_qcnn_trials = _select_qcnn(sampled, int(split_id), config)
+        qcnn_trials.append(split_qcnn_trials)
+        qcnn_selected.append(chosen_qcnn)
 
         runners = {
-            "vqc": lambda: train_vqc(primary, max_iter=config.vqc_iterations,
-                                      random_state=config.random_state + int(split_id)).predictions,
-            "qcnn": lambda: train_qcnn(primary, max_iter=config.qcnn_iterations,
-                                        learning_rate=0.05, initialization_scale=0.1,
-                                        random_state=config.random_state + int(split_id)).predictions,
+            "vqc": lambda c=chosen_vqc: train_vqc(
+                primary, max_iter=config.vqc_iterations,
+                ansatz_depth=int(c["ansatz_depth"]),
+                learning_rate=float(c["learning_rate"]),
+                optimizer=str(c["optimizer"]),
+                random_state=config.random_state + int(split_id)).predictions,
+            "qcnn": lambda c=chosen_qcnn: train_qcnn(
+                primary, max_iter=config.qcnn_iterations,
+                learning_rate=float(c["learning_rate"]),
+                initialization_scale=float(c["initialization_scale"]),
+                random_state=config.random_state + int(split_id)).predictions,
             "qsvm": lambda: _qsvm_predictions(primary, 1.0, 2, 0.0, "qsvm", config.random_state),
             "linear_svm": lambda: _classical_predictions(primary, "linear", "linear_svm", config.random_state),
             "rbf_svm": lambda: _classical_predictions(primary, "rbf", "rbf_svm", config.random_state),
@@ -135,6 +158,10 @@ def run_model_comparison(data: pd.DataFrame, config: ComparisonConfig = Comparis
         resource_usage=pd.DataFrame(resources),
         qsvm_tuning_trials=pd.concat(trials, ignore_index=True),
         qsvm_selected_configs=pd.DataFrame(selected),
+        vqc_tuning_trials=pd.concat(vqc_trials, ignore_index=True),
+        vqc_selected_configs=pd.DataFrame(vqc_selected),
+        qcnn_tuning_trials=pd.concat(qcnn_trials, ignore_index=True),
+        qcnn_selected_configs=pd.DataFrame(qcnn_selected),
         sample_manifest=pd.concat(manifests, ignore_index=True),
         ranking_metrics=ranking_metrics,
         portfolio_returns=portfolio_returns,
@@ -171,6 +198,10 @@ def save_comparison_result(result: ComparisonResult, output_dir: str | Path) -> 
         "aggregate_metrics": result.aggregate_metrics, "resource_usage": result.resource_usage,
         "qsvm_tuning_trials": result.qsvm_tuning_trials,
         "qsvm_selected_configs": result.qsvm_selected_configs,
+        "vqc_tuning_trials": result.vqc_tuning_trials,
+        "vqc_selected_configs": result.vqc_selected_configs,
+        "qcnn_tuning_trials": result.qcnn_tuning_trials,
+        "qcnn_selected_configs": result.qcnn_selected_configs,
         "sample_manifest": result.sample_manifest,
         "ranking_metrics": result.ranking_metrics,
         "portfolio_returns": result.portfolio_returns,
@@ -215,7 +246,7 @@ def render_comparison_report(result: ComparisonResult) -> str:
     table.extend("| " + " | ".join([str(index)] + [_format_report_value(value) for value in row]) + " |"
                  for index, row in display.iterrows())
     return "\n".join([
-        "# QML model comparison", "", "All models used identical outer validation rows. QSVM choices were made only from an inner chronological portion of each training window.", "",
+        "# QML model comparison", "", "All models used identical outer validation rows. VQC, QCNN, and QSVM choices were made only from an inner chronological portion of each training window.", "",
         *table, "", f"Classification leader (mean ROC-AUC): **{best}**. Ranking leader (overall rank IC): **{ranking_winner}**. Portfolio leader (overall net Sharpe): **{portfolio_winner}**.", "",
         f"Best QML: **{best_qml}**; best requested classical baseline: **{best_classical}**.", "", f"Decision: {decision}", "",
         "Classification and split-bootstrap uncertainty are recorded in `split_metrics.parquet` and `aggregate_metrics.parquet`. Date-level ranking results are in `ranking_metrics.parquet`; transaction-cost-aware returns and risk metrics are in `portfolio_returns.parquet` and `portfolio_metrics.parquet`.", "",
@@ -237,16 +268,7 @@ def _format_report_value(value) -> str:
 
 
 def _select_qsvm(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
-    train = sampled[sampled.sample_role == "train"].copy().sort_values(["date", "symbol"])
-    dates = np.asarray(sorted(pd.to_datetime(train.date).unique()))
-    cutoff = dates[max(1, int(len(dates) * 0.8)) - 1]
-    train["sample_role"] = np.where(pd.to_datetime(train.date) <= cutoff, "train", "validation")
-    if train.groupby("sample_role").target.nunique().min() < 2:
-        # Deterministic fallback only for tiny synthetic tests; real runs remain date-separated.
-        ordered = train.sort_values(["date", "symbol"]).reset_index(drop=True)
-        ordered["sample_role"] = "train"
-        ordered.loc[ordered.index >= max(2, int(len(ordered) * .8)), "sample_role"] = "validation"
-        train = ordered
+    train = _inner_training_frame(sampled)
     trial_rows = []
     for selection in config.feature_selection_names:
         inner = build_qml_train_validation(train, split_id=split_id,
@@ -276,6 +298,113 @@ def _select_qsvm(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig)
         ascending=[False, True, True, True, True], kind="stable")
     chosen = trials.iloc[0].to_dict()
     return chosen, trials.reset_index(drop=True)
+
+
+def _select_vqc(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
+    inner = build_qml_train_validation(
+        _inner_training_frame(sampled),
+        split_id=split_id,
+        feature_columns=_feature_columns(sampled, config.feature_selection_names[0]),
+    )
+    rows = []
+    for depth, learning_rate, optimizer in product(
+        config.vqc_ansatz_depths,
+        config.vqc_learning_rates,
+        config.vqc_optimizers,
+    ):
+        started = time.perf_counter()
+        predictions = train_vqc(
+            inner,
+            ansatz_depth=depth,
+            learning_rate=learning_rate,
+            optimizer=optimizer,
+            max_iter=config.vqc_iterations,
+            random_state=config.random_state + split_id,
+        ).predictions
+        rows.append(
+            {
+                "split_id": split_id,
+                "ansatz_depth": depth,
+                "learning_rate": learning_rate,
+                "optimizer": optimizer,
+                "inner_roc_auc": roc_auc_score(
+                    predictions.y_true, predictions.y_score
+                ),
+                "runtime_seconds": time.perf_counter() - started,
+                "inner_train_end": pd.to_datetime(inner.train.metadata.date).max(),
+                "inner_validation_start": pd.to_datetime(
+                    inner.validation.metadata.date
+                ).min(),
+            }
+        )
+    trials = pd.DataFrame(rows).sort_values(
+        ["inner_roc_auc", "ansatz_depth", "learning_rate", "optimizer"],
+        ascending=[False, True, True, True],
+        kind="stable",
+    )
+    return trials.iloc[0].to_dict(), trials.reset_index(drop=True)
+
+
+def _select_qcnn(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
+    inner = build_qml_train_validation(
+        _inner_training_frame(sampled),
+        split_id=split_id,
+        feature_columns=_feature_columns(sampled, config.feature_selection_names[0]),
+    )
+    rows = []
+    for learning_rate, initialization_scale in product(
+        config.qcnn_learning_rates,
+        config.qcnn_initialization_scales,
+    ):
+        started = time.perf_counter()
+        predictions = train_qcnn(
+            inner,
+            learning_rate=learning_rate,
+            initialization_scale=initialization_scale,
+            max_iter=config.qcnn_iterations,
+            random_state=config.random_state + split_id,
+        ).predictions
+        rows.append(
+            {
+                "split_id": split_id,
+                "learning_rate": learning_rate,
+                "initialization_scale": initialization_scale,
+                "inner_roc_auc": roc_auc_score(
+                    predictions.y_true, predictions.y_score
+                ),
+                "runtime_seconds": time.perf_counter() - started,
+                "inner_train_end": pd.to_datetime(inner.train.metadata.date).max(),
+                "inner_validation_start": pd.to_datetime(
+                    inner.validation.metadata.date
+                ).min(),
+            }
+        )
+    trials = pd.DataFrame(rows).sort_values(
+        ["inner_roc_auc", "learning_rate", "initialization_scale"],
+        ascending=[False, True, True],
+        kind="stable",
+    )
+    return trials.iloc[0].to_dict(), trials.reset_index(drop=True)
+
+
+def _inner_training_frame(sampled: pd.DataFrame) -> pd.DataFrame:
+    train = sampled[sampled.sample_role == "train"].copy().sort_values(
+        ["date", "symbol"]
+    )
+    dates = np.asarray(sorted(pd.to_datetime(train.date).unique()))
+    cutoff = dates[max(1, int(len(dates) * 0.8)) - 1]
+    train["sample_role"] = np.where(
+        pd.to_datetime(train.date) <= cutoff, "train", "validation"
+    )
+    if train.groupby("sample_role").target.nunique().min() < 2:
+        # Deterministic fallback only for tiny synthetic tests.
+        ordered = train.sort_values(["date", "symbol"]).reset_index(drop=True)
+        ordered["sample_role"] = "train"
+        ordered.loc[
+            ordered.index >= max(2, int(len(ordered) * 0.8)), "sample_role"
+        ] = "validation"
+        train = ordered
+    return train
 
 
 def _qsvm_predictions(data, C, repetitions, interaction_scale, model_name, seed):
@@ -402,6 +531,10 @@ def _validate_inputs(data, config):
         raise ValueError("transaction_cost_bps must be non-negative")
     if config.rebalance_frequency <= 0:
         raise ValueError("rebalance_frequency must be positive")
+    if not config.vqc_ansatz_depths or not config.vqc_learning_rates or not config.vqc_optimizers:
+        raise ValueError("VQC tuning grids must not be empty")
+    if not config.qcnn_learning_rates or not config.qcnn_initialization_scales:
+        raise ValueError("QCNN tuning grids must not be empty")
 
 
 def _feature_columns(data: pd.DataFrame, selection: str) -> list[str]:
