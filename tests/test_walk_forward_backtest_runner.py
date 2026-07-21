@@ -113,6 +113,7 @@ def test_run_walk_forward_backtest_writes_report_bundle(tmp_path):
 
     assert sorted(outputs) == [
         "artifact_manifest",
+        "baseline_evidence",
         "classification_metrics",
         "portfolio_backtest",
         "portfolio_risk_metrics",

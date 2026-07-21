@@ -9,6 +9,8 @@ from typing import Callable
 
 import pandas as pd
 
+from market_qml.reporting.baseline_evidence import compare_to_naive_baselines
+
 from market_qml.backtest.classification_metrics import (
     CLASSIFICATION_METRIC_COLUMNS,
     evaluate_classification_metrics,
@@ -64,6 +66,14 @@ from market_qml.models.logistic_regression import (
     train_logistic_regression,
 )
 from market_qml.models.preprocessing import fit_transform_train_validation
+from market_qml.models.naive_rankers import (
+    TARGET as NAIVE_RANK_TARGET,
+    train_linear_rank,
+    train_momentum_rank,
+    train_random_rank,
+    train_sector_neutral_rank,
+    train_sign_rank,
+)
 from market_qml.models.random_forest import (
     MODEL_NAME as RANDOM_FOREST_MODEL_NAME,
     train_random_forest,
@@ -82,6 +92,13 @@ from market_qml.models.tuned_gradient_boosting import (
     DEFAULT_TARGET_COLUMN as TUNED_GRADIENT_BOOSTING_TARGET_COLUMN,
     MODEL_NAME as TUNED_GRADIENT_BOOSTING_MODEL_NAME,
     train_tuned_gradient_boosting_regressor,
+)
+from market_qml.models.xgboost_baselines import (
+    CLASSIFIER_NAME as XGBOOST_CLASSIFIER_NAME,
+    RANKER_NAME as XGBOOST_RANKER_NAME,
+    RANK_TARGET as XGBOOST_RANK_TARGET,
+    train_xgboost_classifier,
+    train_xgboost_ranker,
 )
 from market_qml.qml.interface import build_qml_train_validation
 from market_qml.qml.pca import fit_pca
@@ -120,6 +137,19 @@ class WalkForwardPredictionResult:
 
 
 MODEL_REGISTRY = {
+    "sign_rank": ModelSpec(target_column=NAIVE_RANK_TARGET, train=train_sign_rank),
+    "momentum_rank": ModelSpec(target_column=NAIVE_RANK_TARGET, train=train_momentum_rank),
+    "random_rank": ModelSpec(target_column=NAIVE_RANK_TARGET, train=train_random_rank),
+    "sector_neutral_rank": ModelSpec(target_column=NAIVE_RANK_TARGET, train=train_sector_neutral_rank),
+    "linear_rank": ModelSpec(target_column=NAIVE_RANK_TARGET, train=train_linear_rank),
+    XGBOOST_CLASSIFIER_NAME: ModelSpec(
+        target_column=DEFAULT_TARGET_COLUMN,
+        train=train_xgboost_classifier,
+    ),
+    XGBOOST_RANKER_NAME: ModelSpec(
+        target_column=XGBOOST_RANK_TARGET,
+        train=train_xgboost_ranker,
+    ),
     LOGISTIC_REGRESSION_MODEL_NAME: ModelSpec(
         target_column=DEFAULT_TARGET_COLUMN,
         train=train_logistic_regression,
@@ -374,6 +404,7 @@ def run_walk_forward_backtest(
     portfolio_risk_metrics = summarize_portfolio_risk(
         portfolio_returns,
     )
+    baseline_evidence = compare_to_naive_baselines(predictions)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_paths = {
@@ -382,6 +413,7 @@ def run_walk_forward_backtest(
         "ranking_metrics": output_dir / "ranking_metrics.parquet",
         "portfolio_backtest": output_dir / "portfolio_backtest.parquet",
         "portfolio_risk_metrics": output_dir / "portfolio_risk_metrics.parquet",
+        "baseline_evidence": output_dir / "baseline_evidence.parquet",
         "artifact_manifest": save_artifact_manifest(
             artifact_dir, prediction_result.artifact_records
         ),
@@ -396,6 +428,7 @@ def run_walk_forward_backtest(
         )
 
     predictions.to_parquet(output_paths["predictions"], index=False)
+    baseline_evidence.to_parquet(output_paths["baseline_evidence"], index=False)
     if "training_loss" in output_paths:
         prediction_result.training_loss.to_parquet(
             output_paths["training_loss"],

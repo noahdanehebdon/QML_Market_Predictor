@@ -337,6 +337,8 @@ See [docs/point_in_time_universe.md](docs/point_in_time_universe.md) for the
 prospective liquid-equity universe, survivorship limits, and provider controls.
 See [docs/feature_audit.md](docs/feature_audit.md) for leakage-safe feature quality,
 drift, stability, redundancy, exposure, and family-ablation diagnostics.
+See [docs/strong_baselines.md](docs/strong_baselines.md) for the XGBoost classifier,
+date-grouped LambdaMART ranker, naive controls, and evidence threshold.
 
 After training the default logistic-regression model, generate the latest
 cross-sectional signal report with:
