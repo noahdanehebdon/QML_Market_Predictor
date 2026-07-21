@@ -1,5 +1,10 @@
 # Controlled QML model comparison
 
+> **Superseded portfolio metrics:** volatility and Sharpe values in this
+> historical report were produced before Issue #153 corrected five-day
+> annualization. Classification and ranking results remain historical evidence,
+> but the portfolio risk figures must be recomputed before use.
+
 Issues #49 and #50 provide one leakage-safe decision experiment for the VQC,
 fixed QSVM, training-only tuned QSVM, QCNN, linear SVM, RBF SVM, logistic
 regression, and histogram gradient boosting.
