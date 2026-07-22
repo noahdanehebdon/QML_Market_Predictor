@@ -1,5 +1,6 @@
 import pandas as pd
 
+import market_qml.ingestion.prices as price_ingestion
 from market_qml.ingestion.prices import _normalize_bar_pages, normalize_asset_snapshot
 from scripts.ingest_alpaca_prices import load_candidate_symbols, merge_price_history
 from scripts.snapshot_alpaca_assets import append_asset_snapshot
@@ -80,6 +81,33 @@ def test_asset_snapshots_are_effective_dated_and_append_only(tmp_path):
         "active",
         "inactive",
     ]
+
+
+def test_asset_snapshot_defaults_to_paper_host_and_allows_live_override(monkeypatch):
+    calls = []
+
+    class Response:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return []
+
+    monkeypatch.setattr(
+        price_ingestion.requests,
+        "get",
+        lambda url, **kwargs: calls.append((url, kwargs)) or Response(),
+    )
+    monkeypatch.setenv("ALPACA_API_KEY", "test-key")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "test-secret")
+    monkeypatch.delenv("ALPACA_TRADING_BASE_URL", raising=False)
+    price_ingestion.fetch_alpaca_asset_snapshot(snapshot_date="2024-01-02")
+    monkeypatch.setenv("ALPACA_TRADING_BASE_URL", "https://api.alpaca.markets/")
+    price_ingestion.fetch_alpaca_asset_snapshot(snapshot_date="2024-01-02")
+
+    assert calls[0][0] == "https://paper-api.alpaca.markets/v2/assets"
+    assert calls[1][0] == "https://api.alpaca.markets/v2/assets"
 
 
 def test_candidate_pool_uses_only_latest_tradable_snapshot(tmp_path):
