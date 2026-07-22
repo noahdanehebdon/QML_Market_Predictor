@@ -593,8 +593,7 @@ This project is not sponsored, endorsed, certified, or approved by the U.S. Secu
 
 Source: U.S. Securities and Exchange Commission EDGAR.
 
-## License
+## Data rights
 
-The source code is available under the [MIT License](LICENSE). Provider-derived
-data remain subject to their respective provider and exchange terms and are not
-redistributed by this repository.
+Provider-derived data remain subject to their respective provider and exchange
+terms and are not redistributed by this repository.
