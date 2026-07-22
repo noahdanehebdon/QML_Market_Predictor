@@ -59,8 +59,12 @@ def build_point_in_time_universe(
     if normalized_prices.duplicated(["symbol", "date"]).any():
         raise ValueError("Prices contain duplicate symbol/date rows.")
 
+    # Asset snapshots cover the full Alpaca security master. Membership can only
+    # be evaluated for the bounded candidate pool that price ingestion selected;
+    # crossing every asset with every date can create tens of millions of rows.
+    symbols = sorted(normalized_prices["symbol"].unique())
     assets = _normalize_effective_history(asset_history, "Asset history")
-    symbols = sorted(set(normalized_prices["symbol"]) | set(assets["symbol"]))
+    assets = assets.loc[assets["symbol"].isin(symbols)].reset_index(drop=True)
     dates = pd.DatetimeIndex(normalized_prices["date"].unique()).sort_values()
     panel = pd.MultiIndex.from_product(
         [symbols, dates], names=["symbol", "date"]
@@ -80,6 +84,7 @@ def build_point_in_time_universe(
 
     if metadata_history is not None:
         metadata = _normalize_effective_history(metadata_history, "Metadata history")
+        metadata = metadata.loc[metadata["symbol"].isin(symbols)].reset_index(drop=True)
         panel = _merge_effective_history(panel, metadata)
     for column in ["sector", "industry", "market_cap"]:
         if column not in panel:
