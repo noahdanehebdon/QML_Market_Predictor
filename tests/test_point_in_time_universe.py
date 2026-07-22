@@ -117,3 +117,29 @@ def test_missing_asset_snapshot_never_backfills_tradability():
     ]
     assert not before_snapshot["eligible_tradability"].any()
     assert before_snapshot["effective_date"].isna().all()
+
+
+def test_full_security_master_does_not_expand_the_priced_candidate_panel():
+    assets = pd.concat(
+        [
+            _assets(),
+            pd.DataFrame(
+                [
+                    {
+                        "symbol": f"UNPRICED{i}",
+                        "effective_date": "2024-01-01",
+                        "asset_class": "us_equity",
+                        "status": "active",
+                        "tradable": True,
+                    }
+                    for i in range(1_000)
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    result = build_point_in_time_universe(_prices(), assets, rules=RULES)
+
+    assert set(result["symbol"]) == {"AAA", "BBB", "CCC", "SPY"}
+    assert len(result) == 4 * _prices()["date"].nunique()
