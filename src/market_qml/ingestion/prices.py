@@ -18,7 +18,7 @@ import requests
 
 
 ALPACA_STOCK_BARS_URL = "https://data.alpaca.markets/v2/stocks/bars"
-ALPACA_ASSETS_URL = "https://api.alpaca.markets/v2/assets"
+DEFAULT_ALPACA_TRADING_BASE_URL = "https://paper-api.alpaca.markets"
 
 
 @dataclass(frozen=True)
@@ -257,11 +257,17 @@ def normalize_asset_snapshot(
 
 
 def fetch_alpaca_asset_snapshot(
-    *, snapshot_date: str | pd.Timestamp | None = None
+    *,
+    snapshot_date: str | pd.Timestamp | None = None,
+    trading_base_url: str | None = None,
 ) -> pd.DataFrame:
     """Fetch all current US-equity asset states for prospective daily archiving."""
+    base_url = trading_base_url or os.getenv(
+        "ALPACA_TRADING_BASE_URL", DEFAULT_ALPACA_TRADING_BASE_URL
+    )
+    assets_url = f"{base_url.rstrip('/')}/v2/assets"
     response = requests.get(
-        ALPACA_ASSETS_URL,
+        assets_url,
         headers=_headers(),
         params={"status": "all", "asset_class": "us_equity"},
         timeout=30,
@@ -269,7 +275,9 @@ def fetch_alpaca_asset_snapshot(
     if response.status_code != 200:
         raise RuntimeError(
             "Alpaca asset request failed. "
-            f"Status={response.status_code}. Response={response.text[:500]}"
+            f"Host={base_url}. Status={response.status_code}. "
+            f"Response={response.text[:500]}. Confirm the host matches the "
+            "paper or live credentials in GitHub Secrets."
         )
     date = snapshot_date or pd.Timestamp.now(tz="UTC").normalize().tz_localize(None)
     return normalize_asset_snapshot(response.json(), snapshot_date=date)

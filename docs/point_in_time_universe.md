@@ -29,6 +29,10 @@ python -m scripts.run_walk_forward_backtest \
   --universe-membership data/processed/universe_membership.parquet
 ```
 
+Asset snapshots default to Alpaca's paper Trading API host because paper and live
+credentials are not interchangeable. Live-account users can set
+`ALPACA_TRADING_BASE_URL=https://api.alpaca.markets` explicitly.
+
 The confirmation flag records that the operator checked the current provider account
 and plan for private research use. It does not grant redistribution rights.
 
