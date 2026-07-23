@@ -6,6 +6,7 @@ import pickle
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from market_qml.models.dataset import ModelingDataset, TrainValidationDatasets
@@ -56,6 +57,9 @@ def fit_preprocessor(train_X: pd.DataFrame) -> FittedPreprocessor:
     imputed = numeric.fillna(fill_values)
     means = imputed.mean(axis=0)
     scales = imputed.std(axis=0, ddof=0).replace(0, 1.0).fillna(1.0)
+    _require_finite(imputed, context="imputed training features")
+    _require_finite(means.to_frame().T, context="training feature means")
+    _require_finite(scales.to_frame().T, context="training feature scales")
 
     return FittedPreprocessor(
         feature_columns=feature_columns,
@@ -80,7 +84,9 @@ def transform_features(
     numeric = _coerce_numeric_frame(X[preprocessor.feature_columns])
     imputed = numeric.fillna(preprocessor.fill_values)
     transformed = (imputed - preprocessor.means) / preprocessor.scales
-    return transformed[preprocessor.feature_columns]
+    transformed = transformed[preprocessor.feature_columns]
+    _require_finite(transformed, context="transformed features")
+    return transformed
 
 
 def preprocess_dataset(
@@ -138,4 +144,15 @@ def _coerce_numeric_frame(features: pd.DataFrame) -> pd.DataFrame:
     for column in numeric.columns:
         numeric[column] = pd.to_numeric(numeric[column], errors="coerce")
 
-    return numeric.astype("float64")
+    return numeric.astype("float64").replace([np.inf, -np.inf], np.nan)
+
+
+def _require_finite(frame: pd.DataFrame, *, context: str) -> None:
+    finite = np.isfinite(frame.to_numpy(dtype="float64"))
+    if finite.all():
+        return
+    invalid_columns = frame.columns[~finite.all(axis=0)].astype(str).tolist()
+    raise ValueError(
+        f"Preprocessing produced non-finite {context} in columns: "
+        + ", ".join(invalid_columns)
+    )
