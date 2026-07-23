@@ -3,7 +3,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from market_qml.cli import COMMAND_NAMES, load_command_steps, run_command
+from market_qml.cli import (
+    COMMAND_NAMES,
+    default_config_resource,
+    load_command_steps,
+    run_command,
+)
 
 
 def _write_config(path: Path, commands: dict[str, object]) -> Path:
@@ -16,6 +21,13 @@ def test_repository_cli_config_defines_every_command() -> None:
         steps = load_command_steps(Path("configs/cli.yaml"), command_name)
         assert steps
         assert all(step[1] == "-m" for step in steps)
+
+
+def test_packaged_and_repository_default_workflows_match() -> None:
+    repository = yaml.safe_load(Path("configs/cli.yaml").read_text(encoding="utf-8"))
+    packaged = yaml.safe_load(default_config_resource().read_text(encoding="utf-8"))
+
+    assert packaged == repository
 
 
 def test_run_command_dry_run_does_not_execute(tmp_path, monkeypatch, capsys) -> None:
@@ -35,6 +47,18 @@ def test_run_command_dry_run_does_not_execute(tmp_path, monkeypatch, capsys) -> 
     assert "--x 2" in output
 
 
+def test_packaged_default_config_supports_every_command_outside_checkout(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    for command_name in COMMAND_NAMES:
+        assert run_command(command_name, ["--dry-run"]) == 0
+
+    assert "scripts." in capsys.readouterr().out
+    assert default_config_resource().is_file()
+
+
 def test_run_command_executes_all_configured_steps(tmp_path, monkeypatch) -> None:
     config_path = _write_config(
         tmp_path / "cli.yaml",
@@ -50,7 +74,7 @@ def test_run_command_executes_all_configured_steps(tmp_path, monkeypatch) -> Non
     executed = []
     monkeypatch.setattr(
         "market_qml.cli.subprocess.run",
-        lambda command, check: executed.append((command, check)),
+        lambda command, check, cwd: executed.append((command, check, cwd)),
     )
 
     assert run_command("report", ["--config", str(config_path)]) == 0
@@ -58,7 +82,31 @@ def test_run_command_executes_all_configured_steps(tmp_path, monkeypatch) -> Non
         "scripts.first",
         "scripts.second",
     ]
-    assert all(check is True for _, check in executed)
+    assert all(check is True for _, check, _ in executed)
+    assert all(cwd == Path.cwd().resolve() for _, _, cwd in executed)
+
+
+def test_relative_config_resolves_from_explicit_workspace(
+    tmp_path, monkeypatch
+) -> None:
+    config_path = _write_config(
+        tmp_path / "workflow.yaml",
+        {"train": {"steps": [{"module": "scripts.example"}]}},
+    )
+    executed = []
+    monkeypatch.setattr(
+        "market_qml.cli.subprocess.run",
+        lambda command, check, cwd: executed.append((command, check, cwd)),
+    )
+
+    assert (
+        run_command(
+            "train",
+            ["--workspace-root", str(tmp_path), "--config", config_path.name],
+        )
+        == 0
+    )
+    assert executed[0][2] == tmp_path.resolve()
 
 
 @pytest.mark.parametrize(
