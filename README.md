@@ -17,6 +17,8 @@ The project is best read as an auditable empirical research system, including
 negative and superseded experiments—not as a production trading strategy. Start
 with the [current result status](docs/results_status.md), then review the
 [QML methodology and findings](docs/qml_experiments.md).
+The decision rules for the final two-lane evaluation are documented in the
+[definitive comparison protocol](docs/definitive_qml_comparison.md).
 
 ## Five-minute overview
 

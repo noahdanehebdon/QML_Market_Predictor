@@ -156,6 +156,10 @@ jobs:
             --validation-rows "$QUANTUM_SAMPLE_ROWS" \
             --iterations "$QUANTUM_ITERATIONS" \
             --transaction-cost-bps 10
+          python -m scripts.build_definitive_qml_comparison \
+            --equal-dir reports/weekly_retraining/qml_tuned_full \
+            --best-classical-dir reports/weekly_retraining/classical_full \
+            --best-qml-dir reports/weekly_retraining/qml_tuned_full
 
       - name: Write run summary
         if: success()
