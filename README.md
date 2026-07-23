@@ -1,5 +1,7 @@
 # QML Market Predictor
 
+[![Tests](https://github.com/noahdanehebdon/QML_Market_Predictor/actions/workflows/tests.yml/badge.svg)](https://github.com/noahdanehebdon/QML_Market_Predictor/actions/workflows/tests.yml)
+
 A research platform for testing whether quantum machine-learning models add
 useful signal beyond strong classical baselines when ranking US equities by
 future performance relative to `SPY`.
@@ -20,6 +22,7 @@ with the [current result status](docs/results_status.md), then review the
 [QML findings](docs/qml_experiments.md).
 The decision rules for the final two-lane evaluation are documented in the
 [definitive comparison protocol](docs/definitive_qml_comparison.md).
+The complete documentation map is available at [docs/README.md](docs/README.md).
 
 ## Five-minute overview
 
@@ -156,9 +159,9 @@ For GitHub Actions or other hosted workflows, add the same secret names in the r
 - `R2_ACCOUNT_ID`
 - `R2_BUCKET_NAME`
 
-## Milestone 1: Data Ingestion
+## Data ingestion
 
-Milestone 1 implements ingestion and normalization for:
+The ingestion layer normalizes:
 
 - Alpaca daily OHLCV equity bars
 - Federal Reserve Board Data Download Program macroeconomic series
@@ -187,9 +190,9 @@ data/processed/
 
 These generated data files are excluded from version control.
 
-## Milestone 2: Features and Labels
+## Features and labels
 
-Milestone 2 implements:
+The feature pipeline implements:
 
 - Technical price, return, volatility, volume, and liquidity features
 - Benchmark-relative features versus `SPY`
@@ -414,9 +417,9 @@ top-ranked stocks, and QML experiment summaries. If `reports/daily_signal.csv`
 does not exist, generate it first with `report`; the top-stock view falls back
 to the latest saved backtest predictions in the meantime.
 
-## Milestone 3: Classical Backtesting
+## Classical evaluation and backtesting
 
-Milestone 3 provides chronological walk-forward splits, train-only preprocessing,
+The evaluation layer provides chronological walk-forward splits, train-only preprocessing,
 classification and regression/ranking baselines, standard prediction tables,
 classification and ranking metrics, portfolio simulation, transaction costs,
 risk metrics, MLflow tracking, and task-aware baseline reports.
@@ -476,7 +479,7 @@ chronological tail of each outer training window. It never selects against the
 outer validation period, and writes every trial to
 `selection_diagnostics.parquet`.
 
-## Milestone 4: QML Experiments
+## Quantum machine-learning experiments
 
 The current VQC uses PCA-compressed inputs and RY angle encoding. A local exact
 statevector simulator executes trainable RY layers separated by ring-CNOT
