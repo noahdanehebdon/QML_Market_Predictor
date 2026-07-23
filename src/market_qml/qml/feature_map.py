@@ -12,7 +12,6 @@ from market_qml.qml.encoding import AngleEncodingConfig, angle_encode_dataset
 from market_qml.qml.interface import QMLDataset, QMLTrainValidation
 from market_qml.qml.simulator import BACKEND_NAME, apply_cz, apply_ry, zero_state
 
-
 DEFAULT_N_QUBITS = 8
 DEFAULT_REPETITIONS = 2
 

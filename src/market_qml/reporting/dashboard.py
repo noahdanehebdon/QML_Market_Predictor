@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 DEFAULT_REPORTS_DIR = Path("reports")
 
 
@@ -36,7 +35,9 @@ def latest_signal_report(reports_dir: str | Path = DEFAULT_REPORTS_DIR) -> pd.Da
 
 def model_comparison(reports_dir: str | Path = DEFAULT_REPORTS_DIR) -> pd.DataFrame:
     """Load the unified classical model comparison table."""
-    return load_table(Path(reports_dir) / "backtests" / "classical_baseline_comparison.parquet")
+    return load_table(
+        Path(reports_dir) / "backtests" / "classical_baseline_comparison.parquet"
+    )
 
 
 def portfolio_series(reports_dir: str | Path = DEFAULT_REPORTS_DIR) -> pd.DataFrame:
@@ -77,7 +78,9 @@ def top_ranked_stocks(
     predictions = load_table(Path(reports_dir) / "backtests" / "predictions.parquet")
     if predictions.empty:
         return predictions
-    _require_columns(predictions, {"symbol", "date", "y_score", "model_name"}, "Predictions")
+    _require_columns(
+        predictions, {"symbol", "date", "y_score", "model_name"}, "Predictions"
+    )
     predictions["date"] = pd.to_datetime(predictions["date"], errors="coerce")
     latest_date = predictions["date"].max()
     latest = predictions.loc[predictions["date"].eq(latest_date)].copy()
@@ -87,14 +90,20 @@ def top_ranked_stocks(
     return latest.loc[latest["rank"].le(limit), columns].reset_index(drop=True)
 
 
-def qml_experiment_summary(reports_dir: str | Path = DEFAULT_REPORTS_DIR) -> pd.DataFrame:
+def qml_experiment_summary(
+    reports_dir: str | Path = DEFAULT_REPORTS_DIR,
+) -> pd.DataFrame:
     """Pivot aggregate QML experiment metrics into a model comparison table."""
-    metrics = load_table(Path(reports_dir) / "qml_comparison" / "aggregate_metrics.parquet")
+    metrics = load_table(
+        Path(reports_dir) / "qml_comparison" / "aggregate_metrics.parquet"
+    )
     if metrics.empty:
         return metrics
     _require_columns(metrics, {"model_name", "metric", "mean"}, "QML aggregate metrics")
     return (
-        metrics.pivot_table(index="model_name", columns="metric", values="mean", aggfunc="first")
+        metrics.pivot_table(
+            index="model_name", columns="metric", values="mean", aggfunc="first"
+        )
         .reset_index()
         .rename_axis(columns=None)
         .sort_values("model_name")

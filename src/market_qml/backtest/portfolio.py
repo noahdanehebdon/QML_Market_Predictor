@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import math
+from pathlib import Path
 
 import pandas as pd
 
@@ -164,7 +164,9 @@ def load_prediction_tables(prediction_paths: list[str | Path]) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def save_portfolio_returns(portfolio_returns: pd.DataFrame, output_path: str | Path) -> None:
+def save_portfolio_returns(
+    portfolio_returns: pd.DataFrame, output_path: str | Path
+) -> None:
     """Save portfolio return series to parquet."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -239,7 +241,7 @@ def _select_names(
 def _equal_weights(symbols: pd.Series) -> dict[str, float]:
     symbol_list = symbols.astype(str).tolist()
     weight = 1 / len(symbol_list)
-    return {symbol: weight for symbol in symbol_list}
+    return dict.fromkeys(symbol_list, weight)
 
 
 def _portfolio_turnover(
@@ -335,7 +337,9 @@ def _validate_prediction_table(predictions: pd.DataFrame) -> None:
     numeric_columns = ["y_score", "forward_return", "forward_excess_return"]
     numeric = predictions[numeric_columns].apply(pd.to_numeric, errors="coerce")
     if numeric.isna().any().any():
-        raise ValueError("Portfolio backtest requires numeric, non-missing scores and returns.")
+        raise ValueError(
+            "Portfolio backtest requires numeric, non-missing scores and returns."
+        )
 
 
 def _validate_portfolio_returns(portfolio_returns: pd.DataFrame) -> None:

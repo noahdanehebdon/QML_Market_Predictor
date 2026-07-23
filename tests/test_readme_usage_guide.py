@@ -2,7 +2,6 @@ from pathlib import Path
 
 from market_qml.cli import COMMAND_NAMES, load_command_steps
 
-
 README = Path("README.md")
 CLI_CONFIG = Path("configs/cli.yaml")
 

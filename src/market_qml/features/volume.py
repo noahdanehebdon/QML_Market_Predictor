@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 VOLUME_WINDOWS = [5, 20, 60]
 REQUIRED_VOLUME_COLUMNS = {"symbol", "date", "close", "volume"}
 
@@ -37,7 +36,9 @@ def add_volume_features(
         )
 
     if liquidity_min_avg_dollar_volume is not None and liquidity_window not in windows:
-        raise ValueError("liquidity_window must be one of the configured volume windows.")
+        raise ValueError(
+            "liquidity_window must be one of the configured volume windows."
+        )
 
     result = features.copy()
     result["date"] = pd.to_datetime(result["date"], errors="coerce")
@@ -57,11 +58,15 @@ def add_volume_features(
             lambda volume: volume.rolling(window=window, min_periods=window).mean()
         )
         prior_avg_volume = grouped["volume"].transform(
-            lambda volume: volume.shift(1).rolling(window=window, min_periods=window).mean()
+            lambda volume: (
+                volume.shift(1).rolling(window=window, min_periods=window).mean()
+            )
         )
         result[f"volume_shock_{window}d"] = (result["volume"] / prior_avg_volume) - 1
         result[f"avg_dollar_volume_{window}d"] = grouped["dollar_volume"].transform(
-            lambda dollar_volume: dollar_volume.rolling(window=window, min_periods=window).mean()
+            lambda dollar_volume: dollar_volume.rolling(
+                window=window, min_periods=window
+            ).mean()
         )
 
     if liquidity_min_avg_dollar_volume is not None:

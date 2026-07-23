@@ -10,9 +10,7 @@ def test_build_macro_daily_lags_monthly_macro_before_forward_fill(tmp_path):
 
     prices = pd.DataFrame(
         {
-            "date": pd.to_datetime(
-                ["2024-01-31", "2024-02-01", "2024-02-02"]
-            ),
+            "date": pd.to_datetime(["2024-01-31", "2024-02-01", "2024-02-02"]),
             "symbol": ["SPY", "SPY", "SPY"],
             "close": [100.0, 101.0, 102.0],
         }

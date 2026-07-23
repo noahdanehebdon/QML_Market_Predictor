@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
-import pickle
 
 import numpy as np
 import pandas as pd
@@ -12,10 +12,13 @@ import pandas as pd
 from market_qml.models.predictions import build_prediction_table
 from market_qml.models.predictions import save_predictions as save_prediction_table
 from market_qml.qml.encoding import AngleEncodingConfig, angle_encode_dataset
-from market_qml.qml.interface import BaseQMLModel, QMLDataset, QMLModelConfig
-from market_qml.qml.interface import QMLTrainValidation
+from market_qml.qml.interface import (
+    BaseQMLModel,
+    QMLDataset,
+    QMLModelConfig,
+    QMLTrainValidation,
+)
 from market_qml.qml.simulator import apply_cnot, apply_ry, zero_state
-
 
 MODEL_NAME = "vqc"
 DEFAULT_N_QUBITS = 8
@@ -38,7 +41,7 @@ DEFAULT_VALIDATION_METRICS_PATH = Path("data/processed/vqc_validation_metrics.pa
 class VQCResult:
     """Fitted VQC baseline, predictions, loss curve, and validation metrics."""
 
-    model: "VariationalQuantumClassifier"
+    model: VariationalQuantumClassifier
     predictions: pd.DataFrame
     training_loss: pd.DataFrame
     validation_metrics: pd.DataFrame
@@ -57,9 +60,7 @@ class VariationalQuantumClassifier(BaseQMLModel):
     def __init__(self, config: QMLModelConfig) -> None:
         super().__init__(config)
         self.n_qubits = int(config.params.get("n_qubits", DEFAULT_N_QUBITS))
-        self.ansatz_depth = int(
-            config.params.get("ansatz_depth", DEFAULT_ANSATZ_DEPTH)
-        )
+        self.ansatz_depth = int(config.params.get("ansatz_depth", DEFAULT_ANSATZ_DEPTH))
         self.max_iter = int(config.params.get("max_iter", DEFAULT_MAX_ITER))
         self.learning_rate = float(
             config.params.get("learning_rate", DEFAULT_LEARNING_RATE)
@@ -73,7 +74,7 @@ class VariationalQuantumClassifier(BaseQMLModel):
         self.weights_: np.ndarray | None = None
         self.loss_history_: list[float] = []
 
-    def fit(self, dataset: QMLDataset) -> "VariationalQuantumClassifier":
+    def fit(self, dataset: QMLDataset) -> VariationalQuantumClassifier:
         """Fit trainable variational readout weights on binary labels."""
         self._validate_hyperparameters()
         y = _binary_targets(dataset.y, require_two_classes=True)
@@ -142,8 +143,7 @@ class VariationalQuantumClassifier(BaseQMLModel):
             raise ValueError("batch_size must be positive.")
         if self.optimizer not in SUPPORTED_OPTIMIZERS:
             raise ValueError(
-                "optimizer must be one of: "
-                + ", ".join(sorted(SUPPORTED_OPTIMIZERS))
+                "optimizer must be one of: " + ", ".join(sorted(SUPPORTED_OPTIMIZERS))
             )
 
 
@@ -396,9 +396,7 @@ def _binary_targets(y: pd.Series, *, require_two_classes: bool) -> np.ndarray:
 def _binary_cross_entropy(y_true: np.ndarray, y_score: np.ndarray) -> float:
     eps = 1e-12
     scores = np.clip(y_score, eps, 1 - eps)
-    return float(
-        -np.mean(y_true * np.log(scores) + (1 - y_true) * np.log(1 - scores))
-    )
+    return float(-np.mean(y_true * np.log(scores) + (1 - y_true) * np.log(1 - scores)))
 
 
 def _l2_penalty(weights: np.ndarray, l2: float) -> float:

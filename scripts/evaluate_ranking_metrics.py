@@ -11,7 +11,6 @@ from market_qml.backtest.ranking_metrics import (
     save_ranking_metrics,
 )
 
-
 DEFAULT_PREDICTION_DIR = Path("data/processed")
 DEFAULT_OUTPUT_PATH = Path("data/processed/ranking_metrics.parquet")
 

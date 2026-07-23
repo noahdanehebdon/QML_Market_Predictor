@@ -89,7 +89,10 @@ def test_build_qml_pca_features_fits_train_only_and_outputs_configured_component
     assert isinstance(result.artifacts[0], PCAArtifact)
     assert result.artifacts[0].pca.n_components_ == 2
     assert result.diagnostics["group"].unique().tolist() == ["global"]
-    assert result.diagnostics["component"].tolist() == ["global_pca_00", "global_pca_01"]
+    assert result.diagnostics["component"].tolist() == [
+        "global_pca_00",
+        "global_pca_01",
+    ]
     assert result.diagnostics["n_components"].unique().tolist() == [2]
     assert result.diagnostics["n_original_features"].unique().tolist() == [3]
 

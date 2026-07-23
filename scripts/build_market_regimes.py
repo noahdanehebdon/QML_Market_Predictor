@@ -12,8 +12,12 @@ from market_qml.features.regimes import build_market_regimes, save_market_regime
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build daily market regime labels.")
-    parser.add_argument("--features", type=Path, default=Path("data/features/feature_table.parquet"))
-    parser.add_argument("--output", type=Path, default=Path("data/features/market_regimes.parquet"))
+    parser.add_argument(
+        "--features", type=Path, default=Path("data/features/feature_table.parquet")
+    )
+    parser.add_argument(
+        "--output", type=Path, default=Path("data/features/market_regimes.parquet")
+    )
     parser.add_argument("--benchmark", default="SPY")
     parser.add_argument("--volatility-window", type=int, default=20)
     parser.add_argument("--rate-window", type=int, default=20)

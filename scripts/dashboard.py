@@ -14,7 +14,6 @@ from market_qml.reporting.dashboard import (
     top_ranked_stocks,
 )
 
-
 REPORTS_DIR = Path("reports")
 
 

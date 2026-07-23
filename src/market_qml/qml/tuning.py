@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from itertools import product
-import json
 from pathlib import Path
 
 import numpy as np
@@ -15,7 +15,6 @@ from market_qml.qml.vqc import (
     VariationalQuantumClassifier,
     _binary_cross_entropy,
 )
-
 
 DEFAULT_OVERFIT_GAP_THRESHOLD = 0.05
 
@@ -119,9 +118,11 @@ def tune_vqc(
         history["optimizer"] = optimizer
         loss_frames.append(history)
 
-    results = pd.DataFrame(rows).sort_values(
-        ["validation_log_loss", "validation_brier_score", "config_id"]
-    ).reset_index(drop=True)
+    results = (
+        pd.DataFrame(rows)
+        .sort_values(["validation_log_loss", "validation_brier_score", "config_id"])
+        .reset_index(drop=True)
+    )
     results.insert(0, "rank", np.arange(1, len(results) + 1))
     best_config = _best_config(results.iloc[0])
     return VQCTuningResult(
@@ -246,6 +247,8 @@ def _markdown_table(data: pd.DataFrame) -> str:
         "| " + " | ".join(["---"] * len(columns)) + " |",
     ]
     for row in table.itertuples(index=False, name=None):
-        values = [f"{value:.6f}" if isinstance(value, float) else str(value) for value in row]
+        values = [
+            f"{value:.6f}" if isinstance(value, float) else str(value) for value in row
+        ]
         lines.append("| " + " | ".join(values) + " |")
     return "\n".join(lines)

@@ -239,13 +239,15 @@ See [docs/features.md](docs/features.md) for the feature set, leakage precaution
 
 ## Testing
 
-Run the same lint check enforced in CI before opening a pull request:
+Run the same lint and formatting checks enforced in CI before opening a pull
+request:
 
 ```powershell
 python -m ruff check .
+python -m ruff format --check .
 ```
 
-Apply Ruff's automatic fixes and optional formatter with:
+Apply Ruff's automatic fixes and formatter with:
 
 ```powershell
 python -m ruff check --fix .

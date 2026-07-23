@@ -12,7 +12,6 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 from market_qml.models.predictions import build_prediction_table
 from market_qml.models.preprocessing import PreprocessedTrainValidation
 
-
 MODEL_NAME = "tuned_gradient_boosting_regressor"
 DEFAULT_TARGET_COLUMN = "forward_excess_return_5d"
 
@@ -99,10 +98,14 @@ def train_tuned_gradient_boosting_regressor(
             }
         )
 
-    diagnostics = pd.DataFrame(rows).sort_values(
-        ["inner_rank_ic", "feature_count", "config_id"],
-        ascending=[False, True, True],
-    ).reset_index(drop=True)
+    diagnostics = (
+        pd.DataFrame(rows)
+        .sort_values(
+            ["inner_rank_ic", "feature_count", "config_id"],
+            ascending=[False, True, True],
+        )
+        .reset_index(drop=True)
+    )
     diagnostics.insert(0, "rank", np.arange(1, len(diagnostics) + 1))
     diagnostics["split_id"] = split_id
     best = diagnostics.iloc[0]

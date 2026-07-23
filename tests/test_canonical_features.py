@@ -46,7 +46,9 @@ def test_build_canonical_features_rejects_label_columns():
 
 
 def test_build_canonical_features_rejects_duplicate_keys():
-    features = pd.concat([_feature_rows(), _feature_rows().iloc[[0]]], ignore_index=True)
+    features = pd.concat(
+        [_feature_rows(), _feature_rows().iloc[[0]]], ignore_index=True
+    )
 
     with pytest.raises(ValueError, match="duplicate symbol/date"):
         build_canonical_features(features)

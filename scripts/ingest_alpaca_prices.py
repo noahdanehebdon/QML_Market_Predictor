@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 import hashlib
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -31,7 +31,14 @@ def load_candidate_symbols(
     if limit <= 0:
         raise ValueError("candidate_limit must be positive.")
     assets = pd.read_parquet(asset_history_path)
-    required = {"symbol", "effective_date", "asset_class", "exchange", "status", "tradable"}
+    required = {
+        "symbol",
+        "effective_date",
+        "asset_class",
+        "exchange",
+        "status",
+        "tradable",
+    }
     missing = required - set(assets)
     if missing:
         raise ValueError("Asset history is missing: " + ", ".join(sorted(missing)))
@@ -44,10 +51,14 @@ def load_candidate_symbols(
         & latest["status"].eq("active")
         & latest["tradable"].fillna(False)
     ]
-    latest["selection_key"] = latest["symbol"].astype(str).map(
-        lambda symbol: hashlib.sha256(symbol.encode("utf-8")).hexdigest()
+    latest["selection_key"] = (
+        latest["symbol"]
+        .astype(str)
+        .map(lambda symbol: hashlib.sha256(symbol.encode("utf-8")).hexdigest())
     )
-    symbols = latest.sort_values("selection_key")["symbol"].astype(str).head(limit).tolist()
+    symbols = (
+        latest.sort_values("selection_key")["symbol"].astype(str).head(limit).tolist()
+    )
     benchmark = benchmark.upper()
     if benchmark not in symbols:
         symbols.append(benchmark)
@@ -64,9 +75,11 @@ def merge_price_history(existing: pd.DataFrame, fresh: pd.DataFrame) -> pd.DataF
     combined = pd.concat([existing, fresh], ignore_index=True)
     combined["symbol"] = combined["symbol"].astype(str).str.upper()
     combined["timestamp"] = pd.to_datetime(combined["timestamp"], utc=True)
-    return combined.drop_duplicates(["symbol", "timestamp"], keep="last").sort_values(
-        ["symbol", "timestamp"]
-    ).reset_index(drop=True)
+    return (
+        combined.drop_duplicates(["symbol", "timestamp"], keep="last")
+        .sort_values(["symbol", "timestamp"])
+        .reset_index(drop=True)
+    )
 
 
 def _clean_feed(value: object) -> str | None:
@@ -135,7 +148,9 @@ def main() -> None:
     prices, raw_pages = fetch_alpaca_bars(request)
 
     if prices.empty:
-        LOGGER.warning("No bars returned. Check symbols, date range, feed, and account permissions.")
+        LOGGER.warning(
+            "No bars returned. Check symbols, date range, feed, and account permissions."
+        )
         return
 
     raw_path = Path("data/raw/alpaca_bars.parquet")

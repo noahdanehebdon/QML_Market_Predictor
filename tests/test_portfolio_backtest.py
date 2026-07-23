@@ -6,9 +6,9 @@ from market_qml.backtest.portfolio import (
     DEFAULT_REBALANCE_FREQUENCY,
     DEFAULT_RETURN_HORIZON_DAYS,
     DEFAULT_TRANSACTION_COST_BPS,
-    TRADING_DAYS_PER_YEAR,
     PORTFOLIO_RETURN_COLUMNS,
     PORTFOLIO_RISK_COLUMNS,
+    TRADING_DAYS_PER_YEAR,
     load_prediction_tables,
     run_portfolio_backtest,
     save_portfolio_returns,
@@ -203,8 +203,10 @@ def test_five_day_returns_use_frequency_aware_annualization():
     risk = summarize_portfolio_risk(returns)
 
     expected_periods = 252 / 5
-    expected_sharpe = returns["net_return"].mean() / returns["net_return"].std() * (
-        expected_periods**0.5
+    expected_sharpe = (
+        returns["net_return"].mean()
+        / returns["net_return"].std()
+        * (expected_periods**0.5)
     )
     assert risk.loc[0, "periods_per_year"] == pytest.approx(expected_periods)
     assert risk.loc[0, "net_sharpe"] == pytest.approx(expected_sharpe)

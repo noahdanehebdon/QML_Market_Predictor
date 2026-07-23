@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
-import pickle
 
 import numpy as np
 import pandas as pd
@@ -16,9 +16,12 @@ from market_qml.qml.feature_map import (
     QuantumKernelFeatureMap,
     fidelity_kernel,
 )
-from market_qml.qml.interface import BaseQMLModel, QMLDataset, QMLModelConfig
-from market_qml.qml.interface import QMLTrainValidation
-
+from market_qml.qml.interface import (
+    BaseQMLModel,
+    QMLDataset,
+    QMLModelConfig,
+    QMLTrainValidation,
+)
 
 MODEL_NAME = "qsvm"
 DEFAULT_C = 1.0
@@ -35,7 +38,7 @@ DEFAULT_KERNEL_PATH = Path("artifacts/qml/qsvm/kernel_matrices.npz")
 class QSVMResult:
     """Fitted QSVM, standard predictions, kernels, and diagnostics."""
 
-    model: "QuantumKernelSVM"
+    model: QuantumKernelSVM
     predictions: pd.DataFrame
     train_kernel: np.ndarray
     validation_kernel: np.ndarray
@@ -50,9 +53,7 @@ class QuantumKernelSVM(BaseQMLModel):
         super().__init__(config)
         self.C = float(config.params.get("C", DEFAULT_C))
         self.n_qubits = int(config.params.get("n_qubits", DEFAULT_N_QUBITS))
-        self.repetitions = int(
-            config.params.get("repetitions", DEFAULT_REPETITIONS)
-        )
+        self.repetitions = int(config.params.get("repetitions", DEFAULT_REPETITIONS))
         self.interaction_scale = float(config.params.get("interaction_scale", 0.0))
         self.feature_map = QuantumKernelFeatureMap(
             QuantumFeatureMapConfig(
@@ -66,7 +67,7 @@ class QuantumKernelSVM(BaseQMLModel):
         self.train_kernel_: np.ndarray | None = None
         self.last_prediction_kernel_: np.ndarray | None = None
 
-    def fit(self, dataset: QMLDataset) -> "QuantumKernelSVM":
+    def fit(self, dataset: QMLDataset) -> QuantumKernelSVM:
         """Build the train fidelity matrix and fit a precomputed-kernel SVM."""
         if self.C <= 0:
             raise ValueError("C must be positive.")

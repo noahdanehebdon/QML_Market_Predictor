@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 CLASSICAL_MODELS = {
     "gradient_boosting",
     "linear_svm",
@@ -61,9 +60,7 @@ def build_model_comparison_report(
     ranking = _overall_metrics(
         ranking_metrics,
         {
-            "rank_information_coefficient": (
-                "ranking_rank_information_coefficient"
-            ),
+            "rank_information_coefficient": ("ranking_rank_information_coefficient"),
             "long_short_spread": "ranking_long_short_spread",
         },
     )
@@ -71,9 +68,7 @@ def build_model_comparison_report(
         portfolio_metrics,
         {
             "cumulative_net_return": "portfolio_cumulative_net_return",
-            "cumulative_net_excess_return": (
-                "portfolio_cumulative_net_excess_return"
-            ),
+            "cumulative_net_excess_return": ("portfolio_cumulative_net_excess_return"),
             "net_sharpe": "portfolio_net_sharpe",
             "net_max_drawdown": "portfolio_net_max_drawdown",
         },
@@ -89,9 +84,11 @@ def build_model_comparison_report(
     for table in (classification, ranking, portfolio):
         summary = summary.merge(table, on="model_name", how="left")
     summary["composite_rank"] = _composite_rank(summary)
-    summary = summary.reindex(columns=SUMMARY_COLUMNS).sort_values(
-        ["composite_rank", "model_name"], na_position="last"
-    ).reset_index(drop=True)
+    summary = (
+        summary.reindex(columns=SUMMARY_COLUMNS)
+        .sort_values(["composite_rank", "model_name"], na_position="last")
+        .reset_index(drop=True)
+    )
 
     strongest = _strongest_model(summary)
     regime_leaders = build_regime_leaders(regime_metrics)
@@ -308,7 +305,9 @@ def _family_leader(summary: pd.DataFrame, family: str) -> str | None:
     )
     if available.empty:
         return None
-    return str(available.sort_values(["composite_rank", "model_name"]).iloc[0].model_name)
+    return str(
+        available.sort_values(["composite_rank", "model_name"]).iloc[0].model_name
+    )
 
 
 def _model_family(model_name: str) -> str:

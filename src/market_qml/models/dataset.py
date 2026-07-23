@@ -10,7 +10,6 @@ from pandas.api.types import is_bool_dtype, is_numeric_dtype
 
 from market_qml.features.canonical import build_canonical_features
 
-
 DEFAULT_FEATURE_PATH = Path("data/features/feature_table.parquet")
 DEFAULT_LABEL_PATH = Path("data/labels/forward_return_labels.parquet")
 DEFAULT_TARGET_COLUMN = "outperform_spy_5d"
@@ -112,9 +111,7 @@ def _apply_universe_membership(
     if selected.duplicated(KEY_COLUMNS).any():
         raise ValueError("Universe membership contains duplicate symbol/date rows.")
     metadata = [
-        column
-        for column in ["sector", "industry", "size_bucket"]
-        if column in selected
+        column for column in ["sector", "industry", "size_bucket"] if column in selected
     ]
     selected = selected.loc[selected["is_member"].eq(True), KEY_COLUMNS + metadata]
     return features.merge(selected, on=KEY_COLUMNS, how="inner", validate="one_to_one")
@@ -161,7 +158,9 @@ def build_train_validation_datasets(
         end_date=train_end_date,
         **dataset_kwargs,
     )
-    dataset_kwargs["feature_columns"] = requested_feature_columns or list(train.X.columns)
+    dataset_kwargs["feature_columns"] = requested_feature_columns or list(
+        train.X.columns
+    )
     validation = build_modeling_dataset(
         features=features,
         labels=labels,
@@ -255,8 +254,7 @@ def _infer_metadata_columns(
     non_feature_columns = [
         column
         for column in data.columns
-        if column not in KEY_COLUMNS
-        and column not in feature_column_set
+        if column not in KEY_COLUMNS and column not in feature_column_set
     ]
     return KEY_COLUMNS + non_feature_columns
 
@@ -269,8 +267,7 @@ def _validate_requested_columns(
     missing_columns = set(columns) - set(data.columns)
     if missing_columns:
         raise ValueError(
-            f"{name} contains missing columns: "
-            + ", ".join(sorted(missing_columns))
+            f"{name} contains missing columns: " + ", ".join(sorted(missing_columns))
         )
 
 

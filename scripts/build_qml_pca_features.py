@@ -178,7 +178,8 @@ def _selected_tasks(args: argparse.Namespace) -> list[QMLPCATask]:
             QMLPCATask(
                 name="custom",
                 target_column=args.target or DEFAULT_TARGET_COLUMN,
-                output_path=args.output or Path("data/features/qml_pca_features.parquet"),
+                output_path=args.output
+                or Path("data/features/qml_pca_features.parquet"),
                 diagnostics_path=args.diagnostics_output
                 or Path("data/processed/qml_pca_explained_variance.parquet"),
                 artifact_dir=args.artifact_dir or Path("artifacts/qml/pca"),

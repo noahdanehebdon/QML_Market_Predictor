@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import subprocess
-
+from pathlib import Path
 
 MAX_TRACKED_BYTES = 5 * 1024 * 1024
 MAX_FIXTURE_BYTES = 1024 * 1024
@@ -17,8 +16,19 @@ GENERATED_DATA_DIRS = {
     "data/raw",
 }
 DATA_SUFFIXES = {
-    ".csv", ".db", ".feather", ".h5", ".hdf5", ".joblib", ".onnx",
-    ".parquet", ".pkl", ".pt", ".pth", ".sqlite", ".sqlite3",
+    ".csv",
+    ".db",
+    ".feather",
+    ".h5",
+    ".hdf5",
+    ".joblib",
+    ".onnx",
+    ".parquet",
+    ".pkl",
+    ".pt",
+    ".pth",
+    ".sqlite",
+    ".sqlite3",
 }
 
 
@@ -50,7 +60,9 @@ def policy_violations(paths: list[Path], root: Path) -> list[str]:
             continue
         if relative.split("/", 1)[0] in GENERATED_ROOTS:
             violations.append(f"{relative}: generated artifact directory")
-        if any(relative.startswith(f"{directory}/") for directory in GENERATED_DATA_DIRS):
+        if any(
+            relative.startswith(f"{directory}/") for directory in GENERATED_DATA_DIRS
+        ):
             violations.append(f"{relative}: generated data directory")
         if path.suffix.lower() in DATA_SUFFIXES:
             violations.append(f"{relative}: generated data/model file type")

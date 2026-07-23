@@ -59,9 +59,24 @@ def test_add_benchmark_relative_features_computes_corr_beta_and_relative_metrics
         _feature_rows("AAPL", [pd.NA, 0.02, 0.04, 0.06])
         + _feature_rows("SPY", [pd.NA, 0.01, 0.02, 0.03])
     )
-    features.loc[features["symbol"] == "AAPL", "return_20d"] = [pd.NA, pd.NA, pd.NA, 0.12]
-    features.loc[features["symbol"] == "SPY", "return_20d"] = [pd.NA, pd.NA, pd.NA, 0.06]
-    features.loc[features["symbol"] == "AAPL", "return_3d"] = [pd.NA, pd.NA, pd.NA, 0.12]
+    features.loc[features["symbol"] == "AAPL", "return_20d"] = [
+        pd.NA,
+        pd.NA,
+        pd.NA,
+        0.12,
+    ]
+    features.loc[features["symbol"] == "SPY", "return_20d"] = [
+        pd.NA,
+        pd.NA,
+        pd.NA,
+        0.06,
+    ]
+    features.loc[features["symbol"] == "AAPL", "return_3d"] = [
+        pd.NA,
+        pd.NA,
+        pd.NA,
+        0.12,
+    ]
     features.loc[features["symbol"] == "SPY", "return_3d"] = [pd.NA, pd.NA, pd.NA, 0.06]
 
     result = add_benchmark_relative_features(

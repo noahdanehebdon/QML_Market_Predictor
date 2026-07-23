@@ -58,8 +58,7 @@ def test_add_return_features_preserves_price_columns_and_adds_returns():
 
 def test_add_return_features_computes_returns_by_symbol_without_leakage():
     prices = pd.DataFrame(
-        _price_rows("AAPL", [100, 110, 121])
-        + _price_rows("MSFT", [200, 180, 162])
+        _price_rows("AAPL", [100, 110, 121]) + _price_rows("MSFT", [200, 180, 162])
     )
     prices = prices.sort_values(["date", "symbol"], ascending=[True, False])
 

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 REQUIRED_MARKET_COLUMNS = {"symbol", "date"}
 REQUIRED_FUNDAMENTAL_COLUMNS = {
     "symbol",
@@ -41,8 +40,12 @@ def build_filing_fundamental_features(fundamentals: pd.DataFrame) -> pd.DataFram
 
     facts = fundamentals.copy()
     facts["symbol"] = facts["symbol"].astype(str).str.upper()
-    facts["filing_date"] = pd.to_datetime(facts["filing_date"], errors="coerce").dt.normalize()
-    facts["end_date"] = pd.to_datetime(facts["end_date"], errors="coerce").dt.normalize()
+    facts["filing_date"] = pd.to_datetime(
+        facts["filing_date"], errors="coerce"
+    ).dt.normalize()
+    facts["end_date"] = pd.to_datetime(
+        facts["end_date"], errors="coerce"
+    ).dt.normalize()
     facts["value"] = pd.to_numeric(facts["value"], errors="coerce")
     facts = facts.dropna(subset=["symbol", "filing_date", "concept", "value"])
     facts = facts[facts["concept"].isin(FUNDAMENTAL_CONCEPTS)]
@@ -99,10 +102,12 @@ def build_filing_fundamental_features(fundamentals: pd.DataFrame) -> pd.DataFram
         group_keys=False,
     )["fundamental_revenue"].apply(_pct_change_non_null)
     filing_features["net_income_margin"] = (
-        filing_features["fundamental_net_income"] / filing_features["fundamental_revenue"]
+        filing_features["fundamental_net_income"]
+        / filing_features["fundamental_revenue"]
     )
     filing_features["liability_ratio"] = (
-        filing_features["fundamental_liabilities"] / filing_features["fundamental_assets"]
+        filing_features["fundamental_liabilities"]
+        / filing_features["fundamental_assets"]
     )
     filing_features["equity_ratio"] = (
         filing_features["fundamental_stockholders_equity"]
@@ -172,9 +177,7 @@ def merge_fundamental_features(
         result["filing_date"] = pd.NaT
 
     result["filing_date"] = pd.to_datetime(result["filing_date"], errors="coerce")
-    result["filing_recency_days"] = (
-        result["date"] - result["filing_date"]
-    ).dt.days
+    result["filing_recency_days"] = (result["date"] - result["filing_date"]).dt.days
     return result.sort_values(["symbol", "date"]).reset_index(drop=True)
 
 

@@ -30,15 +30,14 @@ Optional:
 import argparse
 import csv
 import os
+import time
 from io import StringIO
 from pathlib import Path
-import time
 
 import pandas as pd
 import requests
 import yaml
 from dotenv import load_dotenv
-
 
 # ---------------------------------------------------------------------
 # Paths
@@ -71,6 +70,7 @@ REQUEST_ATTEMPTS = 3
 # ---------------------------------------------------------------------
 # General helpers
 # ---------------------------------------------------------------------
+
 
 def safe_numeric(value) -> float | None:
     """
@@ -121,7 +121,9 @@ def request_with_retries(request, url: str, *, source: str, **kwargs):
             time.sleep(delay)
 
 
-def load_macro_config(config_path: Path = DEFAULT_CONFIG_PATH) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
+def load_macro_config(
+    config_path: Path = DEFAULT_CONFIG_PATH,
+) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
     """Load macro series definitions from configs/data_sources.yaml."""
     if not config_path.exists():
         raise FileNotFoundError(f"Macro data source config not found: {config_path}")
@@ -163,15 +165,16 @@ def load_macro_config(config_path: Path = DEFAULT_CONFIG_PATH) -> tuple[dict[str
     ]
     if missing_columns:
         raise ValueError(
-            "Macro config is missing expected columns: "
-            + ", ".join(missing_columns)
+            "Macro config is missing expected columns: " + ", ".join(missing_columns)
         )
 
     if not bls_series:
         raise ValueError(f"No BLS macro series configured in {config_path}")
 
     if not fed_series:
-        raise ValueError(f"No Federal Reserve DDP macro series configured in {config_path}")
+        raise ValueError(
+            f"No Federal Reserve DDP macro series configured in {config_path}"
+        )
 
     return bls_series, fed_series
 
@@ -179,6 +182,7 @@ def load_macro_config(config_path: Path = DEFAULT_CONFIG_PATH) -> tuple[dict[str
 # ---------------------------------------------------------------------
 # BLS functions
 # ---------------------------------------------------------------------
+
 
 def get_bls_api_key() -> str:
     """Load the BLS API key from .env."""
@@ -307,6 +311,7 @@ def fetch_bls_history(
 # ---------------------------------------------------------------------
 # Federal Reserve DDP functions
 # ---------------------------------------------------------------------
+
 
 def find_ddp_header(reader: list[list[str]]) -> tuple[list[str], list[list[str]]]:
     """
@@ -444,7 +449,9 @@ def fetch_fed_ddp_series(
     return pd.DataFrame(rows)
 
 
-def fetch_fed_history(series_map: dict[str, dict[str, str]], start_year: int) -> pd.DataFrame:
+def fetch_fed_history(
+    series_map: dict[str, dict[str, str]], start_year: int
+) -> pd.DataFrame:
     """Fetch all configured Federal Reserve series."""
     frames = []
 
@@ -468,6 +475,7 @@ def fetch_fed_history(series_map: dict[str, dict[str, str]], start_year: int) ->
 # ---------------------------------------------------------------------
 # Cleaning and saving
 # ---------------------------------------------------------------------
+
 
 def clean_macro_raw(raw: pd.DataFrame) -> pd.DataFrame:
     """
@@ -526,6 +534,7 @@ def save_outputs(
 # Main
 # ---------------------------------------------------------------------
 
+
 def parse_args() -> argparse.Namespace:
     current_year = pd.Timestamp.today().year
 
@@ -576,7 +585,9 @@ def main() -> None:
         subset=["date", "series_id"],
         keep="last",
     )
-    combined_raw = combined_raw.sort_values(["series_id", "date"]).reset_index(drop=True)
+    combined_raw = combined_raw.sort_values(["series_id", "date"]).reset_index(
+        drop=True
+    )
 
     clean = clean_macro_raw(combined_raw)
 
