@@ -87,6 +87,7 @@ class FakeBroker:
             "status": "ACTIVE",
             "trading_blocked": False,
             "equity": "100000",
+            "last_equity": "100000",
             "cash": "100000",
             "buying_power": "100000",
         }
@@ -144,6 +145,18 @@ def test_dry_run_fetches_state_but_never_submits():
     assert all(order["type"] == "limit" for order in report["orders"])
     assert all(order["time_in_force"] == "day" for order in report["orders"])
     assert all(order["extended_hours"] is False for order in report["orders"])
+
+
+def test_daily_loss_limit_blocks_execution():
+    broker = FakeBroker()
+    broker.account["equity"] = "99000"
+    broker.account["last_equity"] = "102000"
+
+    with pytest.raises(PreTradeError) as error:
+        execute_paper_intent(broker, _intent(), now=NOW, policy=_execution_policy())
+
+    assert error.value.code == "daily_loss_limit_breached"
+    assert broker.submissions == []
 
 
 def test_submission_requires_all_gates_and_submits_sells_first():
