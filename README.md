@@ -262,6 +262,8 @@ python -m pytest
 
 Pytest is configured for the repository's `src` layout, so this command also
 works directly from a checkout before an editable install.
+See the [quality-gate guide](docs/quality_gates.md) for coverage, strict typing,
+dependency auditing, and distribution-verification commands enforced in CI.
 
 ## Command-Line Interface
 
