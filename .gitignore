@@ -45,6 +45,8 @@ data/labels/*
 *.onnx
 
 # Python cache/build artifacts
+/.coverage
+/coverage.json
 /build/
 /dist/
 __pycache__/
