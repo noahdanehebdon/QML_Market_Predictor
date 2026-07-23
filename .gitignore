@@ -26,6 +26,7 @@ data/labels/*
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite-*
 
 # Optional: stricter CSV protection
 *.csv

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime, time, timedelta, timezone
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
@@ -51,6 +52,8 @@ def execute_paper_intent(
     submit: bool = False,
     submission_enabled: bool = False,
     kill_switch_active: bool = True,
+    known_client_order_ids: set[str] | None = None,
+    planned_order_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Validate an intent and optionally submit guarded paper limit orders."""
     policy = policy or PaperExecutionPolicy()
@@ -73,7 +76,9 @@ def execute_paper_intent(
     _validate_market_window(calendar, checked_now, intent["signal_date"])
     _validate_positions(positions)
 
-    existing_client_ids = {str(order.get("client_order_id", "")) for order in orders}
+    existing_client_ids = {
+        str(order.get("client_order_id", "")) for order in orders
+    } | (known_client_order_ids or set())
     open_symbols = {
         str(order.get("symbol", "")).upper()
         for order in orders
@@ -145,12 +150,15 @@ def execute_paper_intent(
     submission_error = None
     if submit and not blocked:
         for order in planned:
+            if planned_order_callback is not None:
+                planned_order_callback(order)
             try:
                 response = broker.submit_order(order)
             except BrokerError:
                 submission_error = {
                     "code": "broker_submission_failed",
                     "client_order_id": order["client_order_id"],
+                    "broker_order_id": str(response.get("id", "")),
                     "symbol": order["symbol"],
                 }
                 break
