@@ -1,3 +1,6 @@
+import warnings
+
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -78,6 +81,41 @@ def test_fit_preprocessor_handles_all_missing_and_boolean_features():
     assert preprocessor.fill_values["all_missing"] == pytest.approx(0.0)
     assert result["all_missing"].tolist() == [0.0, 0.0, 0.0]
     assert "flag" in result.columns
+
+
+def test_preprocessor_treats_infinity_as_missing_and_returns_finite_matrices():
+    train = _dataset(
+        pd.DataFrame(
+            {
+                "mixed": [1.0, np.inf, -np.inf],
+                "all_non_finite": [np.inf, -np.inf, np.nan],
+            }
+        )
+    )
+    validation = _dataset(
+        pd.DataFrame(
+            {
+                "mixed": [np.inf, 2.0],
+                "all_non_finite": [-np.inf, np.nan],
+            }
+        )
+    )
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        result = fit_transform_train_validation(
+            TrainValidationDatasets(train=train, validation=validation)
+        )
+
+    assert not [
+        warning
+        for warning in captured
+        if "invalid value encountered" in str(warning.message)
+    ]
+    assert np.isfinite(result.train.X.to_numpy()).all()
+    assert np.isfinite(result.validation.X.to_numpy()).all()
+    assert result.preprocessor.fill_values["mixed"] == pytest.approx(1.0)
+    assert result.preprocessor.fill_values["all_non_finite"] == pytest.approx(0.0)
 
 
 def test_preprocess_dataset_preserves_target_and_metadata():
