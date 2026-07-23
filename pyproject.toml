@@ -24,8 +24,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "build>=1.2,<2",
+    "mypy>=1.11,<2",
+    "pip-audit>=2.7,<3",
     "pytest>=8.0",
+    "pytest-cov>=5,<8",
     "ruff>=0.12,<1",
+    "twine>=5,<7",
+    "types-PyYAML>=6.0",
 ]
 dashboard = [
     "streamlit>=1.36,<2",
@@ -43,6 +48,7 @@ report = "market_qml.cli:report"
 [tool.setuptools.packages.find]
 where = ["src", "."]
 include = ["market_qml*", "scripts*"]
+exclude = ["artifacts*", "build*", "data*", "dist*", "mlruns*", "reports*", "tests*"]
 
 [tool.setuptools.package-data]
 market_qml = ["default_cli.yaml"]
@@ -54,6 +60,20 @@ Issues = "https://github.com/noahdanehebdon/QML_Market_Predictor/issues"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.coverage.run]
+branch = true
+source = ["market_qml"]
+
+[tool.coverage.report]
+fail_under = 82
+show_missing = true
+skip_covered = true
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+show_error_codes = true
 
 [tool.ruff]
 target-version = "py310"
