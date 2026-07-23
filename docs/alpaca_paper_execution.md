@@ -5,6 +5,10 @@ state and can submit paper orders only after several explicit gates. It contains
 endpoint and rejects any configured host other than
 `https://paper-api.alpaca.markets`.
 
+Actual paper submission also requires an eligible shadow validation report and named
+human approval bound to that report. See
+[Shadow and Paper Validation](shadow_paper_validation.md).
+
 Alpaca paper trading has separate credentials from live trading. Create paper keys in
 Alpaca and store them only in the local environment or GitHub environment secrets:
 
@@ -38,11 +42,13 @@ account IDs, and raw broker responses.
 
 ## Explicit paper submission
 
-Paper submission requires all three conditions:
+Paper submission requires all of these conditions:
 
 1. pass `--submit-paper`;
-2. set `MARKET_QML_ENABLE_PAPER_ORDERS=true`;
-3. set `MARKET_QML_PAPER_KILL_SWITCH=inactive`.
+2. supply `--validation-report` and its matching `--promotion-approval`;
+3. supply a durable private `--journal`;
+4. set `MARKET_QML_ENABLE_PAPER_ORDERS=true`;
+5. set `MARKET_QML_PAPER_KILL_SWITCH=inactive`.
 
 The default environment therefore fails closed. To stop submissions immediately, set
 the kill switch to `active` or remove either environment variable.
@@ -52,6 +58,9 @@ $env:MARKET_QML_ENABLE_PAPER_ORDERS = "true"
 $env:MARKET_QML_PAPER_KILL_SWITCH = "inactive"
 python -m scripts.execute_alpaca_paper `
   --intent reports/private/trade_intents/2026-07-23.json `
+  --validation-report reports/private/validation/2026-07-23.json `
+  --promotion-approval reports/private/paper-promotion.json `
+  --journal reports/private/execution.sqlite3 `
   --config configs/paper_execution.yaml `
   --output reports/private/execution/2026-07-23-submit.json `
   --submit-paper
@@ -61,6 +70,7 @@ The engine rejects stale intents, unapproved lineage, non-trading dates, times o
 regular market hours, blocked/inactive accounts, shorts, non-equity or untradable
 assets, fractional orders on ineligible assets, conflicting orders, insufficient
 buying power, cash-reserve breaches, equity drift, and configured portfolio limits.
+It also blocks submission after the configured daily account-loss limit is breached.
 Sells are submitted before buys. Deterministic client order IDs make retries skip
 previously submitted orders, including completed orders returned by Alpaca.
 

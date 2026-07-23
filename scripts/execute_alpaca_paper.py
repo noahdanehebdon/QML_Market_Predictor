@@ -28,6 +28,7 @@ from market_qml.execution.reconciliation import (
     record_submission_report,
     register_execution_plan,
 )
+from market_qml.execution.validation import validate_paper_promotion_approval
 
 DEFAULT_CONFIG_PATH = Path("configs/paper_execution.yaml")
 ENABLE_ENV = "MARKET_QML_ENABLE_PAPER_ORDERS"
@@ -46,6 +47,18 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help="Private SQLite journal; required for paper submission.",
+    )
+    parser.add_argument(
+        "--validation-report",
+        type=Path,
+        default=None,
+        help="Eligible shadow validation report; required for paper submission.",
+    )
+    parser.add_argument(
+        "--promotion-approval",
+        type=Path,
+        default=None,
+        help="Human approval bound to the validation report; required for submission.",
     )
     parser.add_argument(
         "--submit-paper",
@@ -88,6 +101,19 @@ def main() -> None:
                 "journal_required",
                 "Paper submission requires a durable private --journal path.",
             )
+        if args.submit_paper:
+            if args.validation_report is None or args.promotion_approval is None:
+                raise PreTradeError(
+                    "manual_promotion_required",
+                    "Paper submission requires validation evidence and manual approval.",
+                )
+            validation_report = json.loads(
+                args.validation_report.read_text(encoding="utf-8")
+            )
+            promotion_approval = json.loads(
+                args.promotion_approval.read_text(encoding="utf-8")
+            )
+            validate_paper_promotion_approval(validation_report, promotion_approval)
         broker = AlpacaPaperBroker.from_environment(base_url=ALPACA_PAPER_BASE_URL)
         cancellations = []
         if args.cancel_stale_paper:

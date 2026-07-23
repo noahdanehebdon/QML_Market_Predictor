@@ -39,6 +39,7 @@ class PaperExecutionPolicy:
     minimum_order_notional: float = 10.0
     cash_reserve_weight: float = 0.10
     max_equity_drift_fraction: float = 0.02
+    max_daily_loss_fraction: float = 0.02
     limit_price_buffer_bps: float = 25.0
     cancel_after_minutes: int = 15
 
@@ -349,6 +350,15 @@ def _validate_account(
         raise PreTradeError(
             "account_equity_drift", "Paper account equity has drifted from the intent."
         )
+    previous_equity = _number(account.get("last_equity"), "account.last_equity")
+    if previous_equity <= 0:
+        raise PreTradeError("invalid_account", "Previous paper equity is invalid.")
+    daily_loss = max(0.0, (previous_equity - equity) / previous_equity)
+    if daily_loss > policy.max_daily_loss_fraction:
+        raise PreTradeError(
+            "daily_loss_limit_breached",
+            "Paper account daily loss exceeds the configured kill threshold.",
+        )
     buy_notional = sum(
         _number(trade["notional"], "trade.notional")
         for trade in intent["trades"]
@@ -451,6 +461,7 @@ def _validate_policy(policy: PaperExecutionPolicy) -> None:
         "max_turnover",
         "cash_reserve_weight",
         "max_equity_drift_fraction",
+        "max_daily_loss_fraction",
     ):
         value = _number(getattr(policy, field), field)
         if not 0 <= value <= 1:
