@@ -1,0 +1,18 @@
+comparison:
+  lanes:
+    equal_input:
+      description: Same outer rows and the same eight train-selected features.
+    best_available:
+      description: Best validated inputs and budget available to each model family.
+  qml_tuning:
+    inner_validation: multi_fold_chronological
+    outer_validation_access: prohibited
+  inference:
+    bootstrap_iterations: 2000
+    multiple_comparison_correction: holm
+    roc_auc_practical_threshold: 0.02
+    rank_ic_practical_threshold: 0.01
+  reporting:
+    detailed_output: reports/weekly_retraining/definitive_private
+    aggregate_output: reports/weekly_retraining/definitive_aggregate
+    locked_test_required_for_superiority_claim: true
