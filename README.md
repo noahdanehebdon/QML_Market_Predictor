@@ -574,6 +574,12 @@ only after three explicit safety gates, submit paper-only day limit orders. See
 separation, dry-run usage, risk checks, kill-switch behavior, and the opt-in paper
 integration test.
 
+Paper submissions can be backed by a private, restart-safe SQLite lifecycle journal.
+The reconciliation workflow compares intended orders with Alpaca orders, fills, and
+positions; reports slippage and residual exposure; records stale cancellations; and
+enforces the five-trading-day rebalance cadence across separate runs. See
+[docs/execution_reconciliation.md](docs/execution_reconciliation.md).
+
 ## Limitations
 
 - Results are backtests on a limited equity universe, not evidence of future
