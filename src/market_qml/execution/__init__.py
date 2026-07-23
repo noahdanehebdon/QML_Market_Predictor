@@ -20,6 +20,12 @@ from market_qml.execution.trade_intent import (
     load_promotion_manifest,
     save_trade_intent,
 )
+from market_qml.execution.validation import (
+    ValidationCriteria,
+    build_validation_report,
+    create_shadow_record,
+    validate_paper_promotion_approval,
+)
 
 __all__ = [
     "AlpacaPaperBroker",
@@ -29,12 +35,16 @@ __all__ = [
     "PortfolioPolicy",
     "PreTradeError",
     "ReconciliationError",
+    "ValidationCriteria",
     "build_trade_intent",
+    "build_validation_report",
     "cancel_stale_paper_orders",
+    "create_shadow_record",
     "enforce_rebalance_cadence",
     "execute_paper_intent",
     "load_promotion_manifest",
     "reconcile_paper_execution",
     "save_reconciliation_report",
     "save_trade_intent",
+    "validate_paper_promotion_approval",
 ]

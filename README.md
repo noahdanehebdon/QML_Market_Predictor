@@ -580,6 +580,12 @@ positions; reports slippage and residual exposure; records stale cancellations; 
 enforces the five-trading-day rebalance cadence across separate runs. See
 [docs/execution_reconciliation.md](docs/execution_reconciliation.md).
 
+Before submission is enabled, staged validation archives broker-independent shadow
+decisions, compares shadow, paper, and backtest evidence, and requires human approval
+bound to an eligible report. See
+[docs/shadow_paper_validation.md](docs/shadow_paper_validation.md). Live trading is
+not supported.
+
 ## Limitations
 
 - Results are backtests on a limited equity universe, not evidence of future

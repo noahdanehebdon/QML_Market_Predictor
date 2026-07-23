@@ -102,6 +102,7 @@ class FakeBroker:
             "status": "ACTIVE",
             "trading_blocked": False,
             "equity": "100000",
+            "last_equity": "100000",
             "cash": "100000",
             "buying_power": "100000",
         }
