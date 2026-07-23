@@ -35,6 +35,12 @@ jobs:
       - name: Check formatting
         run: python -m ruff format --check .
 
+      - name: Build and verify wheel
+        shell: bash
+        run: |
+          python -m build
+          python -m scripts.verify_wheel_install dist/*.whl
+
       - name: Check tracked data policy
         run: python -m scripts.check_git_data_policy
 
