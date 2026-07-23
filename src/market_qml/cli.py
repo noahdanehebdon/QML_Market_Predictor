@@ -10,6 +10,7 @@ import sys
 from collections.abc import Sequence
 from importlib.resources import as_file, files
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -26,12 +27,12 @@ COMMAND_NAMES = (
 _MODULE_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 
 
-def default_config_resource():
+def default_config_resource() -> Any:
     """Return the packaged default CLI configuration resource."""
     return files("market_qml").joinpath("default_cli.yaml")
 
 
-def load_command_steps(config_path, command_name: str) -> list[list[str]]:
+def load_command_steps(config_path: Any, command_name: str) -> list[list[str]]:
     """Load and validate module invocations for one command."""
     if command_name not in COMMAND_NAMES:
         raise ValueError(f"Unknown command: {command_name}")
@@ -116,7 +117,7 @@ def _workspace_root(explicit_root: Path | None) -> Path:
     return root.expanduser().resolve()
 
 
-def _resolve_config_path(config_path: Path | None, workspace_root: Path):
+def _resolve_config_path(config_path: Path | None, workspace_root: Path) -> Any:
     if config_path is None:
         return default_config_resource()
     if config_path.is_absolute():

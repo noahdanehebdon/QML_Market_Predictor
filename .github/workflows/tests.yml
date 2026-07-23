@@ -39,10 +39,32 @@ jobs:
         shell: bash
         run: |
           python -m build
+          python -m twine check dist/*
           python -m scripts.verify_wheel_install dist/*.whl
+
+      - name: Type check selected modules
+        run: >-
+          python -m mypy
+          src/market_qml/cli.py
+          scripts/check_git_data_policy.py
+          scripts/verify_wheel_install.py
+
+      - name: Audit declared dependencies
+        if: matrix.python-version == '3.12'
+        run: python -m pip_audit . --strict
 
       - name: Check tracked data policy
         run: python -m scripts.check_git_data_policy
 
-      - name: Test
-        run: python -m pytest -q
+      - name: Test with coverage
+        shell: bash
+        run: |
+          python -m pytest -q \
+            --cov=market_qml \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=json:coverage.json \
+            --cov-fail-under=82
+          {
+            echo "## Python ${{ matrix.python-version }} coverage"
+            python -m coverage report --format=markdown
+          } >> "$GITHUB_STEP_SUMMARY"
