@@ -266,7 +266,9 @@ works directly from a checkout before an editable install.
 ## Command-Line Interface
 
 Installing the project creates seven workflow commands. Each reads
-`configs/cli.yaml`, whose steps can be edited to select modules and arguments:
+an embedded default workflow; `--config` can select a workspace-specific YAML
+file. Relative configuration, data, report, and artifact paths resolve from
+`--workspace-root`, then `MARKET_QML_WORKSPACE`, then the current directory:
 
 ```powershell
 ingest-prices
@@ -277,6 +279,18 @@ train
 backtest
 report
 ```
+
+For an installed wheel used outside a repository checkout:
+
+```powershell
+$env:MARKET_QML_WORKSPACE = "C:\research\qml-market"
+build-features --dry-run
+backtest --workspace-root "C:\research\qml-market" --dry-run
+```
+
+Repository-root development remains supported. Pass `--config configs/cli.yaml`
+when you want to edit workflow steps locally. Runtime installation excludes
+test and build tools; install `.[dev]` to run pytest, Ruff, and package builds.
 
 Use a different pipeline configuration or preview a command without running it:
 

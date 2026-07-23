@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
 from collections.abc import Sequence
+from importlib.resources import as_file, files
 from pathlib import Path
 
 import yaml
 
-DEFAULT_CONFIG_PATH = Path("configs/cli.yaml")
+WORKSPACE_ENVIRONMENT_VARIABLE = "MARKET_QML_WORKSPACE"
 COMMAND_NAMES = (
     "ingest-prices",
     "ingest-macro",
@@ -24,7 +26,12 @@ COMMAND_NAMES = (
 _MODULE_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 
 
-def load_command_steps(config_path: Path, command_name: str) -> list[list[str]]:
+def default_config_resource():
+    """Return the packaged default CLI configuration resource."""
+    return files("market_qml").joinpath("default_cli.yaml")
+
+
+def load_command_steps(config_path, command_name: str) -> list[list[str]]:
     """Load and validate module invocations for one command."""
     if command_name not in COMMAND_NAMES:
         raise ValueError(f"Unknown command: {command_name}")
@@ -73,8 +80,17 @@ def run_command(command_name: str, argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=DEFAULT_CONFIG_PATH,
-        help="Path to the YAML CLI pipeline configuration.",
+        default=None,
+        help="YAML pipeline config; defaults to the copy embedded in the package.",
+    )
+    parser.add_argument(
+        "--workspace-root",
+        type=Path,
+        default=None,
+        help=(
+            "Root for relative configs, generated data, and artifacts. Defaults to "
+            f"${WORKSPACE_ENVIRONMENT_VARIABLE} or the current directory."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -83,12 +99,29 @@ def run_command(command_name: str, argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    steps = load_command_steps(args.config, command_name)
+    workspace_root = _workspace_root(args.workspace_root)
+    config_path = _resolve_config_path(args.config, workspace_root)
+    with as_file(config_path) as resolved_config:
+        steps = load_command_steps(resolved_config, command_name)
     for step in steps:
         print("+", subprocess.list2cmdline(step), flush=True)
         if not args.dry_run:
-            subprocess.run(step, check=True)
+            subprocess.run(step, check=True, cwd=workspace_root)
     return 0
+
+
+def _workspace_root(explicit_root: Path | None) -> Path:
+    configured = explicit_root or os.environ.get(WORKSPACE_ENVIRONMENT_VARIABLE)
+    root = Path(configured) if configured else Path.cwd()
+    return root.expanduser().resolve()
+
+
+def _resolve_config_path(config_path: Path | None, workspace_root: Path):
+    if config_path is None:
+        return default_config_resource()
+    if config_path.is_absolute():
+        return config_path
+    return workspace_root / config_path
 
 
 def ingest_prices() -> int:
