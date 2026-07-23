@@ -16,11 +16,17 @@ from market_qml.execution.broker import (
     AlpacaPaperBroker,
     BrokerError,
 )
+from market_qml.execution.journal import ExecutionJournal
 from market_qml.execution.paper_execution import (
     PaperExecutionPolicy,
     PreTradeError,
     cancel_stale_paper_orders,
     execute_paper_intent,
+)
+from market_qml.execution.reconciliation import (
+    enforce_rebalance_cadence,
+    record_submission_report,
+    register_execution_plan,
 )
 
 DEFAULT_CONFIG_PATH = Path("configs/paper_execution.yaml")
@@ -35,6 +41,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--intent", type=Path, required=True)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--journal",
+        type=Path,
+        default=None,
+        help="Private SQLite journal; required for paper submission.",
+    )
     parser.add_argument(
         "--submit-paper",
         action="store_true",
@@ -71,6 +83,11 @@ def main() -> None:
     kill_switch_active = os.getenv(KILL_SWITCH_ENV, "active").lower() != "inactive"
     try:
         intent = json.loads(args.intent.read_text(encoding="utf-8"))
+        if args.submit_paper and args.journal is None:
+            raise PreTradeError(
+                "journal_required",
+                "Paper submission requires a durable private --journal path.",
+            )
         broker = AlpacaPaperBroker.from_environment(base_url=ALPACA_PAPER_BASE_URL)
         cancellations = []
         if args.cancel_stale_paper:
@@ -86,15 +103,32 @@ def main() -> None:
                 submission_enabled=submission_enabled,
                 kill_switch_active=kill_switch_active,
             )
-        report = execute_paper_intent(
-            broker,
-            intent,
-            now=now,
-            policy=policy,
-            submit=args.submit_paper,
-            submission_enabled=submission_enabled,
-            kill_switch_active=kill_switch_active,
-        )
+        if args.journal is None:
+            report = execute_paper_intent(
+                broker,
+                intent,
+                now=now,
+                policy=policy,
+                submit=False,
+            )
+        else:
+            with ExecutionJournal(args.journal) as journal:
+                if args.submit_paper:
+                    enforce_rebalance_cadence(broker, journal, intent)
+                report = execute_paper_intent(
+                    broker,
+                    intent,
+                    now=now,
+                    policy=policy,
+                    submit=args.submit_paper,
+                    submission_enabled=submission_enabled,
+                    kill_switch_active=kill_switch_active,
+                    known_client_order_ids=journal.known_client_order_ids(),
+                    planned_order_callback=lambda order: register_execution_plan(
+                        journal, intent, order, recorded_at=now
+                    ),
+                )
+                record_submission_report(journal, report, observed_at=now)
         if args.cancel_stale_paper:
             report["cancellations"] = cancellations
     except (
