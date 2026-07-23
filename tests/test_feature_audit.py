@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -78,3 +80,23 @@ def test_feature_family_is_explicit_and_deterministic():
     assert feature_family("treasury_10y") == "macro"
     assert feature_family("sec_recent_filing_30d") == "filing_events"
     assert feature_family("revenue_growth") == "fundamentals"
+
+
+def test_audit_reports_non_finite_values_without_quantile_warnings():
+    features, labels, splits = _inputs()
+    features.loc[0, "return_5d"] = np.inf
+    features.loc[13, "return_5d"] = -np.inf
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        result = audit_features(features, labels, splits)
+
+    assert not [
+        warning
+        for warning in captured
+        if "invalid value encountered" in str(warning.message)
+    ]
+    quality = result.quality.loc[result.quality["feature"].eq("return_5d")]
+    assert quality["train_non_finite_rate"].gt(0).any()
+    assert quality["validation_non_finite_rate"].gt(0).any()
+    assert quality["distribution_psi"].dropna().map(np.isfinite).all()
