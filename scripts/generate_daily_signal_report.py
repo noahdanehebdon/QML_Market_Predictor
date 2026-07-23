@@ -15,7 +15,6 @@ from market_qml.reporting.daily_signal import (
     save_daily_signal_report,
 )
 
-
 DEFAULT_FEATURE_PATH = Path("data/features/feature_table.parquet")
 DEFAULT_PREPROCESSOR_PATH = Path(
     "artifacts/preprocessing/logistic_regression_split_000.pkl"

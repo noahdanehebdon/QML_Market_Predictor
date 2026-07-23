@@ -10,7 +10,6 @@ import pandas as pd
 from market_qml.qml.interface import build_qml_train_validation
 from market_qml.qml.tuning import save_vqc_tuning_result, tune_vqc
 
-
 DEFAULT_SAMPLE_PATH = Path(
     "data/features/qml_classification_grouped_pca_features.parquet"
 )

@@ -61,8 +61,7 @@ def test_build_forward_return_labels_can_keep_missing_future_rows():
 def test_build_forward_return_labels_supports_configurable_horizon():
     result = build_forward_return_labels(_prices(), horizon=2)
     aapl = result[
-        (result["symbol"] == "AAPL")
-        & (result["date"] == pd.Timestamp("2024-01-01"))
+        (result["symbol"] == "AAPL") & (result["date"] == pd.Timestamp("2024-01-01"))
     ].iloc[0]
 
     assert aapl["label_horizon_days"] == 2

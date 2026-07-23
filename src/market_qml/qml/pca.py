@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-import pickle
 
 import pandas as pd
 from sklearn.decomposition import PCA
@@ -19,7 +19,6 @@ from market_qml.models.preprocessing import (
     PreprocessedDataset,
     fit_transform_train_validation,
 )
-
 
 CLASSIFICATION_TARGET_COLUMN = "outperform_spy_5d"
 REGRESSION_RANKING_TARGET_COLUMN = "forward_excess_return_5d"
@@ -36,7 +35,9 @@ DEFAULT_QML_REGRESSION_RANKING_PCA_FEATURE_PATH = Path(
 DEFAULT_QML_REGRESSION_RANKING_PCA_DIAGNOSTICS_PATH = Path(
     "data/processed/qml_regression_ranking_grouped_pca_explained_variance.parquet"
 )
-DEFAULT_QML_REGRESSION_RANKING_PCA_ARTIFACT_DIR = Path("artifacts/qml/pca_regression_ranking")
+DEFAULT_QML_REGRESSION_RANKING_PCA_ARTIFACT_DIR = Path(
+    "artifacts/qml/pca_regression_ranking"
+)
 DEFAULT_QML_PCA_FEATURE_PATH = DEFAULT_QML_CLASSIFICATION_PCA_FEATURE_PATH
 DEFAULT_QML_PCA_DIAGNOSTICS_PATH = DEFAULT_QML_CLASSIFICATION_PCA_DIAGNOSTICS_PATH
 DEFAULT_QML_PCA_ARTIFACT_DIR = DEFAULT_QML_CLASSIFICATION_PCA_ARTIFACT_DIR
@@ -315,9 +316,9 @@ def transform_pca_dataset(
     if result["target"].isna().any():
         raise ValueError("PCA output contains missing or non-numeric targets.")
 
-    return result.sort_values(["split_id", "sample_role", "symbol", "date"]).reset_index(
-        drop=True
-    )
+    return result.sort_values(
+        ["split_id", "sample_role", "symbol", "date"]
+    ).reset_index(drop=True)
 
 
 def transform_grouped_pca_dataset(
@@ -356,9 +357,9 @@ def transform_grouped_pca_dataset(
     if result["target"].isna().any():
         raise ValueError("PCA output contains missing or non-numeric targets.")
 
-    return result.sort_values(["split_id", "sample_role", "symbol", "date"]).reset_index(
-        drop=True
-    )
+    return result.sort_values(
+        ["split_id", "sample_role", "symbol", "date"]
+    ).reset_index(drop=True)
 
 
 def pca_diagnostics(

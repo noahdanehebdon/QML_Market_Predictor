@@ -3,8 +3,8 @@ import pytest
 from sklearn.linear_model import Ridge
 
 from market_qml.models.dataset import ModelingDataset, TrainValidationDatasets
-from market_qml.models.preprocessing import fit_transform_train_validation
 from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
+from market_qml.models.preprocessing import fit_transform_train_validation
 from market_qml.models.ridge_regression import (
     MODEL_NAME,
     save_predictions,

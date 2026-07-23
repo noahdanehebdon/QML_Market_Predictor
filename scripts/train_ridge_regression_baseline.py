@@ -26,8 +26,9 @@ from market_qml.models.ridge_regression import (
     train_ridge_regression,
 )
 
-
-DEFAULT_PREPROCESSOR_PATH = Path("artifacts/preprocessing/ridge_regression_split_000.pkl")
+DEFAULT_PREPROCESSOR_PATH = Path(
+    "artifacts/preprocessing/ridge_regression_split_000.pkl"
+)
 
 
 def parse_args() -> argparse.Namespace:

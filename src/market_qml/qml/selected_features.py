@@ -60,9 +60,14 @@ def build_selected_qml_features(
             validation_end_date=split.validation_end_date,
         )
         data = fit_transform_train_validation(datasets)
-        correlations = data.train.X.apply(
-            lambda column: column.corr(pd.to_numeric(data.train.y, errors="coerce"))
-        ).abs().fillna(0.0).sort_values(ascending=False)
+        correlations = (
+            data.train.X.apply(
+                lambda column: column.corr(pd.to_numeric(data.train.y, errors="coerce"))
+            )
+            .abs()
+            .fillna(0.0)
+            .sort_values(ascending=False)
+        )
         candidates = correlations.head(candidate_count).index.tolist()
         selected = _select_diverse(
             data.train.X[candidates],
@@ -71,7 +76,9 @@ def build_selected_qml_features(
             threshold=correlation_threshold,
         )
         if len(selected) < n_qubits:
-            raise ValueError(f"Split {split_id} has fewer than {n_qubits} usable features.")
+            raise ValueError(
+                f"Split {split_id} has fewer than {n_qubits} usable features."
+            )
         selected = _order_by_relationship(data.train.X[selected], selected)
         qml_columns = [f"selected_feature_{index:02d}" for index in range(n_qubits)]
         for role, dataset in (("train", data.train), ("validation", data.validation)):
@@ -101,7 +108,9 @@ def build_selected_qml_features(
                     "source_feature": source,
                     "target_abs_correlation": float(correlations[source]),
                     "next_qubit_source_feature": neighbor,
-                    "neighbor_abs_correlation": float(source_corr.loc[source, neighbor]),
+                    "neighbor_abs_correlation": float(
+                        source_corr.loc[source, neighbor]
+                    ),
                     "classical_candidate_feature_count": candidate_count,
                     "train_start_date": pd.Timestamp(split.train_start_date),
                     "train_end_date": pd.Timestamp(split.train_end_date),

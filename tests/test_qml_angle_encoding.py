@@ -16,10 +16,7 @@ from market_qml.qml.interface import QMLDataset
 
 def _features() -> pd.DataFrame:
     return pd.DataFrame(
-        {
-            f"pca_{index:02d}": [float(index), -float(index)]
-            for index in range(8)
-        }
+        {f"pca_{index:02d}": [float(index), -float(index)] for index in range(8)}
     )
 
 
@@ -52,10 +49,7 @@ def test_angle_encode_features_scales_values_to_valid_angle_range():
 
 def test_angle_encode_features_supports_grouped_pca_columns_and_config():
     features = pd.DataFrame(
-        {
-            f"group_{index}_pca_00": [float(index)]
-            for index in range(8)
-        }
+        {f"group_{index}_pca_00": [float(index)] for index in range(8)}
     )
 
     result = angle_encode_features(

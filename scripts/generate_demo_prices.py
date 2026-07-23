@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 DEFAULT_OUTPUT = Path("data/processed/demo_prices.parquet")
 DEMO_SYMBOLS = ("ALFA", "BRAV", "CHAR", "DELT", "ECHO", "FOXT", "SPY")
 

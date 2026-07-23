@@ -14,9 +14,10 @@ from market_qml.reporting.classical_baselines import (
     strongest_baseline,
 )
 
-
 DEFAULT_BACKTEST_DIR = Path("reports/backtests")
-DEFAULT_COMPARISON_OUTPUT = DEFAULT_BACKTEST_DIR / "classical_baseline_comparison.parquet"
+DEFAULT_COMPARISON_OUTPUT = (
+    DEFAULT_BACKTEST_DIR / "classical_baseline_comparison.parquet"
+)
 DEFAULT_MARKDOWN_OUTPUT = DEFAULT_BACKTEST_DIR / "classical_baseline_comparison.md"
 
 
@@ -47,7 +48,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    classification_metrics = _read_parquet(args.backtest_dir / "classification_metrics.parquet")
+    classification_metrics = _read_parquet(
+        args.backtest_dir / "classification_metrics.parquet"
+    )
     ranking_metrics = _read_parquet(args.backtest_dir / "ranking_metrics.parquet")
     portfolio_risk_metrics = _read_parquet(
         args.backtest_dir / "portfolio_risk_metrics.parquet"

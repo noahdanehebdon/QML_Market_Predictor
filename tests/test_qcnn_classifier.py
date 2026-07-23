@@ -85,9 +85,9 @@ def test_qcnn_outputs_can_be_saved(tmp_path):
         "validation_metrics",
     }
     assert all(path.exists() for path in paths.values())
-    assert pd.read_parquet(paths["predictions"])["model_name"].tolist() == [
-        MODEL_NAME
-    ] * 4
+    assert (
+        pd.read_parquet(paths["predictions"])["model_name"].tolist() == [MODEL_NAME] * 4
+    )
 
 
 def test_qcnn_rejects_single_class_training_targets():

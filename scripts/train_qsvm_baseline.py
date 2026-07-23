@@ -10,7 +10,6 @@ import pandas as pd
 from market_qml.qml.interface import build_qml_train_validation
 from market_qml.qml.qsvm import save_qsvm_result, train_qsvm
 
-
 DEFAULT_SAMPLE_PATH = Path("data/features/qml_sample_grouped_smoke.parquet")
 DEFAULT_LABEL_PATH = Path("data/labels/forward_return_labels.parquet")
 DEFAULT_OUTPUT_DIR = Path("artifacts/qml/qsvm")
@@ -82,7 +81,9 @@ def _attach_return_metadata(sample: pd.DataFrame, labels: pd.DataFrame) -> pd.Da
     right = labels[list(required)].copy()
     left["date"] = pd.to_datetime(left["date"], errors="coerce").dt.normalize()
     right["date"] = pd.to_datetime(right["date"], errors="coerce").dt.normalize()
-    result = left.merge(right, on=["symbol", "date"], how="left", validate="many_to_one")
+    result = left.merge(
+        right, on=["symbol", "date"], how="left", validate="many_to_one"
+    )
     return result
 
 

@@ -9,7 +9,6 @@ import pandas as pd
 
 from market_qml.qml.simulator import apply_cnot, apply_ry
 
-
 DEFAULT_N_QUBITS = 8
 DEFAULT_RANDOM_STATE = 42
 CONVOLUTION_PARAMETER_COUNT = 4

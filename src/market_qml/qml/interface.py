@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Mapping, Sequence
 
 import pandas as pd
 
 from market_qml.models.predictions import build_prediction_table
-
 
 DEFAULT_QML_RANDOM_SEED = 42
 DEFAULT_TARGET_COLUMN = "target"
@@ -56,7 +55,7 @@ class QMLTrainValidation:
 class QMLModelResult:
     """Fitted QML model and standard validation predictions."""
 
-    model: "BaseQMLModel"
+    model: BaseQMLModel
     predictions: pd.DataFrame
     config: QMLModelConfig
 
@@ -98,7 +97,7 @@ class BaseQMLModel(ABC):
         )
 
     @abstractmethod
-    def fit(self, dataset: QMLDataset) -> "BaseQMLModel":
+    def fit(self, dataset: QMLDataset) -> BaseQMLModel:
         """Fit the model on one QML training dataset."""
 
     @abstractmethod
@@ -216,6 +215,5 @@ def _validate_requested_columns(
     missing_columns = set(columns) - set(data.columns)
     if missing_columns:
         raise ValueError(
-            f"{name} contains missing columns: "
-            + ", ".join(sorted(missing_columns))
+            f"{name} contains missing columns: " + ", ".join(sorted(missing_columns))
         )

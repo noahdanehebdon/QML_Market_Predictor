@@ -72,7 +72,9 @@ def test_qsvm_artifacts_can_be_saved(tmp_path):
     assert all(path.exists() for path in paths.values())
     assert kernels["train_kernel"].shape == (8, 8)
     assert kernels["validation_kernel"].shape == (4, 8)
-    assert pd.read_parquet(paths["predictions"])["model_name"].tolist() == [MODEL_NAME] * 4
+    assert (
+        pd.read_parquet(paths["predictions"])["model_name"].tolist() == [MODEL_NAME] * 4
+    )
 
 
 def test_qsvm_rejects_invalid_targets_and_regularization():

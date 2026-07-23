@@ -14,11 +14,21 @@ from market_qml.labels.target_research import research_target_candidates, target
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--prices", type=Path, default=Path("data/processed/prices.parquet"))
-    parser.add_argument("--labels", type=Path, default=Path("data/labels/target_candidates.parquet"))
-    parser.add_argument("--diagnostics", type=Path, default=Path("reports/target_diagnostics.parquet"))
-    parser.add_argument("--selection", type=Path, default=Path("reports/target_selection.parquet"))
-    parser.add_argument("--manifest", type=Path, default=Path("reports/target_research_manifest.json"))
+    parser.add_argument(
+        "--prices", type=Path, default=Path("data/processed/prices.parquet")
+    )
+    parser.add_argument(
+        "--labels", type=Path, default=Path("data/labels/target_candidates.parquet")
+    )
+    parser.add_argument(
+        "--diagnostics", type=Path, default=Path("reports/target_diagnostics.parquet")
+    )
+    parser.add_argument(
+        "--selection", type=Path, default=Path("reports/target_selection.parquet")
+    )
+    parser.add_argument(
+        "--manifest", type=Path, default=Path("reports/target_research_manifest.json")
+    )
     parser.add_argument("--horizons", nargs="+", type=int, default=[5, 10, 20, 60])
     parser.add_argument("--benchmark", default="SPY")
     parser.add_argument("--neutral-threshold", type=float, default=0.005)
@@ -51,10 +61,16 @@ def main() -> None:
     selection.to_parquet(args.selection, index=False)
     args.manifest.write_text(
         json.dumps(
-            {**manifest, "targets": target_catalog(labels, benchmark=args.benchmark).to_dict("records")},
+            {
+                **manifest,
+                "targets": target_catalog(labels, benchmark=args.benchmark).to_dict(
+                    "records"
+                ),
+            },
             indent=2,
             default=str,
-        ) + "\n",
+        )
+        + "\n",
         encoding="utf-8",
     )
     print(selection.to_string(index=False))

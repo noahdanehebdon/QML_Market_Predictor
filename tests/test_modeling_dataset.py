@@ -159,7 +159,9 @@ def test_build_train_validation_datasets_uses_matching_feature_columns():
         validation_end_date="2024-01-03",
     )
 
-    assert result.train.metadata["date"].unique().tolist() == [pd.Timestamp("2024-01-01")]
+    assert result.train.metadata["date"].unique().tolist() == [
+        pd.Timestamp("2024-01-01")
+    ]
     assert result.validation.metadata["date"].min() == pd.Timestamp("2024-01-02")
     assert list(result.train.X.columns) == list(result.validation.X.columns)
 

@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import pandas as pd
-
-from market_qml.reporting.baseline_evidence import compare_to_naive_baselines
-from market_qml.reporting.ensemble_evidence import compare_ensemble_performance
 
 from market_qml.backtest.classification_metrics import (
     CLASSIFICATION_METRIC_COLUMNS,
@@ -32,73 +29,111 @@ from market_qml.backtest.ranking_metrics import (
     save_ranking_metrics,
 )
 from market_qml.backtest.splits import DEFAULT_SPLIT_OUTPUT_PATH
+from market_qml.models.artifacts import (
+    resolve_git_sha,
+    save_artifact_manifest,
+    save_model_artifact,
+)
 from market_qml.models.dataset import (
     DEFAULT_FEATURE_PATH,
     DEFAULT_LABEL_PATH,
     DEFAULT_TARGET_COLUMN,
     build_train_validation_datasets,
 )
-from market_qml.models.artifacts import (
-    resolve_git_sha,
-    save_artifact_manifest,
-    save_model_artifact,
-)
 from market_qml.models.elastic_net import (
     DEFAULT_TARGET_COLUMN as ELASTIC_NET_TARGET_COLUMN,
+)
+from market_qml.models.elastic_net import (
     MODEL_NAME as ELASTIC_NET_MODEL_NAME,
+)
+from market_qml.models.elastic_net import (
     train_elastic_net,
 )
+from market_qml.models.ensembles import build_chronological_ensembles
 from market_qml.models.gradient_boosting import (
     MODEL_NAME as GRADIENT_BOOSTING_MODEL_NAME,
+)
+from market_qml.models.gradient_boosting import (
     train_gradient_boosting,
 )
 from market_qml.models.gradient_boosting_regressor import (
     DEFAULT_TARGET_COLUMN as GRADIENT_BOOSTING_REGRESSOR_TARGET_COLUMN,
+)
+from market_qml.models.gradient_boosting_regressor import (
     MODEL_NAME as GRADIENT_BOOSTING_REGRESSOR_MODEL_NAME,
+)
+from market_qml.models.gradient_boosting_regressor import (
     train_gradient_boosting_regressor,
 )
 from market_qml.models.huber_regression import (
     DEFAULT_TARGET_COLUMN as HUBER_TARGET_COLUMN,
+)
+from market_qml.models.huber_regression import (
     MODEL_NAME as HUBER_REGRESSION_MODEL_NAME,
+)
+from market_qml.models.huber_regression import (
     train_huber_regression,
 )
 from market_qml.models.logistic_regression import (
     MODEL_NAME as LOGISTIC_REGRESSION_MODEL_NAME,
+)
+from market_qml.models.logistic_regression import (
     train_logistic_regression,
 )
-from market_qml.models.preprocessing import fit_transform_train_validation
 from market_qml.models.naive_rankers import (
     TARGET as NAIVE_RANK_TARGET,
+)
+from market_qml.models.naive_rankers import (
     train_linear_rank,
     train_momentum_rank,
     train_random_rank,
     train_sector_neutral_rank,
     train_sign_rank,
 )
-from market_qml.models.ensembles import build_chronological_ensembles
+from market_qml.models.preprocessing import fit_transform_train_validation
 from market_qml.models.random_forest import (
     MODEL_NAME as RANDOM_FOREST_MODEL_NAME,
+)
+from market_qml.models.random_forest import (
     train_random_forest,
 )
 from market_qml.models.random_forest_regressor import (
     DEFAULT_TARGET_COLUMN as RANDOM_FOREST_REGRESSOR_TARGET_COLUMN,
+)
+from market_qml.models.random_forest_regressor import (
     MODEL_NAME as RANDOM_FOREST_REGRESSOR_MODEL_NAME,
+)
+from market_qml.models.random_forest_regressor import (
     train_random_forest_regressor,
 )
 from market_qml.models.ridge_regression import (
     DEFAULT_TARGET_COLUMN as RIDGE_TARGET_COLUMN,
+)
+from market_qml.models.ridge_regression import (
     MODEL_NAME as RIDGE_REGRESSION_MODEL_NAME,
+)
+from market_qml.models.ridge_regression import (
     train_ridge_regression,
 )
 from market_qml.models.tuned_gradient_boosting import (
     DEFAULT_TARGET_COLUMN as TUNED_GRADIENT_BOOSTING_TARGET_COLUMN,
+)
+from market_qml.models.tuned_gradient_boosting import (
     MODEL_NAME as TUNED_GRADIENT_BOOSTING_MODEL_NAME,
+)
+from market_qml.models.tuned_gradient_boosting import (
     train_tuned_gradient_boosting_regressor,
 )
 from market_qml.models.xgboost_baselines import (
     CLASSIFIER_NAME as XGBOOST_CLASSIFIER_NAME,
-    RANKER_NAME as XGBOOST_RANKER_NAME,
+)
+from market_qml.models.xgboost_baselines import (
     RANK_TARGET as XGBOOST_RANK_TARGET,
+)
+from market_qml.models.xgboost_baselines import (
+    RANKER_NAME as XGBOOST_RANKER_NAME,
+)
+from market_qml.models.xgboost_baselines import (
     train_xgboost_classifier,
     train_xgboost_ranker,
 )
@@ -106,9 +141,12 @@ from market_qml.qml.interface import build_qml_train_validation
 from market_qml.qml.pca import fit_pca
 from market_qml.qml.vqc import MODEL_NAME as VQC_MODEL_NAME
 from market_qml.qml.vqc import train_vqc
-from market_qml.utils.mlflow_tracking import DEFAULT_EXPERIMENT_NAME
-from market_qml.utils.mlflow_tracking import log_walk_forward_backtest_run
-
+from market_qml.reporting.baseline_evidence import compare_to_naive_baselines
+from market_qml.reporting.ensemble_evidence import compare_ensemble_performance
+from market_qml.utils.mlflow_tracking import (
+    DEFAULT_EXPERIMENT_NAME,
+    log_walk_forward_backtest_run,
+)
 
 DEFAULT_OUTPUT_DIR = Path("reports/backtests")
 DEFAULT_QML_N_COMPONENTS = 8
@@ -140,9 +178,13 @@ class WalkForwardPredictionResult:
 
 MODEL_REGISTRY = {
     "sign_rank": ModelSpec(target_column=NAIVE_RANK_TARGET, train=train_sign_rank),
-    "momentum_rank": ModelSpec(target_column=NAIVE_RANK_TARGET, train=train_momentum_rank),
+    "momentum_rank": ModelSpec(
+        target_column=NAIVE_RANK_TARGET, train=train_momentum_rank
+    ),
     "random_rank": ModelSpec(target_column=NAIVE_RANK_TARGET, train=train_random_rank),
-    "sector_neutral_rank": ModelSpec(target_column=NAIVE_RANK_TARGET, train=train_sector_neutral_rank),
+    "sector_neutral_rank": ModelSpec(
+        target_column=NAIVE_RANK_TARGET, train=train_sector_neutral_rank
+    ),
     "linear_rank": ModelSpec(target_column=NAIVE_RANK_TARGET, train=train_linear_rank),
     XGBOOST_CLASSIFIER_NAME: ModelSpec(
         target_column=DEFAULT_TARGET_COLUMN,

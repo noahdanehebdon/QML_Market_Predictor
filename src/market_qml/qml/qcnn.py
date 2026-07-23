@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
-import pickle
 
 import numpy as np
 import pandas as pd
 
 from market_qml.models.predictions import build_prediction_table, save_predictions
 from market_qml.qml.encoding import AngleEncodingConfig, angle_encode_dataset
-from market_qml.qml.interface import BaseQMLModel, QMLDataset, QMLModelConfig
-from market_qml.qml.interface import QMLTrainValidation
+from market_qml.qml.interface import (
+    BaseQMLModel,
+    QMLDataset,
+    QMLModelConfig,
+    QMLTrainValidation,
+)
 from market_qml.qml.qcnn_blocks import (
     QCNNArchitecture,
     build_qcnn_architecture,
@@ -20,7 +24,6 @@ from market_qml.qml.qcnn_blocks import (
     initialize_qcnn_parameters,
 )
 from market_qml.qml.simulator import apply_ry, expectation_z, zero_state
-
 
 MODEL_NAME = "qcnn"
 DEFAULT_N_QUBITS = 8
@@ -38,7 +41,7 @@ DEFAULT_OUTPUT_DIR = Path("artifacts/qml/qcnn")
 class QCNNResult:
     """Fitted QCNN with predictions, loss curve, and split diagnostics."""
 
-    model: "QuantumConvolutionalClassifier"
+    model: QuantumConvolutionalClassifier
     predictions: pd.DataFrame
     training_loss: pd.DataFrame
     training_metrics: pd.DataFrame
@@ -69,7 +72,7 @@ class QuantumConvolutionalClassifier(BaseQMLModel):
         self.loss_history_: list[float] = []
         self.optimization_history_: list[dict[str, float | int]] = []
 
-    def fit(self, dataset: QMLDataset) -> "QuantumConvolutionalClassifier":
+    def fit(self, dataset: QMLDataset) -> QuantumConvolutionalClassifier:
         """Fit the 30 QCNN parameters on binary labels with SPSA updates."""
         self._validate_hyperparameters()
         targets = _binary_targets(dataset.y, require_two_classes=True)
@@ -105,11 +108,7 @@ class QuantumConvolutionalClassifier(BaseQMLModel):
                 self.architecture,
                 self.l2,
             )
-            gradient = (
-                (loss_plus - loss_minus)
-                / (2.0 * self.perturbation)
-                * direction
-            )
+            gradient = (loss_plus - loss_minus) / (2.0 * self.perturbation) * direction
             weights -= self.learning_rate * gradient
             post_update_loss = _qcnn_loss(
                 batch_angles,
@@ -124,9 +123,7 @@ class QuantumConvolutionalClassifier(BaseQMLModel):
                     "iteration": iteration,
                     "loss": post_update_loss,
                     "gradient_norm": float(np.linalg.norm(gradient)),
-                    "step_norm": float(
-                        self.learning_rate * np.linalg.norm(gradient)
-                    ),
+                    "step_norm": float(self.learning_rate * np.linalg.norm(gradient)),
                     "parameter_norm": float(np.linalg.norm(weights)),
                     "batch_rows": len(indices),
                 }
@@ -317,9 +314,7 @@ def _qcnn_loss(
     l2: float,
 ) -> float:
     scores = _qcnn_probabilities(angles, weights, architecture)
-    return _binary_cross_entropy(targets, scores) + float(
-        0.5 * l2 * np.sum(weights**2)
-    )
+    return _binary_cross_entropy(targets, scores) + float(0.5 * l2 * np.sum(weights**2))
 
 
 def _binary_targets(y: pd.Series, *, require_two_classes: bool) -> np.ndarray:
@@ -335,8 +330,5 @@ def _binary_targets(y: pd.Series, *, require_two_classes: bool) -> np.ndarray:
 def _binary_cross_entropy(targets: np.ndarray, scores: np.ndarray) -> float:
     clipped = np.clip(scores, 1e-12, 1.0 - 1e-12)
     return float(
-        -np.mean(
-            targets * np.log(clipped)
-            + (1.0 - targets) * np.log(1.0 - clipped)
-        )
+        -np.mean(targets * np.log(clipped) + (1.0 - targets) * np.log(1.0 - clipped))
     )

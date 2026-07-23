@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 EXPECTED_BASELINES = [
     "logistic_regression",
     "ridge_regression",
@@ -122,10 +121,14 @@ def build_classical_baseline_comparison(
     )
     result["composite_rank"] = _composite_rank(result)
 
-    return result[REPORT_COLUMNS].sort_values(
-        ["composite_rank", "model_name"],
-        na_position="last",
-    ).reset_index(drop=True)
+    return (
+        result[REPORT_COLUMNS]
+        .sort_values(
+            ["composite_rank", "model_name"],
+            na_position="last",
+        )
+        .reset_index(drop=True)
+    )
 
 
 def strongest_baseline(comparison: pd.DataFrame) -> str | None:
@@ -133,7 +136,9 @@ def strongest_baseline(comparison: pd.DataFrame) -> str | None:
     available = comparison.dropna(subset=["composite_rank"])
     if available.empty:
         return None
-    return str(available.sort_values(["composite_rank", "model_name"]).iloc[0]["model_name"])
+    return str(
+        available.sort_values(["composite_rank", "model_name"]).iloc[0]["model_name"]
+    )
 
 
 def render_classical_baseline_report(
@@ -145,7 +150,9 @@ def render_classical_baseline_report(
     expected_models = expected_models or EXPECTED_BASELINES
     strongest = strongest_baseline(comparison)
     available_models = set(comparison.dropna(subset=["composite_rank"])["model_name"])
-    missing_models = [model for model in expected_models if model not in available_models]
+    missing_models = [
+        model for model in expected_models if model not in available_models
+    ]
 
     lines = [
         "# Classical Baseline Comparison",

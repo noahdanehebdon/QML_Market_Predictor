@@ -71,28 +71,38 @@ def research_target_candidates(
             if values.empty:
                 continue
             binary = candidate.target_family in {"binary", "neutral_zone"}
-            turnover = valid.sort_values(["symbol", "date"]).groupby("symbol")[
-                candidate.target_name
-            ].diff().abs().mean()
-            autocorrelation = valid.groupby("symbol")[candidate.target_name].apply(
-                _safe_autocorrelation
-            ).mean()
+            turnover = (
+                valid.sort_values(["symbol", "date"])
+                .groupby("symbol")[candidate.target_name]
+                .diff()
+                .abs()
+                .mean()
+            )
+            autocorrelation = (
+                valid.groupby("symbol")[candidate.target_name]
+                .apply(_safe_autocorrelation)
+                .mean()
+            )
             economic_column = f"forward_excess_return_{candidate.horizon_trading_days}d"
             valid = valid.sort_values(["symbol", "date"])
             valid["_purged_lagged_target"] = valid.groupby("symbol")[
                 candidate.target_name
             ].shift(candidate.horizon_trading_days)
-            rank_ic = valid.groupby("date").apply(
-                lambda frame: (
-                    frame["_purged_lagged_target"].corr(
-                        frame[economic_column], method="spearman"
-                    )
-                    if frame["_purged_lagged_target"].nunique() > 1
-                    and frame[economic_column].nunique() > 1
-                    else np.nan
-                ),
-                include_groups=False,
-            ).mean()
+            rank_ic = (
+                valid.groupby("date")
+                .apply(
+                    lambda frame: (
+                        frame["_purged_lagged_target"].corr(
+                            frame[economic_column], method="spearman"
+                        )
+                        if frame["_purged_lagged_target"].nunique() > 1
+                        and frame[economic_column].nunique() > 1
+                        else np.nan
+                    ),
+                    include_groups=False,
+                )
+                .mean()
+            )
             rows.append(
                 {
                     "target_name": candidate.target_name,
@@ -109,7 +119,9 @@ def research_target_candidates(
                     ),
                     "rank_ic": float(rank_ic) if pd.notna(rank_ic) else np.nan,
                     "economic_magnitude": float(
-                        pd.to_numeric(valid[economic_column], errors="coerce").abs().mean()
+                        pd.to_numeric(valid[economic_column], errors="coerce")
+                        .abs()
+                        .mean()
                     ),
                 }
             )
@@ -155,9 +167,13 @@ def _select_primary_targets(diagnostics: pd.DataFrame) -> pd.DataFrame:
     selected = []
     for role, candidates in [("classification", classification), ("ranking", ranking)]:
         if not candidates.empty:
-            winner = candidates.sort_values(
-                ["selection_score", "horizon_trading_days"], ascending=[False, True]
-            ).iloc[0].to_dict()
+            winner = (
+                candidates.sort_values(
+                    ["selection_score", "horizon_trading_days"], ascending=[False, True]
+                )
+                .iloc[0]
+                .to_dict()
+            )
             winner["selected_role"] = role
             baseline_name = (
                 "outperform_spy_5d"

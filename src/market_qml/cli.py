@@ -11,7 +11,6 @@ from pathlib import Path
 
 import yaml
 
-
 DEFAULT_CONFIG_PATH = Path("configs/cli.yaml")
 COMMAND_NAMES = (
     "ingest-prices",

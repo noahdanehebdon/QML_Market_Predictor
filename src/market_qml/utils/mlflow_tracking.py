@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
-
 
 DEFAULT_EXPERIMENT_NAME = "QML Market Predictor"
 
@@ -85,21 +84,21 @@ def _log_params(
 ) -> None:
     split_summary = _split_summary(splits)
     params = {
-            "model_names": ",".join(model_names),
-            "feature_count": _feature_count(features),
-            "feature_columns": ",".join(_feature_columns(features)),
-            "target_horizon_days": _target_horizon(labels),
-            "split_count": predictions["split_id"].nunique(),
-            "prediction_rows": len(predictions),
-            "max_splits": max_splits,
-            "top_k": top_k,
-            "top_fraction": top_fraction,
-            "transaction_cost_bps": transaction_cost_bps,
-            "rebalance_frequency": rebalance_frequency,
-            "periods_per_year": periods_per_year,
-            "git_commit": _git_commit_hash(),
-            **split_summary,
-        }
+        "model_names": ",".join(model_names),
+        "feature_count": _feature_count(features),
+        "feature_columns": ",".join(_feature_columns(features)),
+        "target_horizon_days": _target_horizon(labels),
+        "split_count": predictions["split_id"].nunique(),
+        "prediction_rows": len(predictions),
+        "max_splits": max_splits,
+        "top_k": top_k,
+        "top_fraction": top_fraction,
+        "transaction_cost_bps": transaction_cost_bps,
+        "rebalance_frequency": rebalance_frequency,
+        "periods_per_year": periods_per_year,
+        "git_commit": _git_commit_hash(),
+        **split_summary,
+    }
     mlflow.log_params({key: _param_value(value) for key, value in params.items()})
 
 
@@ -130,8 +129,14 @@ def _log_overall_metrics(
     )
 
 
-def _log_metric_frame(mlflow, metrics: pd.DataFrame, *, prefix: str, scope: str) -> None:
-    if metrics.empty or "scope" not in metrics.columns or "model_name" not in metrics.columns:
+def _log_metric_frame(
+    mlflow, metrics: pd.DataFrame, *, prefix: str, scope: str
+) -> None:
+    if (
+        metrics.empty
+        or "scope" not in metrics.columns
+        or "model_name" not in metrics.columns
+    ):
         return
 
     rows = metrics[metrics["scope"] == scope]
@@ -160,8 +165,12 @@ def _feature_count(features: pd.DataFrame) -> int:
 def _target_horizon(labels: pd.DataFrame):
     if "label_horizon_days" not in labels.columns:
         return None
-    horizons = pd.to_numeric(labels["label_horizon_days"], errors="coerce").dropna().unique()
-    return int(horizons[0]) if len(horizons) == 1 else ",".join(map(str, sorted(horizons)))
+    horizons = (
+        pd.to_numeric(labels["label_horizon_days"], errors="coerce").dropna().unique()
+    )
+    return (
+        int(horizons[0]) if len(horizons) == 1 else ",".join(map(str, sorted(horizons)))
+    )
 
 
 def _split_summary(splits: pd.DataFrame) -> dict[str, Any]:
@@ -171,7 +180,9 @@ def _split_summary(splits: pd.DataFrame) -> dict[str, Any]:
     return {
         "first_split_id": int(ordered["split_id"].iloc[0]),
         "last_split_id": int(ordered["split_id"].iloc[-1]),
-        "first_train_start_date": str(pd.Timestamp(ordered["train_start_date"].iloc[0]).date()),
+        "first_train_start_date": str(
+            pd.Timestamp(ordered["train_start_date"].iloc[0]).date()
+        ),
         "last_validation_end_date": str(
             pd.Timestamp(ordered["validation_end_date"].iloc[-1]).date()
         ),

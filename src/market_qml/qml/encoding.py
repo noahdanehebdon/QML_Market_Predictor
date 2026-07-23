@@ -9,7 +9,6 @@ import pandas as pd
 
 from market_qml.qml.interface import QMLDataset
 
-
 ANGLE_MIN = -pi
 ANGLE_MAX = pi
 DEFAULT_ANGLE_PREFIX = "theta"
@@ -62,7 +61,9 @@ def angle_encode_features(
 
     numeric = features[feature_columns].apply(pd.to_numeric, errors="coerce")
     if numeric.isna().any().any():
-        raise ValueError("Angle encoding features contain missing or non-numeric values.")
+        raise ValueError(
+            "Angle encoding features contain missing or non-numeric values."
+        )
 
     angle_columns = _angle_columns(config)
     angles = numeric.map(_scale_value_to_angle)
@@ -158,6 +159,5 @@ def _validate_requested_columns(
     missing_columns = set(columns) - set(data.columns)
     if missing_columns:
         raise ValueError(
-            f"{name} contains missing columns: "
-            + ", ".join(sorted(missing_columns))
+            f"{name} contains missing columns: " + ", ".join(sorted(missing_columns))
         )

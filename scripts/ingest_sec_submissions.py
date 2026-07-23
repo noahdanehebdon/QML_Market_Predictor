@@ -19,7 +19,6 @@ from market_qml.ingestion.sec import (
     save_submissions,
 )
 
-
 LOGGER = logging.getLogger(__name__)
 DEFAULT_DATA_SOURCES_CONFIG_PATH = Path("configs/data_sources.yaml")
 DEFAULT_LOOKUP_PATH = Path("data/processed/sec_ticker_cik_lookup.parquet")
@@ -145,7 +144,9 @@ def main() -> None:
         save_raw_submission(payload, args.raw_dir / f"{symbol}_submissions.json")
         submissions[symbol] = payload
 
-    normalized = normalize_submissions(submissions=submissions, ticker_cik_lookup=lookup)
+    normalized = normalize_submissions(
+        submissions=submissions, ticker_cik_lookup=lookup
+    )
     save_submissions(normalized, args.output)
 
     LOGGER.info("Saved raw SEC submissions to: %s", args.raw_dir)

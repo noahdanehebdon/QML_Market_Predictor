@@ -42,7 +42,9 @@ def test_add_macro_features_creates_levels_spreads_and_changes():
         macro_change_windows=[1],
     )
 
-    assert list(result["date"]) == list(pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04"]))
+    assert list(result["date"]) == list(
+        pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04"])
+    )
     assert result.loc[0, "yield_spread_10y_2y"] == pytest.approx(0.2)
     assert result.loc[1, "treasury_10y_change_1d"] == pytest.approx(0.1)
     assert result.loc[2, "yield_spread_10y_2y_change_1d"] == pytest.approx(0.1)
@@ -62,7 +64,9 @@ def test_merge_macro_features_preserves_symbol_rows_and_merges_by_date():
     result = merge_macro_features(_market_features(), macro_features)
 
     assert len(result) == 4
-    assert result[result["date"] == pd.Timestamp("2024-01-03")]["treasury_10y"].tolist() == [4.1, 4.1]
+    assert result[result["date"] == pd.Timestamp("2024-01-03")][
+        "treasury_10y"
+    ].tolist() == [4.1, 4.1]
     assert "yield_spread_10y_2y" in result.columns
 
 

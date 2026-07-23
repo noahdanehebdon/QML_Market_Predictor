@@ -7,7 +7,6 @@ from pathlib import Path
 
 from market_qml.features.fundamentals import build_fundamental_feature_table
 
-
 DEFAULT_FEATURE_PATH = Path("data/features/macro_features.parquet")
 DEFAULT_FUNDAMENTALS_PATH = Path("data/processed/fundamentals.parquet")
 DEFAULT_OUTPUT_PATH = Path("data/features/fundamental_features.parquet")

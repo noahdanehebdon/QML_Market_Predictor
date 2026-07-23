@@ -13,7 +13,6 @@ from market_qml.features.benchmark import (
     build_benchmark_relative_features,
 )
 
-
 DEFAULT_FEATURE_PATH = Path("data/features/price_volume_features.parquet")
 DEFAULT_OUTPUT_PATH = Path("data/features/benchmark_relative_features.parquet")
 DEFAULT_UNIVERSE_CONFIG_PATH = Path("configs/universe.yaml")

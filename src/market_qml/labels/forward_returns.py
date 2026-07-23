@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 DEFAULT_LABEL_HORIZON = 5
 DEFAULT_LABEL_HORIZONS = (5, 10, 20, 60)
 DEFAULT_BENCHMARK_SYMBOL = "SPY"
@@ -63,7 +62,9 @@ def build_forward_return_labels(
 
     benchmark_rows = labels[labels["symbol"] == benchmark_symbol]
     if benchmark_rows.empty:
-        raise ValueError(f"Benchmark symbol not found in price table: {benchmark_symbol}")
+        raise ValueError(
+            f"Benchmark symbol not found in price table: {benchmark_symbol}"
+        )
 
     forward_return_column = f"forward_return_{horizon}d"
     benchmark_return_column = f"{benchmark_symbol.lower()}_forward_return_{horizon}d"
@@ -122,9 +123,9 @@ def build_forward_return_labels(
     result[normalized_return_column] = result[normalized_return_column].replace(
         [np.inf, -np.inf], np.nan
     )
-    result[rank_column] = result.groupby("date", sort=False)[
-        excess_return_column
-    ].rank(method="average", pct=True)
+    result[rank_column] = result.groupby("date", sort=False)[excess_return_column].rank(
+        method="average", pct=True
+    )
     if sector_column is not None:
         sector_mean = result.groupby(["date", sector_column], dropna=False)[
             forward_return_column
@@ -141,9 +142,7 @@ def build_forward_return_labels(
     ).astype("int64")
     result[binary_label_column] = result[binary_label_column].astype("Int64")
     result[neutral_label_column] = pd.NA
-    decisive = valid_excess & (
-        result[excess_return_column].abs() > neutral_threshold
-    )
+    decisive = valid_excess & (result[excess_return_column].abs() > neutral_threshold)
     result.loc[decisive, neutral_label_column] = (
         result.loc[decisive, excess_return_column] > neutral_threshold
     ).astype("int64")
@@ -167,7 +166,9 @@ def build_forward_return_labels(
         binary_label_column,
         neutral_label_column,
     ]
-    result = result[ordered_columns].sort_values(["symbol", "date"]).reset_index(drop=True)
+    result = (
+        result[ordered_columns].sort_values(["symbol", "date"]).reset_index(drop=True)
+    )
 
     if drop_missing:
         result = result.dropna(
@@ -208,9 +209,11 @@ def build_multi_horizon_target_table(
         )
         for horizon in unique_horizons
     ]
-    return pd.concat(tables, ignore_index=True).sort_values(
-        ["label_horizon_days", "symbol", "date"]
-    ).reset_index(drop=True)
+    return (
+        pd.concat(tables, ignore_index=True)
+        .sort_values(["label_horizon_days", "symbol", "date"])
+        .reset_index(drop=True)
+    )
 
 
 def build_forward_return_label_table(

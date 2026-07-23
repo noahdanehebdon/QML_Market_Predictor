@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from itertools import product
-import json
 from pathlib import Path
 
 import numpy as np
@@ -12,7 +12,6 @@ import pandas as pd
 
 from market_qml.qml.interface import QMLDataset, QMLTrainValidation
 from market_qml.qml.qcnn import QCNNResult, train_qcnn
-
 
 DEFAULT_GRADIENT_FLOOR = 1e-5
 DEFAULT_GRADIENT_CEILING = 5.0
@@ -91,10 +90,14 @@ def evaluate_qcnn_stability(
         history["train_sample_size"] = sample_size
         histories.append(history)
 
-    results = pd.DataFrame(rows).sort_values(
-        ["stable", "validation_log_loss", "loss_volatility", "config_id"],
-        ascending=[False, True, True, True],
-    ).reset_index(drop=True)
+    results = (
+        pd.DataFrame(rows)
+        .sort_values(
+            ["stable", "validation_log_loss", "loss_volatility", "config_id"],
+            ascending=[False, True, True, True],
+        )
+        .reset_index(drop=True)
+    )
     results.insert(0, "rank", np.arange(1, len(results) + 1))
     return QCNNStabilityResult(
         results=results,
@@ -219,9 +222,7 @@ def _stability_row(
         "validation_log_loss": validation_loss,
         "overfit_gap": validation_loss - train_loss,
         "train_accuracy": float(result.training_metrics.iloc[0]["accuracy"]),
-        "validation_accuracy": float(
-            result.validation_metrics.iloc[0]["accuracy"]
-        ),
+        "validation_accuracy": float(result.validation_metrics.iloc[0]["accuracy"]),
         "stable": not failure_modes,
         "failure_modes": ",".join(failure_modes) if failure_modes else "none",
     }
@@ -242,7 +243,9 @@ def _with_sampled_train(
                 f"Training sample does not contain {per_class} rows for class {target}."
             )
         rng = np.random.default_rng(random_state + int(target))
-        selected.extend(rng.choice(list(indices), size=per_class, replace=False).tolist())
+        selected.extend(
+            rng.choice(list(indices), size=per_class, replace=False).tolist()
+        )
     selected = sorted(selected)
     train = QMLDataset(
         X=data.train.X.iloc[selected].reset_index(drop=True),
@@ -303,6 +306,8 @@ def _markdown_table(data: pd.DataFrame) -> str:
         "| " + " | ".join(["---"] * len(columns)) + " |",
     ]
     for row in data[columns].itertuples(index=False, name=None):
-        values = [f"{value:.6f}" if isinstance(value, float) else str(value) for value in row]
+        values = [
+            f"{value:.6f}" if isinstance(value, float) else str(value) for value in row
+        ]
         lines.append("| " + " | ".join(values) + " |")
     return "\n".join(lines)

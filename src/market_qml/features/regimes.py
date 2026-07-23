@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 REQUIRED_COLUMNS = {"symbol", "date", "return_1d", "treasury_10y", "treasury_2y"}
 REGIME_COLUMNS = [
     "date",
@@ -53,7 +52,9 @@ def build_market_regimes(
         raise ValueError("minimum_threshold_history must be positive")
 
     normalized = features.copy()
-    normalized["date"] = pd.to_datetime(normalized["date"], errors="coerce").dt.normalize()
+    normalized["date"] = pd.to_datetime(
+        normalized["date"], errors="coerce"
+    ).dt.normalize()
     if normalized["date"].isna().any():
         raise ValueError("Regime features contain invalid dates")
 
@@ -73,7 +74,9 @@ def build_market_regimes(
     threshold = volatility.expanding(min_periods=threshold_history).median().shift(1)
 
     daily = _daily_rates(normalized)
-    result = benchmark[["date"]].merge(daily, on="date", how="left", validate="one_to_one")
+    result = benchmark[["date"]].merge(
+        daily, on="date", how="left", validate="one_to_one"
+    )
     result["spy_realized_volatility"] = volatility.to_numpy()
     result["spy_volatility_threshold"] = threshold.to_numpy()
     result["volatility_regime"] = _binary_regime(
@@ -83,7 +86,9 @@ def build_market_regimes(
         zero="normal_volatility",
     )
 
-    result["treasury_yield_level"] = result[["treasury_10y", "treasury_2y"]].mean(axis=1)
+    result["treasury_yield_level"] = result[["treasury_10y", "treasury_2y"]].mean(
+        axis=1
+    )
     result["treasury_yield_change"] = result["treasury_yield_level"].diff(rate_window)
     result["rate_regime"] = _binary_regime(
         result["treasury_yield_change"],
@@ -117,7 +122,9 @@ def save_market_regimes(regimes: pd.DataFrame, output_path: str | Path) -> None:
     """Save date-keyed regime labels to parquet."""
     missing = set(REGIME_COLUMNS) - set(regimes.columns)
     if missing:
-        raise ValueError("Regime table is missing columns: " + ", ".join(sorted(missing)))
+        raise ValueError(
+            "Regime table is missing columns: " + ", ".join(sorted(missing))
+        )
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     regimes[REGIME_COLUMNS].to_parquet(output, index=False)
@@ -125,16 +132,22 @@ def save_market_regimes(regimes: pd.DataFrame, output_path: str | Path) -> None:
 
 def _daily_rates(features: pd.DataFrame) -> pd.DataFrame:
     rates = features[["date", "treasury_10y", "treasury_2y"]].copy()
-    rates[["treasury_10y", "treasury_2y"]] = rates[["treasury_10y", "treasury_2y"]].apply(
-        pd.to_numeric, errors="coerce"
+    rates[["treasury_10y", "treasury_2y"]] = rates[
+        ["treasury_10y", "treasury_2y"]
+    ].apply(pd.to_numeric, errors="coerce")
+    conflicts = rates.groupby("date")[["treasury_10y", "treasury_2y"]].nunique(
+        dropna=False
     )
-    conflicts = rates.groupby("date")[["treasury_10y", "treasury_2y"]].nunique(dropna=False)
     if conflicts.gt(1).any(axis=None):
-        raise ValueError("Treasury yields must be identical across symbols on each date")
+        raise ValueError(
+            "Treasury yields must be identical across symbols on each date"
+        )
     return rates.drop_duplicates("date").sort_values("date").reset_index(drop=True)
 
 
-def _binary_regime(values: pd.Series, *, positive: str, negative: str, zero: str) -> pd.Series:
+def _binary_regime(
+    values: pd.Series, *, positive: str, negative: str, zero: str
+) -> pd.Series:
     labels = pd.Series(
         np.select([values > 0, values < 0], [positive, negative], default=zero),
         index=values.index,
@@ -143,11 +156,19 @@ def _binary_regime(values: pd.Series, *, positive: str, negative: str, zero: str
     return labels.mask(values.isna())
 
 
-def _validate_inputs(features, *, volatility_window, rate_window, annualization_factor,
-                     curve_flat_tolerance):
+def _validate_inputs(
+    features,
+    *,
+    volatility_window,
+    rate_window,
+    annualization_factor,
+    curve_flat_tolerance,
+):
     missing = REQUIRED_COLUMNS - set(features.columns)
     if missing:
-        raise ValueError("Regime features are missing columns: " + ", ".join(sorted(missing)))
+        raise ValueError(
+            "Regime features are missing columns: " + ", ".join(sorted(missing))
+        )
     if features.empty:
         raise ValueError("Regime feature table is empty")
     if volatility_window <= 1:

@@ -28,9 +28,9 @@ def test_qcnn_architecture_has_expected_active_flow_and_parameter_shapes():
     }
     assert len(architecture.operations) == 48
     assert architecture.operations["operation_index"].tolist() == list(range(48))
-    assert architecture.operations["parameter_index"].dropna().astype(int).tolist() == list(
-        range(30)
-    )
+    assert architecture.operations["parameter_index"].dropna().astype(
+        int
+    ).tolist() == list(range(30))
 
 
 def test_qcnn_parameter_initialization_is_bounded_and_reproducible():

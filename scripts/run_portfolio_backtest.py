@@ -15,7 +15,6 @@ from market_qml.backtest.portfolio import (
     summarize_portfolio_risk,
 )
 
-
 DEFAULT_PREDICTION_DIR = Path("data/processed")
 DEFAULT_OUTPUT_PATH = Path("data/processed/portfolio_backtest.parquet")
 DEFAULT_RISK_OUTPUT_PATH = Path("data/processed/portfolio_risk_metrics.parquet")

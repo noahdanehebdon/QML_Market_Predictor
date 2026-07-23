@@ -18,7 +18,6 @@ from market_qml.models.preprocessing import (
     save_preprocessor,
 )
 
-
 DEFAULT_OUTPUT_DIR = Path("artifacts/preprocessing")
 
 

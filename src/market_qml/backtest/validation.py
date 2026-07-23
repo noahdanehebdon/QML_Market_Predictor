@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
-
 
 PROTOCOL_VERSION = "locked-test-v1"
 
@@ -135,8 +134,10 @@ def paired_model_comparisons(
         if not len(differences):
             continue
         boot = np.asarray(
-            [rng.choice(differences, len(differences), replace=True).mean()
-             for _ in range(bootstrap_iterations)]
+            [
+                rng.choice(differences, len(differences), replace=True).mean()
+                for _ in range(bootstrap_iterations)
+            ]
         )
         signs = rng.choice((-1.0, 1.0), size=(bootstrap_iterations, len(differences)))
         null_means = (signs * differences).mean(axis=1)

@@ -25,8 +25,9 @@ from market_qml.models.preprocessing import (
     save_preprocessor,
 )
 
-
-DEFAULT_PREPROCESSOR_PATH = Path("artifacts/preprocessing/logistic_regression_split_000.pkl")
+DEFAULT_PREPROCESSOR_PATH = Path(
+    "artifacts/preprocessing/logistic_regression_split_000.pkl"
+)
 
 
 def parse_args() -> argparse.Namespace:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import time
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -13,10 +13,11 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_URL_TEMPLATE = "https://data.sec.gov/submissions/CIK{cik}.json"
-SEC_COMPANY_FACTS_URL_TEMPLATE = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+SEC_COMPANY_FACTS_URL_TEMPLATE = (
+    "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+)
 SEC_SUBMISSION_FORMS = {"10-K", "10-Q", "8-K"}
 SEC_REQUEST_INTERVAL_SECONDS = 0.2
 SEC_FUNDAMENTAL_CONCEPTS = {
@@ -111,7 +112,9 @@ def format_cik(cik: object) -> str:
     return f"{cik_int:010d}"
 
 
-def normalize_company_tickers(payload: dict[str, Any] | list[dict[str, Any]]) -> pd.DataFrame:
+def normalize_company_tickers(
+    payload: dict[str, Any] | list[dict[str, Any]],
+) -> pd.DataFrame:
     """Normalize the SEC company tickers payload into a tidy DataFrame."""
     records = payload.values() if isinstance(payload, dict) else payload
     rows: list[dict[str, object]] = []
@@ -202,11 +205,7 @@ def _recent_filings(payload: dict[str, Any]) -> dict[str, list[Any]]:
     if not isinstance(recent, dict):
         return {}
 
-    return {
-        key: value
-        for key, value in recent.items()
-        if isinstance(value, list)
-    }
+    return {key: value for key, value in recent.items() if isinstance(value, list)}
 
 
 def normalize_company_submissions(
@@ -263,7 +262,9 @@ def normalize_company_submissions(
     df = pd.DataFrame(rows, columns=columns)
     df["filing_date"] = pd.to_datetime(df["filing_date"], errors="coerce")
     df["report_date"] = pd.to_datetime(df["report_date"], errors="coerce")
-    return df.sort_values(["symbol", "filing_date", "accession_number"]).reset_index(drop=True)
+    return df.sort_values(["symbol", "filing_date", "accession_number"]).reset_index(
+        drop=True
+    )
 
 
 def _value_at(values_by_name: dict[str, list[Any]], name: str, index: int) -> Any:
