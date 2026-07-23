@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
-from pathlib import Path
 import pickle
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -20,7 +20,6 @@ from sklearn.metrics import (
 from market_qml.models.predictions import build_prediction_table
 from market_qml.models.predictions import save_predictions as save_prediction_table
 from market_qml.models.preprocessing import PreprocessedTrainValidation
-
 
 MODEL_NAME = "gradient_boosting"
 DEFAULT_MODEL_PATH = Path("artifacts/models/gradient_boosting.pkl")
@@ -143,7 +142,9 @@ def save_model_parameters(
     """Save model parameters to JSON."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(parameters, indent=2, sort_keys=True), encoding="utf-8")
+    output_path.write_text(
+        json.dumps(parameters, indent=2, sort_keys=True), encoding="utf-8"
+    )
 
 
 def _metrics_frame(
@@ -155,7 +156,9 @@ def _metrics_frame(
     y_true_numeric = pd.to_numeric(y_true, errors="coerce")
     y_score_numeric = pd.to_numeric(y_score, errors="coerce")
     if y_true_numeric.isna().any() or y_score_numeric.isna().any():
-        raise ValueError("Validation labels and scores must be numeric and non-missing.")
+        raise ValueError(
+            "Validation labels and scores must be numeric and non-missing."
+        )
 
     y_true_int = y_true_numeric.astype(int)
     y_pred = (y_score_numeric >= 0.5).astype(int)

@@ -10,7 +10,6 @@ import pandas as pd
 from market_qml.qml.interface import build_qml_train_validation
 from market_qml.qml.qcnn import save_qcnn_result, train_qcnn
 
-
 DEFAULT_SAMPLE_PATH = Path("data/features/qml_sample_grouped_smoke.parquet")
 DEFAULT_LABEL_PATH = Path("data/labels/forward_return_labels.parquet")
 DEFAULT_OUTPUT_DIR = Path("artifacts/qml/qcnn")

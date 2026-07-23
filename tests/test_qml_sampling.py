@@ -49,7 +49,9 @@ def test_build_qml_sample_limits_rows_balances_classes_and_preserves_time_order(
     assert len(validation) == 4
     assert train["target"].value_counts().sort_index().tolist() == [4, 4]
     assert validation["target"].value_counts().sort_index().tolist() == [2, 2]
-    assert sample.equals(sample.sort_values(["split_id", "sample_role", "date", "symbol"]))
+    assert sample.equals(
+        sample.sort_values(["split_id", "sample_role", "date", "symbol"])
+    )
     assert result.metadata["sampled_rows"].tolist() == [8, 4]
     assert result.metadata["balanced_classes"].tolist() == [True, True]
     assert result.metadata["rows_after_date_filter"].tolist() == [24, 16]
@@ -144,6 +146,7 @@ def test_qml_sample_outputs_can_be_saved(tmp_path):
     assert sample_path.exists()
     assert metadata_path.exists()
     assert list(loaded.columns) == list(result.sample.columns)
-    assert saved_metadata["sampled_rows"].tolist() == result.metadata[
-        "sampled_rows"
-    ].tolist()
+    assert (
+        saved_metadata["sampled_rows"].tolist()
+        == result.metadata["sampled_rows"].tolist()
+    )

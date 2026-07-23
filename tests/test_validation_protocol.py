@@ -12,7 +12,9 @@ from market_qml.backtest.validation import (
 
 
 def test_partition_locked_test_is_non_overlapping_and_embargoed():
-    data = pd.DataFrame({"date": pd.date_range("2024-01-01", periods=20), "value": range(20)})
+    data = pd.DataFrame(
+        {"date": pd.date_range("2024-01-01", periods=20), "value": range(20)}
+    )
 
     development, locked, manifest = partition_locked_test(
         data, locked_test_days=5, embargo_days=2
@@ -30,7 +32,9 @@ def test_locked_test_access_requires_reason_and_writes_audit(tmp_path):
         log_locked_test_access(manifest, reason="", audit_path=tmp_path / "audit.json")
 
     path = tmp_path / "audit.json"
-    record = log_locked_test_access(manifest, reason="final milestone evaluation", audit_path=path)
+    record = log_locked_test_access(
+        manifest, reason="final milestone evaluation", audit_path=path
+    )
     assert record["locked_test_accessed"] is True
     assert json.loads(path.read_text())["access_reason"] == "final milestone evaluation"
 
@@ -41,14 +45,25 @@ def test_paired_comparisons_report_effect_uncertainty_and_adjusted_test():
         rows.extend(
             [
                 {"model_name": "baseline", "split_id": split_id, "roc_auc": baseline},
-                {"model_name": "better", "split_id": split_id, "roc_auc": baseline + 0.05},
-                {"model_name": "same", "split_id": split_id, "roc_auc": baseline + 0.001},
+                {
+                    "model_name": "better",
+                    "split_id": split_id,
+                    "roc_auc": baseline + 0.05,
+                },
+                {
+                    "model_name": "same",
+                    "split_id": split_id,
+                    "roc_auc": baseline + 0.001,
+                },
             ]
         )
 
     result = paired_model_comparisons(
-        pd.DataFrame(rows), metric="roc_auc", baseline_model="baseline",
-        bootstrap_iterations=500, practical_threshold=0.02,
+        pd.DataFrame(rows),
+        metric="roc_auc",
+        baseline_model="baseline",
+        bootstrap_iterations=500,
+        practical_threshold=0.02,
     ).set_index("candidate_model")
 
     assert result.loc["better", "mean_difference"] == pytest.approx(0.05)
@@ -61,9 +76,15 @@ def test_prediction_metrics_use_non_overlapping_date_blocks():
     rows = []
     for model, offset in [("a", 0.0), ("b", 0.1)]:
         for day in range(8):
-            rows.append({"model_name": model, "split_id": 0,
-                         "date": pd.Timestamp("2024-01-01") + pd.Timedelta(days=day),
-                         "y_true": day % 2, "y_score": 0.2 + 0.6 * (day % 2) + offset})
+            rows.append(
+                {
+                    "model_name": model,
+                    "split_id": 0,
+                    "date": pd.Timestamp("2024-01-01") + pd.Timedelta(days=day),
+                    "y_true": day % 2,
+                    "y_score": 0.2 + 0.6 * (day % 2) + offset,
+                }
+            )
     result = prediction_date_block_metrics(pd.DataFrame(rows), block_days=4)
     assert result.groupby("model_name").size().eq(2).all()
     assert (result.block_end_date - result.block_start_date).dt.days.le(3).all()

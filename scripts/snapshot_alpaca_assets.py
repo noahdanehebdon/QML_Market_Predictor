@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 
 from market_qml.ingestion.prices import fetch_alpaca_asset_snapshot
 
-
 DEFAULT_OUTPUT = Path("data/processed/asset_history.parquet")
 
 

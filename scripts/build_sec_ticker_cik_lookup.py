@@ -17,7 +17,6 @@ from market_qml.ingestion.sec import (
     save_ticker_cik_lookup,
 )
 
-
 LOGGER = logging.getLogger(__name__)
 DEFAULT_UNIVERSE_CONFIG_PATH = Path("configs/universe.yaml")
 DEFAULT_DATA_SOURCES_CONFIG_PATH = Path("configs/data_sources.yaml")
@@ -33,7 +32,9 @@ def _load_yaml(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-def load_universe_symbols(config_path: Path = DEFAULT_UNIVERSE_CONFIG_PATH) -> list[str]:
+def load_universe_symbols(
+    config_path: Path = DEFAULT_UNIVERSE_CONFIG_PATH,
+) -> list[str]:
     config = _load_yaml(config_path)
     universe = config.get("universe")
 

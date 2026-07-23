@@ -9,7 +9,6 @@ import pandas as pd
 
 from market_qml.qml.pca import DEFAULT_QML_PCA_FEATURE_PATH
 
-
 DEFAULT_QML_SAMPLE_PATH = Path("data/features/qml_sample.parquet")
 DEFAULT_QML_SAMPLE_METADATA_PATH = Path("data/processed/qml_sample_metadata.parquet")
 DEFAULT_RANDOM_SEED = 42
@@ -112,9 +111,11 @@ def build_qml_sample(
 
     return QMLSampleResult(
         sample=pd.concat(sample_frames, ignore_index=True),
-        metadata=pd.DataFrame(metadata_rows).sort_values(
+        metadata=pd.DataFrame(metadata_rows)
+        .sort_values(
             ["split_id", "sample_role"],
-        ).reset_index(drop=True),
+        )
+        .reset_index(drop=True),
     )
 
 
@@ -290,9 +291,7 @@ def _metadata_row(
     balance_requested: bool,
     balanced: bool,
 ) -> dict[str, object]:
-    target_counts = (
-        sampled["target"].value_counts(dropna=False).sort_index().to_dict()
-    )
+    target_counts = sampled["target"].value_counts(dropna=False).sort_index().to_dict()
     return {
         "split_id": split_id,
         "sample_role": sample_role,

@@ -92,7 +92,9 @@ def test_add_volatility_features_adds_default_windows():
 
 def test_add_volatility_features_requires_return_schema():
     with pytest.raises(ValueError, match="missing required columns"):
-        add_volatility_features(pd.DataFrame({"symbol": ["AAPL"], "date": ["2024-01-01"]}))
+        add_volatility_features(
+            pd.DataFrame({"symbol": ["AAPL"], "date": ["2024-01-01"]})
+        )
 
 
 def test_build_price_volatility_features_saves_output(tmp_path):

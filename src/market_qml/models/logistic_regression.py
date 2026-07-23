@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
-import pickle
 
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -12,7 +12,6 @@ from sklearn.linear_model import LogisticRegression
 from market_qml.models.predictions import build_prediction_table
 from market_qml.models.predictions import save_predictions as save_prediction_table
 from market_qml.models.preprocessing import PreprocessedTrainValidation
-
 
 MODEL_NAME = "logistic_regression"
 DEFAULT_MODEL_PATH = Path("artifacts/models/logistic_regression.pkl")

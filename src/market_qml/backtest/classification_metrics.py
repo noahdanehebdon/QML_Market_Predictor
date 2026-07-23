@@ -16,7 +16,6 @@ from sklearn.metrics import (
 
 from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
 
-
 CLASSIFICATION_METRIC_COLUMNS = [
     "model_name",
     "scope",
@@ -144,11 +143,7 @@ def _metric_row(
         "accuracy": accuracy_score(y_true, y_pred),
         "precision": precision_score(y_true, y_pred, zero_division=0),
         "recall": recall_score(y_true, y_pred, zero_division=0),
-        "roc_auc": (
-            roc_auc_score(y_true, y_score)
-            if y_true.nunique() > 1
-            else pd.NA
-        ),
+        "roc_auc": (roc_auc_score(y_true, y_score) if y_true.nunique() > 1 else pd.NA),
         "average_precision": average_precision_score(y_true, y_score),
         "brier_score": brier_score_loss(y_true, y_score),
     }
@@ -159,7 +154,9 @@ def _validate_prediction_table(predictions: pd.DataFrame) -> None:
     if predictions.empty:
         raise ValueError("Prediction table is empty.")
     if predictions[["model_name", "split_id"]].isna().any().any():
-        raise ValueError("Prediction table contains missing model_name or split_id values.")
+        raise ValueError(
+            "Prediction table contains missing model_name or split_id values."
+        )
 
 
 def _validate_prediction_columns(predictions: pd.DataFrame) -> None:

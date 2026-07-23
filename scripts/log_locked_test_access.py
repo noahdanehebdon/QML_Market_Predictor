@@ -15,24 +15,32 @@ def main() -> None:
         description="Log deliberate access to the final locked test period."
     )
     parser.add_argument(
-        "--splits", type=Path,
+        "--splits",
+        type=Path,
         default=Path("data/processed/walk_forward_splits.parquet"),
     )
     parser.add_argument("--reason", required=True)
     parser.add_argument(
-        "--audit-output", type=Path,
+        "--audit-output",
+        type=Path,
         default=Path("reports/validation/locked_test_access.json"),
     )
     args = parser.parse_args()
     splits = pd.read_parquet(args.splits)
     required = {
-        "protocol_version", "development_end_date", "locked_test_start_date",
-        "locked_test_end_date", "locked_test_days", "embargo_days",
+        "protocol_version",
+        "development_end_date",
+        "locked_test_start_date",
+        "locked_test_end_date",
+        "locked_test_days",
+        "embargo_days",
         "locked_test_accessed",
     }
     missing = required - set(splits)
     if missing:
-        raise ValueError("Split metadata has no locked-test protocol: " + ", ".join(sorted(missing)))
+        raise ValueError(
+            "Split metadata has no locked-test protocol: " + ", ".join(sorted(missing))
+        )
     manifest = {column: splits.iloc[0][column] for column in required}
     record = log_locked_test_access(
         manifest, reason=args.reason, audit_path=args.audit_output

@@ -22,7 +22,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 DEFAULT_MACRO_PATH = Path("data/processed/macro.parquet")
 DEFAULT_OUTPUT_PATH = Path("data/processed/macro_daily.parquet")
 
@@ -117,8 +116,7 @@ def load_macro(macro_path: Path) -> pd.DataFrame:
 
     if missing_columns:
         raise ValueError(
-            "Macro file is missing expected columns: "
-            + ", ".join(missing_columns)
+            "Macro file is missing expected columns: " + ", ".join(missing_columns)
         )
 
     return macro[EXPECTED_COLUMNS]

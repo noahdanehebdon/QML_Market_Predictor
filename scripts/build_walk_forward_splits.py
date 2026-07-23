@@ -17,7 +17,6 @@ from market_qml.models.dataset import (
     load_modeling_dataset,
 )
 
-
 DEFAULT_BACKTEST_CONFIG_PATH = Path("configs/backtest.yaml")
 
 

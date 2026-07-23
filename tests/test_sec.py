@@ -1,5 +1,5 @@
-import pytest
 import pandas as pd
+import pytest
 
 from market_qml.ingestion.sec import (
     format_cik,
@@ -64,7 +64,12 @@ def test_normalize_company_submissions_keeps_target_forms():
                 "filingDate": ["2024-01-02", "2024-02-03", "2024-03-04", "2024-04-05"],
                 "reportDate": ["2023-12-31", "2024-01-31", "", "2024-03-31"],
                 "form": ["10-K", "S-1", "8-K", "10-Q"],
-                "primaryDocument": ["aapl-10k.htm", "aapl-s1.htm", "aapl-8k.htm", "aapl-10q.htm"],
+                "primaryDocument": [
+                    "aapl-10k.htm",
+                    "aapl-s1.htm",
+                    "aapl-8k.htm",
+                    "aapl-10q.htm",
+                ],
             }
         }
     }
@@ -75,7 +80,11 @@ def test_normalize_company_submissions_keeps_target_forms():
     assert set(df["form"]) == {"10-K", "10-Q", "8-K"}
     assert df["cik_padded"].unique().tolist() == ["0000320193"]
     assert df["accession_number"].tolist() == ["0001", "0003", "0004"]
-    assert df["primary_document"].tolist() == ["aapl-10k.htm", "aapl-8k.htm", "aapl-10q.htm"]
+    assert df["primary_document"].tolist() == [
+        "aapl-10k.htm",
+        "aapl-8k.htm",
+        "aapl-10q.htm",
+    ]
 
 
 def test_normalize_submissions_combines_lookup_payloads():
@@ -201,7 +210,9 @@ def test_normalize_company_facts_extracts_target_concepts_and_aliases():
     assert revenue["fiscal_period"] == "FY"
     assert revenue["filing_date"] == pd.Timestamp("2024-10-31")
     assert revenue["form"] == "10-K"
-    assert revenue["sec_concept"] == "RevenueFromContractWithCustomerExcludingAssessedTax"
+    assert (
+        revenue["sec_concept"] == "RevenueFromContractWithCustomerExcludingAssessedTax"
+    )
     assert revenue["value"] == 391035000000
     assert revenue["unit"] == "USD"
 

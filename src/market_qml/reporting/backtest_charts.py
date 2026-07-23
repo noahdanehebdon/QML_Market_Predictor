@@ -15,7 +15,6 @@ import pandas as pd
 
 from market_qml.backtest.portfolio import TRADING_DAYS_PER_YEAR
 
-
 FIGURE_FILENAMES = {
     "cumulative_returns": "cumulative_returns.png",
     "drawdowns": "drawdowns.png",
@@ -50,9 +49,7 @@ def generate_backtest_charts(
     output_dir.mkdir(parents=True, exist_ok=True)
     _configure_style()
 
-    paths = {
-        name: output_dir / filename for name, filename in FIGURE_FILENAMES.items()
-    }
+    paths = {name: output_dir / filename for name, filename in FIGURE_FILENAMES.items()}
     plot_cumulative_returns(portfolio_returns, paths["cumulative_returns"])
     plot_drawdowns(portfolio_returns, paths["drawdowns"])
     plot_rolling_sharpe(
@@ -194,7 +191,9 @@ def plot_regime_performance(data: pd.DataFrame, output_path: str | Path) -> None
         ).sort_index()
         image = axis.imshow(matrix.to_numpy(float), aspect="auto", vmin=0.4, vmax=0.65)
         axis.set_title(regime_type.replace("_", " ").title())
-        axis.set_xticks(range(len(matrix.columns)), matrix.columns, rotation=25, ha="right")
+        axis.set_xticks(
+            range(len(matrix.columns)), matrix.columns, rotation=25, ha="right"
+        )
         axis.set_yticks(range(len(matrix.index)), matrix.index)
         for row in range(len(matrix.index)):
             for column in range(len(matrix.columns)):
@@ -226,7 +225,9 @@ def render_chart_report(paths: dict[str, Path], *, report_path: str | Path) -> s
     ]
     for name in FIGURE_FILENAMES:
         relative = Path(os.path.relpath(paths[name], start=report_path.parent))
-        lines.extend([f"## {titles[name]}", "", f"![{titles[name]}]({relative.as_posix()})", ""])
+        lines.extend(
+            [f"## {titles[name]}", "", f"![{titles[name]}]({relative.as_posix()})", ""]
+        )
     return "\n".join(lines)
 
 
@@ -299,7 +300,9 @@ def _validate_inputs(
     for data, required, name in requirements:
         missing = required - set(data.columns)
         if missing:
-            raise ValueError(f"{name} are missing columns: " + ", ".join(sorted(missing)))
+            raise ValueError(
+                f"{name} are missing columns: " + ", ".join(sorted(missing))
+            )
         if data.empty:
             raise ValueError(f"{name} must be non-empty.")
     if rolling_window < 2:
@@ -307,7 +310,9 @@ def _validate_inputs(
     if periods_per_year <= 0:
         raise ValueError("periods_per_year must be positive.")
     if not regime_metrics["meets_minimum_rows"].astype(bool).any():
-        raise ValueError("At least one regime slice must meet the minimum row threshold.")
+        raise ValueError(
+            "At least one regime slice must meet the minimum row threshold."
+        )
 
 
 def _infer_periods_per_year(portfolio_returns: pd.DataFrame) -> float:
@@ -316,11 +321,15 @@ def _infer_periods_per_year(portfolio_returns: pd.DataFrame) -> float:
             "Portfolio returns must include rebalance_frequency when "
             "periods_per_year is not provided."
         )
-    frequencies = pd.to_numeric(
-        portfolio_returns["rebalance_frequency"], errors="coerce"
-    ).dropna().unique()
+    frequencies = (
+        pd.to_numeric(portfolio_returns["rebalance_frequency"], errors="coerce")
+        .dropna()
+        .unique()
+    )
     if len(frequencies) != 1 or frequencies[0] <= 0:
-        raise ValueError("Portfolio returns must have one positive rebalance_frequency.")
+        raise ValueError(
+            "Portfolio returns must have one positive rebalance_frequency."
+        )
     return TRADING_DAYS_PER_YEAR / float(frequencies[0])
 
 

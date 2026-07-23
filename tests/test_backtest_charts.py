@@ -80,7 +80,9 @@ def test_generate_backtest_charts_creates_every_figure_and_report(tmp_path) -> N
 
 
 @pytest.mark.parametrize("rolling_window", [0, 1])
-def test_chart_generation_rejects_short_rolling_window(tmp_path, rolling_window) -> None:
+def test_chart_generation_rejects_short_rolling_window(
+    tmp_path, rolling_window
+) -> None:
     with pytest.raises(ValueError, match="at least 2"):
         generate_backtest_charts(
             portfolio_returns=_portfolio_returns(),
@@ -106,9 +108,7 @@ def test_chart_generation_requires_rebalance_metadata_for_annualization(
 ) -> None:
     with pytest.raises(ValueError, match="rebalance_frequency"):
         generate_backtest_charts(
-            portfolio_returns=_portfolio_returns().drop(
-                columns="rebalance_frequency"
-            ),
+            portfolio_returns=_portfolio_returns().drop(columns="rebalance_frequency"),
             model_summary=_model_summary(),
             regime_metrics=_regime_metrics(),
             output_dir=tmp_path,

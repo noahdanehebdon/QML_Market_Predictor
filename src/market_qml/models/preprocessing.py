@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
-import pickle
 
 import pandas as pd
 
 from market_qml.models.dataset import ModelingDataset, TrainValidationDatasets
-
 
 DEFAULT_PREPROCESSOR_PATH = Path("artifacts/preprocessing/preprocessor.pkl")
 
@@ -120,7 +119,9 @@ def save_preprocessor(
         pickle.dump(preprocessor, f)
 
 
-def load_preprocessor(path: str | Path = DEFAULT_PREPROCESSOR_PATH) -> FittedPreprocessor:
+def load_preprocessor(
+    path: str | Path = DEFAULT_PREPROCESSOR_PATH,
+) -> FittedPreprocessor:
     """Load a fitted preprocessor artifact."""
     path = Path(path)
     with path.open("rb") as f:

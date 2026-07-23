@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 RETURN_WINDOWS = [1, 5, 10, 20, 60]
 REQUIRED_PRICE_COLUMNS = {"symbol", "date", "close"}
 

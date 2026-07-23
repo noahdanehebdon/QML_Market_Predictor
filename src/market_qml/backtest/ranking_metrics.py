@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import math
+from pathlib import Path
 
 import pandas as pd
 
 from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
-
 
 RANKING_METRIC_COLUMNS = [
     "model_name",
@@ -114,7 +113,9 @@ def _metric_row(
     y_score = pd.to_numeric(predictions["y_score"], errors="coerce")
     returns = pd.to_numeric(predictions[return_column], errors="coerce")
     if y_score.isna().any() or returns.isna().any():
-        raise ValueError("Ranking metrics require numeric, non-missing scores and returns.")
+        raise ValueError(
+            "Ranking metrics require numeric, non-missing scores and returns."
+        )
 
     ordered = predictions.assign(
         _score=y_score.to_numpy(),

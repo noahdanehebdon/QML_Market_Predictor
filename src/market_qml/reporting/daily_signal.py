@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
-import pickle
 from typing import Any
 
 import pandas as pd
 
 from market_qml.models.preprocessing import FittedPreprocessor, transform_features
-
 
 DISCLAIMER = (
     "This report is for research and educational purposes only and is not "
@@ -67,7 +66,9 @@ def build_daily_signal_report(
     latest = _latest_feature_cross_section(features)
     benchmark = benchmark.strip().upper()
     if benchmark not in set(latest["symbol"]):
-        raise ValueError(f"Benchmark '{benchmark}' is absent from the latest feature date.")
+        raise ValueError(
+            f"Benchmark '{benchmark}' is absent from the latest feature date."
+        )
 
     transformed = transform_features(latest, preprocessor)
     positive_class_index = _positive_class_index(model)

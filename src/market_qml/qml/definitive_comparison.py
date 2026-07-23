@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -19,7 +19,6 @@ from market_qml.backtest.validation import (
     paired_model_comparisons,
     prediction_date_block_metrics,
 )
-
 
 QML_MODELS = {"vqc", "qcnn", "qsvm", "qsvm_tuned"}
 

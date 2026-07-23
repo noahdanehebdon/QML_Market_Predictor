@@ -28,7 +28,6 @@ from market_qml.models.random_forest_regressor import (
     train_random_forest_regressor,
 )
 
-
 DEFAULT_PREPROCESSOR_PATH = Path(
     "artifacts/preprocessing/random_forest_regressor_split_000.pkl"
 )

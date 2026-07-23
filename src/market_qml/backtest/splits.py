@@ -8,7 +8,6 @@ import pandas as pd
 
 from market_qml.backtest.validation import PROTOCOL_VERSION, partition_locked_test
 
-
 REQUIRED_DATE_COLUMN = "date"
 DEFAULT_SPLIT_OUTPUT_PATH = Path("data/processed/walk_forward_splits.parquet")
 
@@ -131,7 +130,7 @@ def _generate_fixed_window_splits(
         train_end_index = validation_start_index - purge_days
         train_start_index = train_end_index - train_window_days
         train_dates = dates[train_start_index:train_end_index]
-        validation_dates = dates[validation_start_index:validation_end_index + 1]
+        validation_dates = dates[validation_start_index : validation_end_index + 1]
 
         rows.append(
             _split_row(
@@ -170,7 +169,7 @@ def _generate_yearly_splits(
             continue
 
         train_end_index = validation_start_index - purge_days
-        train_dates = dates[train_end_index - train_window_days:train_end_index]
+        train_dates = dates[train_end_index - train_window_days : train_end_index]
         rows.append(
             _split_row(
                 split_id=split_id,

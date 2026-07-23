@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
-import pickle
 
 import pandas as pd
 from sklearn.linear_model import ElasticNet
@@ -12,7 +12,6 @@ from sklearn.linear_model import ElasticNet
 from market_qml.models.predictions import build_prediction_table
 from market_qml.models.predictions import save_predictions as save_prediction_table
 from market_qml.models.preprocessing import PreprocessedTrainValidation
-
 
 MODEL_NAME = "elastic_net"
 DEFAULT_MODEL_PATH = Path("artifacts/models/elastic_net.pkl")

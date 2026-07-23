@@ -10,7 +10,6 @@ from market_qml.features.volume import (
     build_price_volume_features,
 )
 
-
 DEFAULT_FEATURE_PATH = Path("data/features/price_volatility_features.parquet")
 DEFAULT_OUTPUT_PATH = Path("data/features/price_volume_features.parquet")
 

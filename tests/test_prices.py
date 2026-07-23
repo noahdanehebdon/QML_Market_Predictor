@@ -62,13 +62,36 @@ def test_normalize_bar_pages():
 def test_asset_snapshots_are_effective_dated_and_append_only(tmp_path):
     first = normalize_asset_snapshot(
         [
-            {"id": "1", "class": "us_equity", "exchange": "NASDAQ", "symbol": "AAA", "status": "active", "tradable": True},
-            {"id": "2", "class": "us_equity", "exchange": "NYSE", "symbol": "OLD", "status": "inactive", "tradable": False},
+            {
+                "id": "1",
+                "class": "us_equity",
+                "exchange": "NASDAQ",
+                "symbol": "AAA",
+                "status": "active",
+                "tradable": True,
+            },
+            {
+                "id": "2",
+                "class": "us_equity",
+                "exchange": "NYSE",
+                "symbol": "OLD",
+                "status": "inactive",
+                "tradable": False,
+            },
         ],
         snapshot_date="2024-01-02",
     )
     second = normalize_asset_snapshot(
-        [{"id": "1", "class": "us_equity", "exchange": "NASDAQ", "symbol": "AAA", "status": "inactive", "tradable": False}],
+        [
+            {
+                "id": "1",
+                "class": "us_equity",
+                "exchange": "NASDAQ",
+                "symbol": "AAA",
+                "status": "inactive",
+                "tradable": False,
+            }
+        ],
         snapshot_date="2024-01-03",
     )
     path = tmp_path / "asset_history.parquet"
@@ -113,10 +136,38 @@ def test_asset_snapshot_defaults_to_paper_host_and_allows_live_override(monkeypa
 def test_candidate_pool_uses_only_latest_tradable_snapshot(tmp_path):
     assets = pd.DataFrame(
         [
-            {"symbol": "OLD", "effective_date": "2024-01-01", "asset_class": "us_equity", "exchange": "NYSE", "status": "active", "tradable": True},
-            {"symbol": "OLD", "effective_date": "2024-01-02", "asset_class": "us_equity", "exchange": "NYSE", "status": "inactive", "tradable": False},
-            {"symbol": "AAA", "effective_date": "2024-01-02", "asset_class": "us_equity", "exchange": "NASDAQ", "status": "active", "tradable": True},
-            {"symbol": "OTC", "effective_date": "2024-01-02", "asset_class": "us_equity", "exchange": "OTC", "status": "active", "tradable": True},
+            {
+                "symbol": "OLD",
+                "effective_date": "2024-01-01",
+                "asset_class": "us_equity",
+                "exchange": "NYSE",
+                "status": "active",
+                "tradable": True,
+            },
+            {
+                "symbol": "OLD",
+                "effective_date": "2024-01-02",
+                "asset_class": "us_equity",
+                "exchange": "NYSE",
+                "status": "inactive",
+                "tradable": False,
+            },
+            {
+                "symbol": "AAA",
+                "effective_date": "2024-01-02",
+                "asset_class": "us_equity",
+                "exchange": "NASDAQ",
+                "status": "active",
+                "tradable": True,
+            },
+            {
+                "symbol": "OTC",
+                "effective_date": "2024-01-02",
+                "asset_class": "us_equity",
+                "exchange": "OTC",
+                "status": "active",
+                "tradable": True,
+            },
         ]
     )
     path = tmp_path / "assets.parquet"
@@ -130,7 +181,11 @@ def test_candidate_pool_uses_only_latest_tradable_snapshot(tmp_path):
 
 def test_price_history_merge_preserves_removed_symbols():
     existing = pd.DataFrame(
-        {"symbol": ["OLD", "AAA"], "timestamp": ["2024-01-01T00:00:00Z"] * 2, "close": [5.0, 10.0]}
+        {
+            "symbol": ["OLD", "AAA"],
+            "timestamp": ["2024-01-01T00:00:00Z"] * 2,
+            "close": [5.0, 10.0],
+        }
     )
     fresh = pd.DataFrame(
         {"symbol": ["AAA"], "timestamp": ["2024-01-01T00:00:00Z"], "close": [11.0]}

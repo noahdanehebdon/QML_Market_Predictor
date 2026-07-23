@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 RATE_CHANGE_WINDOWS = [5, 20, 60]
 MACRO_CHANGE_WINDOWS = [21, 63, 252]
 REQUIRED_MARKET_COLUMNS = {"symbol", "date"}
@@ -56,9 +55,9 @@ def add_macro_features(
             periods=window,
             fill_method=None,
         )
-        result[f"unemployment_rate_change_{window}d"] = result["unemployment_rate"].diff(
-            periods=window
-        )
+        result[f"unemployment_rate_change_{window}d"] = result[
+            "unemployment_rate"
+        ].diff(periods=window)
         result[f"industrial_production_growth_{window}d"] = result[
             "industrial_production"
         ].pct_change(periods=window, fill_method=None)

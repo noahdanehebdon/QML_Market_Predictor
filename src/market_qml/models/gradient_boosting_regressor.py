@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
-from pathlib import Path
 import pickle
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -14,7 +14,6 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 from market_qml.models.predictions import build_prediction_table
 from market_qml.models.predictions import save_predictions as save_prediction_table
 from market_qml.models.preprocessing import PreprocessedTrainValidation
-
 
 MODEL_NAME = "gradient_boosting_regressor"
 DEFAULT_MODEL_PATH = Path("artifacts/models/gradient_boosting_regressor.pkl")
@@ -118,4 +117,6 @@ def save_model_parameters(
     """Save model parameters to JSON."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(parameters, indent=2, sort_keys=True), encoding="utf-8")
+    output_path.write_text(
+        json.dumps(parameters, indent=2, sort_keys=True), encoding="utf-8"
+    )
