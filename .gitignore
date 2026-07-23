@@ -45,6 +45,8 @@ data/labels/*
 *.onnx
 
 # Python cache/build artifacts
+/build/
+/dist/
 __pycache__/
 *.py[cod]
 *.egg-info/

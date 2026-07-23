@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "market-qml-predictor"
 version = "0.1.0"
 description = "Market prediction research platform comparing classical ML and quantum machine learning models."
+authors = [{ name = "Noah Hebdon" }]
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pandas>=2.2",
@@ -13,7 +15,6 @@ dependencies = [
     "requests>=2.31",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
-    "pytest>=8.0",
     "scikit-learn>=1.7",
     "xgboost>=3.1,<4",
     "mlflow>=2.14",
@@ -22,6 +23,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "build>=1.2,<2",
+    "pytest>=8.0",
     "ruff>=0.12,<1",
 ]
 dashboard = [
@@ -38,7 +41,15 @@ backtest = "market_qml.cli:backtest"
 report = "market_qml.cli:report"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["market_qml*", "scripts*"]
+
+[tool.setuptools.package-data]
+market_qml = ["default_cli.yaml"]
+
+[project.urls]
+Repository = "https://github.com/noahdanehebdon/QML_Market_Predictor"
+Issues = "https://github.com/noahdanehebdon/QML_Market_Predictor/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
