@@ -568,6 +568,12 @@ See [docs/trade_intents.md](docs/trade_intents.md) for the private promotion
 manifest, required input schemas, conservative configuration, and reproducible
 dry-run command.
 
+The next guarded layer can validate those intents against an Alpaca paper account and,
+only after three explicit safety gates, submit paper-only day limit orders. See
+[docs/alpaca_paper_execution.md](docs/alpaca_paper_execution.md) for credential
+separation, dry-run usage, risk checks, kill-switch behavior, and the opt-in paper
+integration test.
+
 ## Limitations
 
 - Results are backtests on a limited equity universe, not evidence of future
