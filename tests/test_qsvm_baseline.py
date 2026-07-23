@@ -1,10 +1,18 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
+from market_qml.qml.feature_map import fidelity_kernel
 from market_qml.qml.interface import build_qml_train_validation
-from market_qml.qml.qsvm import MODEL_NAME, save_qsvm_result, train_qsvm
+from market_qml.qml.qsvm import (
+    MODEL_NAME,
+    save_qsvm_result,
+    state_fidelity_kernel,
+    train_qsvm,
+)
 
 
 def _sample() -> pd.DataFrame:
@@ -32,12 +40,14 @@ def _sample() -> pd.DataFrame:
 
 
 def test_qsvm_builds_expected_kernels_and_standard_predictions():
-    result = train_qsvm(
-        build_qml_train_validation(_sample(), split_id=0),
-        n_qubits=3,
-        repetitions=2,
-        random_state=7,
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        result = train_qsvm(
+            build_qml_train_validation(_sample(), split_id=0),
+            n_qubits=3,
+            repetitions=2,
+            random_state=7,
+        )
 
     assert result.config.model_name == MODEL_NAME
     assert result.config.params["kernel"] == "quantum_state_fidelity"
@@ -48,6 +58,7 @@ def test_qsvm_builds_expected_kernels_and_standard_predictions():
     assert list(result.predictions.columns) == REQUIRED_PREDICTION_COLUMNS
     assert result.predictions["model_name"].unique().tolist() == [MODEL_NAME]
     assert result.predictions["y_score"].between(0, 1).all()
+    assert result.model.support_vector_count > 0
     assert result.kernel_diagnostics[["rows", "columns"]].to_dict("records") == [
         {"rows": 8, "columns": 8},
         {"rows": 4, "columns": 8},
@@ -74,6 +85,21 @@ def test_qsvm_artifacts_can_be_saved(tmp_path):
     assert kernels["validation_kernel"].shape == (4, 8)
     assert (
         pd.read_parquet(paths["predictions"])["model_name"].tolist() == [MODEL_NAME] * 4
+    )
+
+
+def test_callable_kernel_matches_direct_complex_state_fidelity():
+    states = np.array(
+        [
+            [1.0 + 0.0j, 0.0 + 0.0j],
+            [0.0 + 0.0j, 1.0 + 0.0j],
+            [0.5 + 0.5j, 0.5 - 0.5j],
+        ]
+    )
+    features = np.concatenate([states.real, states.imag], axis=1)
+
+    assert state_fidelity_kernel(features, features) == pytest.approx(
+        fidelity_kernel(states, states), abs=1e-12
     )
 
 
