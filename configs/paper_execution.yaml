@@ -9,5 +9,6 @@ paper_execution:
   minimum_order_notional: 10.0
   cash_reserve_weight: 0.10
   max_equity_drift_fraction: 0.02
+  max_daily_loss_fraction: 0.02
   limit_price_buffer_bps: 25.0
   cancel_after_minutes: 15

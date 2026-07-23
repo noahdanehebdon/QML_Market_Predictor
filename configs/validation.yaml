@@ -1,0 +1,12 @@
+validation:
+  minimum_shadow_observations: 20
+  minimum_shadow_calendar_days: 28
+  minimum_paper_rebalances: 20
+  minimum_paper_calendar_days: 56
+  maximum_operational_error_rate: 0.02
+  maximum_stale_signal_rate: 0.0
+  maximum_rejection_rate: 0.02
+  maximum_tracking_error_fraction: 0.05
+  maximum_adverse_slippage_bps: 50.0
+  maximum_drawdown_fraction: 0.15
+  maximum_gross_exposure: 0.90
