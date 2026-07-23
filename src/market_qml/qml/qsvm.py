@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import pickle
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
 
 from market_qml.models.predictions import build_prediction_table, save_predictions
@@ -62,7 +65,7 @@ class QuantumKernelSVM(BaseQMLModel):
                 interaction_scale=self.interaction_scale,
             )
         )
-        self.estimator_: SVC | None = None
+        self.estimator_: CalibratedClassifierCV | None = None
         self.train_states_: np.ndarray | None = None
         self.train_kernel_: np.ndarray | None = None
         self.last_prediction_kernel_: np.ndarray | None = None
@@ -77,13 +80,13 @@ class QuantumKernelSVM(BaseQMLModel):
             self.train_states_,
             self.train_states_,
         )
-        self.estimator_ = SVC(
+        self.estimator_ = calibrated_svc(
             C=self.C,
-            kernel="precomputed",
-            probability=True,
+            kernel=state_fidelity_kernel,
+            y=y,
             random_state=self.seed,
         )
-        self.estimator_.fit(self.train_kernel_, y)
+        self.estimator_.fit(_state_features(self.train_states_), y)
         return self
 
     def predict_scores(self, dataset: QMLDataset) -> list[float]:
@@ -93,9 +96,61 @@ class QuantumKernelSVM(BaseQMLModel):
         states = self.feature_map.transform(dataset).states
         self.last_prediction_kernel_ = fidelity_kernel(states, self.train_states_)
         positive_class_index = int(np.where(self.estimator_.classes_ == 1)[0][0])
-        return self.estimator_.predict_proba(self.last_prediction_kernel_)[
+        return self.estimator_.predict_proba(_state_features(states))[
             :, positive_class_index
         ].tolist()
+
+    @property
+    def support_vector_count(self) -> int:
+        """Return the support-vector count from the final full-data SVC."""
+        if self.estimator_ is None:
+            return 0
+        calibrated = self.estimator_.calibrated_classifiers_[0]
+        return int(calibrated.estimator.support_.size)
+
+
+def calibrated_svc(
+    *,
+    C: float,
+    kernel: str | Callable[[np.ndarray, np.ndarray], np.ndarray],
+    y: pd.Series | np.ndarray,
+    random_state: int,
+) -> CalibratedClassifierCV:
+    """Build supported sigmoid calibration equivalent to legacy SVC probabilities."""
+    targets = np.asarray(y, dtype=int)
+    class_counts = np.bincount(targets)
+    populated = class_counts[class_counts > 0]
+    folds = min(5, int(populated.min())) if len(populated) else 0
+    if folds < 2:
+        raise ValueError("SVM probability calibration requires two rows per class.")
+    splitter = StratifiedKFold(
+        n_splits=folds,
+        shuffle=True,
+        random_state=random_state,
+    )
+    return CalibratedClassifierCV(
+        estimator=SVC(C=C, kernel=kernel),
+        method="sigmoid",
+        cv=splitter,
+        ensemble=False,
+    )
+
+
+def state_fidelity_kernel(left: np.ndarray, right: np.ndarray) -> np.ndarray:
+    """Compute state fidelity from real-valued statevector representations."""
+    return fidelity_kernel(_features_to_states(left), _features_to_states(right))
+
+
+def _state_features(states: np.ndarray) -> np.ndarray:
+    return np.concatenate([states.real, states.imag], axis=1)
+
+
+def _features_to_states(features: np.ndarray) -> np.ndarray:
+    values = np.asarray(features, dtype=float)
+    if values.ndim != 2 or values.shape[1] % 2:
+        raise ValueError("Encoded statevector features must have even width.")
+    midpoint = values.shape[1] // 2
+    return values[:, :midpoint] + 1j * values[:, midpoint:]
 
 
 def train_qsvm(
@@ -188,11 +243,7 @@ def build_kernel_diagnostics(
                     if matrix.shape[0] == matrix.shape[1]
                     else np.nan
                 ),
-                "support_vectors": (
-                    int(model.estimator_.support_.size)
-                    if model.estimator_ is not None
-                    else 0
-                ),
+                "support_vectors": model.support_vector_count,
             }
         )
     return pd.DataFrame(rows)
