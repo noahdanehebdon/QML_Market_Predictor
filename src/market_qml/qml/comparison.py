@@ -13,7 +13,6 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, brier_score_loss, log_loss, roc_auc_score
-from sklearn.svm import SVC
 
 from market_qml.backtest.portfolio import (
     DEFAULT_REBALANCE_FREQUENCY,
@@ -31,7 +30,7 @@ from market_qml.backtest.validation import (
 from market_qml.models.predictions import build_prediction_table
 from market_qml.qml.interface import QMLModelConfig, build_qml_train_validation
 from market_qml.qml.qcnn import train_qcnn
-from market_qml.qml.qsvm import QuantumKernelSVM
+from market_qml.qml.qsvm import QuantumKernelSVM, calibrated_svc
 from market_qml.qml.vqc import train_vqc
 
 DEFAULT_FEATURE_SELECTIONS = {
@@ -637,15 +636,18 @@ def _qsvm_predictions(data, C, repetitions, interaction_scale, model_name, seed)
         "validation_kernel_rows": model.last_prediction_kernel_.shape[0],
         "validation_kernel_columns": model.last_prediction_kernel_.shape[1],
         "kernel_mean_similarity": float(kernel.mean()),
-        "support_vectors": int(model.estimator_.support_.size),
+        "support_vectors": model.support_vector_count,
     }
     return result
 
 
 def _classical_predictions(data, kernel, model_name, seed):
-    model = SVC(C=1.0, kernel=kernel, probability=True, random_state=seed).fit(
-        data.train.X, data.train.y
-    )
+    model = calibrated_svc(
+        C=1.0,
+        kernel=kernel,
+        y=data.train.y,
+        random_state=seed,
+    ).fit(data.train.X, data.train.y)
     scores = model.predict_proba(data.validation.X)[
         :, int(np.where(model.classes_ == 1)[0][0])
     ]
@@ -662,7 +664,9 @@ def _classical_predictions(data, kernel, model_name, seed):
         "validation_kernel_rows": np.nan,
         "validation_kernel_columns": np.nan,
         "kernel_mean_similarity": np.nan,
-        "support_vectors": int(model.support_.size),
+        "support_vectors": int(
+            model.calibrated_classifiers_[0].estimator.support_.size
+        ),
     }
     return result
 

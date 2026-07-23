@@ -11,6 +11,7 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 
 from market_qml.models.predictions import build_prediction_table
 from market_qml.models.preprocessing import PreprocessedTrainValidation
+from market_qml.utils.statistics import safe_correlation
 
 MODEL_NAME = "tuned_gradient_boosting_regressor"
 DEFAULT_TARGET_COLUMN = "forward_excess_return_5d"
@@ -151,7 +152,14 @@ def train_tuned_gradient_boosting_regressor(
 def _rank_features(X: pd.DataFrame, y: pd.Series) -> list[str]:
     # Absolute correlation is stable for perfectly linear features, where an
     # F-statistic can overflow because the residual variance approaches zero.
-    scores = X.apply(lambda column: column.corr(y)).abs().fillna(-np.inf)
+    scores = pd.Series(
+        {
+            column: abs(correlation)
+            if np.isfinite(correlation := safe_correlation(X[column], y))
+            else -np.inf
+            for column in X
+        }
+    )
     return [str(column) for column in scores.sort_values(ascending=False).index]
 
 

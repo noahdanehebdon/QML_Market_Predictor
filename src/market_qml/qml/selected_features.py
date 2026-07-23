@@ -8,6 +8,10 @@ import pandas as pd
 
 from market_qml.models.dataset import build_train_validation_datasets
 from market_qml.models.preprocessing import fit_transform_train_validation
+from market_qml.utils.statistics import (
+    absolute_correlation_matrix,
+    safe_correlation,
+)
 
 
 @dataclass(frozen=True)
@@ -60,14 +64,17 @@ def build_selected_qml_features(
             validation_end_date=split.validation_end_date,
         )
         data = fit_transform_train_validation(datasets)
-        correlations = (
-            data.train.X.apply(
-                lambda column: column.corr(pd.to_numeric(data.train.y, errors="coerce"))
-            )
-            .abs()
-            .fillna(0.0)
-            .sort_values(ascending=False)
-        )
+        target = pd.to_numeric(data.train.y, errors="coerce")
+        correlations = pd.Series(
+            {
+                column: abs(correlation)
+                if pd.notna(
+                    correlation := safe_correlation(data.train.X[column], target)
+                )
+                else 0.0
+                for column in data.train.X
+            }
+        ).sort_values(ascending=False)
         candidates = correlations.head(candidate_count).index.tolist()
         selected = _select_diverse(
             data.train.X[candidates],
@@ -97,7 +104,7 @@ def build_selected_qml_features(
                 axis=1,
             )
             output_frames.append(frame)
-        source_corr = data.train.X[selected].corr().abs()
+        source_corr = absolute_correlation_matrix(data.train.X[selected])
         for qubit, source in enumerate(selected):
             neighbor = selected[(qubit + 1) % len(selected)]
             manifest_rows.append(
@@ -130,7 +137,7 @@ def _select_diverse(
     n_qubits: int,
     threshold: float,
 ) -> list[str]:
-    correlations = X.corr().abs().fillna(0.0)
+    correlations = absolute_correlation_matrix(X)
     selected: list[str] = []
     for feature in ranked:
         if not selected or all(
@@ -149,7 +156,7 @@ def _select_diverse(
 
 def _order_by_relationship(X: pd.DataFrame, selected: list[str]) -> list[str]:
     """Order selected features so ring neighbors have meaningful relationships."""
-    correlations = X.corr().abs().fillna(0.0)
+    correlations = absolute_correlation_matrix(X)
     ordered = [selected[0]]
     remaining = set(selected[1:])
     while remaining:
