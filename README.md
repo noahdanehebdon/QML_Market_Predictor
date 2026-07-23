@@ -556,6 +556,18 @@ intervals, and the initial model-selection conclusion.
 
 The ingestion test suite includes mock API responses for Alpaca, BLS, Federal Reserve DDP, and SEC EDGAR so tests can run without live API calls or real API keys.
 
+## Paper-trading preparation
+
+The broker-independent trade-intent workflow converts current signals from an
+explicitly promoted model into deterministic, long-only target holdings and a
+dry-run JSON record. It validates freshness, finite values, portfolio constraints,
+turnover, artifact lineage, and locked-test separation. It cannot contact a broker
+or submit an order.
+
+See [docs/trade_intents.md](docs/trade_intents.md) for the private promotion
+manifest, required input schemas, conservative configuration, and reproducible
+dry-run command.
+
 ## Limitations
 
 - Results are backtests on a limited equity universe, not evidence of future
