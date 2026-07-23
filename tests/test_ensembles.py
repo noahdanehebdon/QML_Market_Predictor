@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
 
-from market_qml.models.ensembles import build_chronological_ensembles, eligible_regime_weights
+from market_qml.models.ensembles import (
+    build_chronological_ensembles,
+    eligible_regime_weights,
+)
 
 
 def _predictions():
@@ -12,7 +15,18 @@ def _predictions():
             for symbol_index, symbol in enumerate(["A", "B", "C", "D"]):
                 truth = symbol_index >= 2
                 for model, offset in [("classifier_a", 0.0), ("classifier_b", 0.08)]:
-                    rows.append({"symbol": symbol, "date": date, "y_true": int(truth), "y_score": np.clip(.15 + .7 * truth + offset, .01, .99), "forward_return": symbol_index / 100, "forward_excess_return": symbol_index / 100, "model_name": model, "split_id": split})
+                    rows.append(
+                        {
+                            "symbol": symbol,
+                            "date": date,
+                            "y_true": int(truth),
+                            "y_score": np.clip(0.15 + 0.7 * truth + offset, 0.01, 0.99),
+                            "forward_return": symbol_index / 100,
+                            "forward_excess_return": symbol_index / 100,
+                            "model_name": model,
+                            "split_id": split,
+                        }
+                    )
     return pd.DataFrame(rows)
 
 
@@ -23,7 +37,9 @@ def test_ensembles_use_only_prior_fold_history_and_emit_sensitivity():
     later = diagnostics.loc[diagnostics["split_id"].eq(1)]
     assert first["weight_source"].eq("equal_weight_insufficient_history").all()
     assert later["weight_source"].eq("chronological_constrained").all()
-    assert diagnostics.groupby(["task", "split_id"])["weight"].sum().round(8).eq(1).all()
+    assert (
+        diagnostics.groupby(["task", "split_id"])["weight"].sum().round(8).eq(1).all()
+    )
     assert set(result.predictions["model_name"]) == {
         "classification_simple_average_ensemble",
         "classification_rank_average_ensemble",
@@ -35,7 +51,9 @@ def test_ensembles_use_only_prior_fold_history_and_emit_sensitivity():
 def test_future_fold_changes_cannot_change_earlier_ensemble_scores():
     original = _predictions()
     changed = original.copy()
-    changed.loc[changed["split_id"].eq(2), "y_score"] = 1 - changed.loc[changed["split_id"].eq(2), "y_score"]
+    changed.loc[changed["split_id"].eq(2), "y_score"] = (
+        1 - changed.loc[changed["split_id"].eq(2), "y_score"]
+    )
     left = build_chronological_ensembles(original, min_history_rows=8).predictions
     right = build_chronological_ensembles(changed, min_history_rows=8).predictions
     keys = ["model_name", "split_id", "symbol", "date"]

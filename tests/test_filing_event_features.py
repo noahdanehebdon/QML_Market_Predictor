@@ -36,7 +36,13 @@ def _submissions() -> pd.DataFrame:
                 "2023-12-31",
             ],
             "accession_number": ["a-10k", "a-8k-1", "a-10q", "a-8k-2", "m-10k"],
-            "primary_document": ["10k.htm", "8k1.htm", "10q.htm", "8k2.htm", "m10k.htm"],
+            "primary_document": [
+                "10k.htm",
+                "8k1.htm",
+                "10q.htm",
+                "8k2.htm",
+                "m10k.htm",
+            ],
         }
     )
 
@@ -110,7 +116,9 @@ def test_merge_filing_event_features_adds_recent_and_form_indicators():
     events = build_filing_event_features(_submissions())
 
     result = merge_filing_event_features(_market_features(), events)
-    row = result[(result["symbol"] == "AAPL") & (result["date"] == pd.Timestamp("2024-05-10"))].iloc[0]
+    row = result[
+        (result["symbol"] == "AAPL") & (result["date"] == pd.Timestamp("2024-05-10"))
+    ].iloc[0]
 
     assert row["sec_recent_filing_30d"]
     assert row["sec_recent_8k_30d"]

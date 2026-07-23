@@ -13,7 +13,6 @@ from market_qml.qml.qcnn_stability import (
     save_qcnn_stability_result,
 )
 
-
 DEFAULT_SAMPLE_PATH = Path("data/features/qml_sample_grouped_smoke.parquet")
 DEFAULT_LABEL_PATH = Path("data/labels/forward_return_labels.parquet")
 DEFAULT_OUTPUT_DIR = Path("reports/qcnn_stability")

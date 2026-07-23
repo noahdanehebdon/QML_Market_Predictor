@@ -30,9 +30,7 @@ def _dataset(
             {
                 "symbol": ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META"][: len(X)],
                 "date": pd.date_range(start, periods=len(X), freq="D"),
-                "forward_return_5d": [0.02, -0.01, 0.03, 0.01, -0.02, 0.04][
-                    : len(X)
-                ],
+                "forward_return_5d": [0.02, -0.01, 0.03, 0.01, -0.02, 0.04][: len(X)],
                 "forward_excess_return_5d": [
                     0.01,
                     -0.02,

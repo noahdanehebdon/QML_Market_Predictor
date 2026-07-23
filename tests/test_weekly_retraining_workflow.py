@@ -2,7 +2,6 @@ from pathlib import Path
 
 import yaml
 
-
 WORKFLOW_PATH = Path(".github/workflows/weekly-retraining.yml")
 
 
@@ -109,9 +108,12 @@ def test_weekly_retraining_full_experiment_is_explicit_and_private():
     assert "tuned_gradient_boosting_regressor" in experiment["run"]
     assert "scripts/compare_qml_models.py" in experiment["run"]
     assert "scripts.build_definitive_qml_comparison" in experiment["run"]
-    assert "definitive_private" not in WORKFLOW_PATH.read_text(encoding="utf-8").split(
-        "actions/upload-artifact"
-    )[-1]
+    assert (
+        "definitive_private"
+        not in WORKFLOW_PATH.read_text(encoding="utf-8").split(
+            "actions/upload-artifact"
+        )[-1]
+    )
     assert '--train-rows "$QUANTUM_SAMPLE_ROWS"' in experiment["run"]
     assert '--iterations "$QUANTUM_ITERATIONS"' in experiment["run"]
     assert "actions/upload-artifact" not in WORKFLOW_PATH.read_text(encoding="utf-8")

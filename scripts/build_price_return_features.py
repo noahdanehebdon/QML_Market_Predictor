@@ -10,7 +10,6 @@ from market_qml.features.returns import (
     build_price_return_features,
 )
 
-
 DEFAULT_PRICE_PATH = Path("data/processed/prices.parquet")
 DEFAULT_OUTPUT_PATH = Path("data/features/price_return_features.parquet")
 

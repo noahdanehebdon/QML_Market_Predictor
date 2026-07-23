@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
-import pickle
 
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -13,11 +13,12 @@ from market_qml.models.predictions import build_prediction_table
 from market_qml.models.predictions import save_predictions as save_prediction_table
 from market_qml.models.preprocessing import PreprocessedTrainValidation
 
-
 MODEL_NAME = "random_forest"
 DEFAULT_MODEL_PATH = Path("artifacts/models/random_forest.pkl")
 DEFAULT_PREDICTION_PATH = Path("data/processed/predictions_random_forest.parquet")
-DEFAULT_IMPORTANCE_PATH = Path("data/processed/feature_importance_random_forest.parquet")
+DEFAULT_IMPORTANCE_PATH = Path(
+    "data/processed/feature_importance_random_forest.parquet"
+)
 
 
 @dataclass(frozen=True)

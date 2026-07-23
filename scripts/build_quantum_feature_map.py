@@ -14,7 +14,6 @@ from market_qml.qml.feature_map import (
 )
 from market_qml.qml.interface import build_qml_train_validation
 
-
 DEFAULT_SAMPLE_PATH = Path(
     "data/features/qml_classification_grouped_pca_features.parquet"
 )

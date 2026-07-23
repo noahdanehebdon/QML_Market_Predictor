@@ -44,7 +44,9 @@ def main() -> None:
     inputs = [args.portfolio_returns, args.model_summary, args.regime_metrics]
     missing = [str(path) for path in inputs if not path.exists()]
     if missing:
-        raise FileNotFoundError("Required chart inputs are missing: " + ", ".join(missing))
+        raise FileNotFoundError(
+            "Required chart inputs are missing: " + ", ".join(missing)
+        )
 
     paths = generate_backtest_charts(
         portfolio_returns=pd.read_parquet(args.portfolio_returns),

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 BENCHMARK_WINDOWS = [20, 60]
 EXCESS_RETURN_WINDOWS = [1, 5, 20, 60]
 REQUIRED_BENCHMARK_COLUMNS = {"symbol", "date", "return_1d"}
@@ -66,15 +65,21 @@ def add_benchmark_relative_features(
     grouped = result.groupby("symbol", sort=False, group_keys=False)
 
     for window in windows:
-        result[f"rolling_corr_{window}d_vs_{benchmark_symbol.lower()}"] = result.groupby(
-            "symbol",
-            sort=False,
-            group_keys=False,
-        )[["return_1d", "benchmark_return_1d"]].apply(
-            lambda group: group["return_1d"].rolling(
-                window=window,
-                min_periods=window,
-            ).corr(group["benchmark_return_1d"])
+        result[f"rolling_corr_{window}d_vs_{benchmark_symbol.lower()}"] = (
+            result.groupby(
+                "symbol",
+                sort=False,
+                group_keys=False,
+            )[["return_1d", "benchmark_return_1d"]].apply(
+                lambda group: (
+                    group["return_1d"]
+                    .rolling(
+                        window=window,
+                        min_periods=window,
+                    )
+                    .corr(group["benchmark_return_1d"])
+                )
+            )
         )
 
         rolling_cov = result.groupby(
@@ -82,10 +87,14 @@ def add_benchmark_relative_features(
             sort=False,
             group_keys=False,
         )[["return_1d", "benchmark_return_1d"]].apply(
-            lambda group: group["return_1d"].rolling(
-                window=window,
-                min_periods=window,
-            ).cov(group["benchmark_return_1d"], ddof=0)
+            lambda group: (
+                group["return_1d"]
+                .rolling(
+                    window=window,
+                    min_periods=window,
+                )
+                .cov(group["benchmark_return_1d"], ddof=0)
+            )
         )
         benchmark_variance = grouped["benchmark_return_1d"].transform(
             lambda returns: returns.rolling(
@@ -99,19 +108,27 @@ def add_benchmark_relative_features(
 
         stock_vol_column = f"realized_vol_{window}d"
         benchmark_vol_column = f"benchmark_realized_vol_{window}d"
-        if stock_vol_column in result.columns and benchmark_vol_column in result.columns:
+        if (
+            stock_vol_column in result.columns
+            and benchmark_vol_column in result.columns
+        ):
             result[f"relative_vol_{window}d_vs_{benchmark_symbol.lower()}"] = (
                 result[stock_vol_column] / result[benchmark_vol_column]
             )
 
         stock_return_column = f"return_{window}d"
         benchmark_return_column = f"benchmark_return_{window}d"
-        if stock_return_column in result.columns and benchmark_return_column in result.columns:
+        if (
+            stock_return_column in result.columns
+            and benchmark_return_column in result.columns
+        ):
             result[f"relative_momentum_{window}d_vs_{benchmark_symbol.lower()}"] = (
                 result[stock_return_column] - result[benchmark_return_column]
             )
 
-    result = result.drop(columns=[column for column in result.columns if column.startswith("benchmark_")])
+    result = result.drop(
+        columns=[column for column in result.columns if column.startswith("benchmark_")]
+    )
     return result.sort_values(["symbol", "date"]).reset_index(drop=True)
 
 

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 VOLATILITY_WINDOWS = [5, 20, 60]
 TRADING_DAYS_PER_YEAR = 252
 REQUIRED_RETURN_COLUMNS = {"symbol", "date", "return_1d"}
@@ -53,9 +52,11 @@ def add_volatility_features(
 
     for window in windows:
         rolling_std = returns_by_symbol.transform(
-            lambda returns: returns.rolling(window=window, min_periods=window).std(ddof=0)
+            lambda returns: returns.rolling(window=window, min_periods=window).std(
+                ddof=0
+            )
         )
-        result[f"realized_vol_{window}d"] = rolling_std * (annualization_factor ** 0.5)
+        result[f"realized_vol_{window}d"] = rolling_std * (annualization_factor**0.5)
 
     return result
 

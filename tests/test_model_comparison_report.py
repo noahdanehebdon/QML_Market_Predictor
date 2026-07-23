@@ -6,7 +6,6 @@ from market_qml.reporting.model_comparison import (
     save_model_comparison_report,
 )
 
-
 MODELS = ["logistic_regression", "gradient_boosting", "vqc", "qsvm", "qcnn"]
 
 

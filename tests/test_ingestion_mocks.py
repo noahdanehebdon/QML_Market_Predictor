@@ -1,8 +1,7 @@
 import pytest
 import requests
 
-from market_qml.ingestion import prices
-from market_qml.ingestion import sec
+from market_qml.ingestion import prices, sec
 from scripts import pull_macro
 
 

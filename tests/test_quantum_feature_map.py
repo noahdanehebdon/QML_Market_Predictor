@@ -37,9 +37,7 @@ def test_feature_map_outputs_normalized_states_and_circuit_description():
     result = feature_map.transform(data.train)
 
     assert result.states.shape == (4, 8)
-    assert np.sum(np.abs(result.states) ** 2, axis=1) == pytest.approx(
-        np.ones(4)
-    )
+    assert np.sum(np.abs(result.states) ** 2, axis=1) == pytest.approx(np.ones(4))
     assert result.angles.shape == (4, 3)
     assert result.metadata["symbol"].tolist() == ["SYM0", "SYM1", "SYM2", "SYM3"]
     assert result.config.backend == "numpy_statevector"
@@ -75,9 +73,7 @@ def test_feature_map_adds_selected_feature_interaction_reuploading():
 
 def test_fidelity_kernel_is_symmetric_bounded_and_has_unit_diagonal():
     data = build_qml_train_validation(_sample(), split_id=0)
-    feature_map = QuantumKernelFeatureMap(
-        QuantumFeatureMapConfig(n_qubits=3)
-    )
+    feature_map = QuantumKernelFeatureMap(QuantumFeatureMapConfig(n_qubits=3))
 
     kernel = feature_map.kernel(data.train)
     cross_kernel = feature_map.kernel(data.validation, data.train)

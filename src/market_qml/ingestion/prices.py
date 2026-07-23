@@ -16,7 +16,6 @@ from typing import Any
 import pandas as pd
 import requests
 
-
 ALPACA_STOCK_BARS_URL = "https://data.alpaca.markets/v2/stocks/bars"
 DEFAULT_ALPACA_TRADING_BASE_URL = "https://paper-api.alpaca.markets"
 
@@ -173,7 +172,9 @@ def _normalize_bar_pages(pages: list[dict[str, Any]]) -> pd.DataFrame:
     return df
 
 
-def fetch_alpaca_bars(request: PriceRequest) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
+def fetch_alpaca_bars(
+    request: PriceRequest,
+) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
     """Fetch all paginated historical bars for the requested symbols."""
     if not request.symbols:
         raise ValueError("PriceRequest.symbols cannot be empty.")

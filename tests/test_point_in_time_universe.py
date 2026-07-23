@@ -26,11 +26,23 @@ def _prices() -> pd.DataFrame:
 def _assets() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"symbol": symbol, "effective_date": "2024-01-01", "asset_class": "us_equity", "status": "active", "tradable": True}
+            {
+                "symbol": symbol,
+                "effective_date": "2024-01-01",
+                "asset_class": "us_equity",
+                "status": "active",
+                "tradable": True,
+            }
             for symbol in ["AAA", "BBB", "CCC", "SPY"]
         ]
         + [
-            {"symbol": "BBB", "effective_date": "2024-01-08", "asset_class": "us_equity", "status": "inactive", "tradable": False}
+            {
+                "symbol": "BBB",
+                "effective_date": "2024-01-08",
+                "asset_class": "us_equity",
+                "status": "inactive",
+                "tradable": False,
+            }
         ]
     )
 
@@ -38,9 +50,27 @@ def _assets() -> pd.DataFrame:
 def _metadata() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"symbol": "AAA", "effective_date": "2024-01-01", "sector": "tech", "industry": "software", "market_cap": 100.0},
-            {"symbol": "BBB", "effective_date": "2024-01-01", "sector": "finance", "industry": "banks", "market_cap": 200.0},
-            {"symbol": "CCC", "effective_date": "2024-01-01", "sector": "health", "industry": "biotech", "market_cap": 50.0},
+            {
+                "symbol": "AAA",
+                "effective_date": "2024-01-01",
+                "sector": "tech",
+                "industry": "software",
+                "market_cap": 100.0,
+            },
+            {
+                "symbol": "BBB",
+                "effective_date": "2024-01-01",
+                "sector": "finance",
+                "industry": "banks",
+                "market_cap": 200.0,
+            },
+            {
+                "symbol": "CCC",
+                "effective_date": "2024-01-01",
+                "sector": "health",
+                "industry": "biotech",
+                "market_cap": 50.0,
+            },
         ]
     )
 

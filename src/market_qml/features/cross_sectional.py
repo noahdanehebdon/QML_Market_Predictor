@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pandas as pd
 
-
 DEFAULT_RANK_FEATURES = (
     "return_5d",
     "return_20d",

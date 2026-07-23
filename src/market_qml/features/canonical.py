@@ -8,7 +8,6 @@ import pandas as pd
 
 from market_qml.features.cross_sectional import add_cross_sectional_features
 
-
 REQUIRED_KEY_COLUMNS = {"symbol", "date"}
 LABEL_COLUMN_MARKERS = (
     "forward_return",
@@ -34,8 +33,7 @@ def build_canonical_features(
     label_columns = _label_columns(features.columns)
     if label_columns:
         raise ValueError(
-            "Feature table contains label columns: "
-            + ", ".join(sorted(label_columns))
+            "Feature table contains label columns: " + ", ".join(sorted(label_columns))
         )
 
     result = features.copy()
@@ -60,8 +58,7 @@ def build_canonical_features(
             for row in duplicated.head(5).itertuples(index=False)
         ]
         raise ValueError(
-            "Feature table contains duplicate symbol/date rows: "
-            + ", ".join(examples)
+            "Feature table contains duplicate symbol/date rows: " + ", ".join(examples)
         )
 
     return result.sort_values(["symbol", "date"]).reset_index(drop=True)

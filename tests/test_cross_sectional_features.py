@@ -7,8 +7,7 @@ def test_add_cross_sectional_features_ranks_within_each_date_and_flags_missing()
     features = pd.DataFrame(
         {
             "symbol": ["A", "B", "C", "A", "B", "C"],
-            "date": [pd.Timestamp("2024-01-01")] * 3
-            + [pd.Timestamp("2024-01-02")] * 3,
+            "date": [pd.Timestamp("2024-01-01")] * 3 + [pd.Timestamp("2024-01-02")] * 3,
             "return_5d": [1.0, 2.0, None, 30.0, 10.0, 20.0],
         }
     )

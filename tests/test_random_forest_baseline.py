@@ -3,6 +3,7 @@ import pytest
 from sklearn.ensemble import RandomForestClassifier
 
 from market_qml.models.dataset import ModelingDataset, TrainValidationDatasets
+from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
 from market_qml.models.preprocessing import fit_transform_train_validation
 from market_qml.models.random_forest import (
     MODEL_NAME,
@@ -11,7 +12,6 @@ from market_qml.models.random_forest import (
     save_random_forest_model,
     train_random_forest,
 )
-from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
 
 
 def _dataset(
@@ -27,9 +27,7 @@ def _dataset(
             {
                 "symbol": ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META"][: len(X)],
                 "date": pd.date_range(start, periods=len(X), freq="D"),
-                "forward_return_5d": [0.02, -0.01, 0.03, 0.01, -0.02, 0.04][
-                    : len(X)
-                ],
+                "forward_return_5d": [0.02, -0.01, 0.03, 0.01, -0.02, 0.04][: len(X)],
                 "forward_excess_return_5d": [
                     0.01,
                     -0.02,

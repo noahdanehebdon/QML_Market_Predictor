@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 FILING_FORMS = ("10-K", "10-Q", "8-K")
 RECENT_FILING_WINDOW_DAYS = 30
 FORM_RECENT_WINDOWS_DAYS = {
@@ -233,7 +232,9 @@ def _asof_by_symbol(
 
     for symbol, symbol_market in market.groupby("symbol", sort=False):
         symbol_market = symbol_market.sort_values("date")
-        symbol_events = events[events["symbol"] == symbol].sort_values(event_date_column)
+        symbol_events = events[events["symbol"] == symbol].sort_values(
+            event_date_column
+        )
 
         if symbol_events.empty:
             merged = symbol_market.copy()

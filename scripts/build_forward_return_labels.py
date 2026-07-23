@@ -11,7 +11,6 @@ from market_qml.labels.forward_returns import (
     build_forward_return_label_table,
 )
 
-
 DEFAULT_PRICE_PATH = Path("data/processed/prices.parquet")
 DEFAULT_OUTPUT_PATH = Path("data/labels/forward_return_labels.parquet")
 

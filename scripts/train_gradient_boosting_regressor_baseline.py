@@ -28,7 +28,6 @@ from market_qml.models.preprocessing import (
     save_preprocessor,
 )
 
-
 DEFAULT_PREPROCESSOR_PATH = Path(
     "artifacts/preprocessing/gradient_boosting_regressor_split_000.pkl"
 )

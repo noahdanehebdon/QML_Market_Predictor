@@ -7,10 +7,10 @@ from market_qml.qml.interface import build_qml_train_validation
 from market_qml.qml.vqc import (
     MODEL_NAME,
     _circuit_probabilities,
-    train_vqc,
     save_predictions,
     save_training_loss,
     save_validation_metrics,
+    train_vqc,
 )
 
 
@@ -85,7 +85,9 @@ def test_vqc_outputs_can_be_saved(tmp_path):
     save_training_loss(result.training_loss, loss_path)
     save_validation_metrics(result.validation_metrics, metrics_path)
 
-    assert pd.read_parquet(prediction_path)["model_name"].unique().tolist() == [MODEL_NAME]
+    assert pd.read_parquet(prediction_path)["model_name"].unique().tolist() == [
+        MODEL_NAME
+    ]
     assert pd.read_parquet(loss_path)["iteration"].tolist() == [1, 2, 3]
     assert pd.read_parquet(metrics_path)["split_id"].tolist() == [0]
 

@@ -11,7 +11,6 @@ from market_qml.features.macro import (
     build_macro_feature_table,
 )
 
-
 DEFAULT_FEATURE_PATH = Path("data/features/benchmark_relative_features.parquet")
 DEFAULT_MACRO_DAILY_PATH = Path("data/processed/macro_daily.parquet")
 DEFAULT_OUTPUT_PATH = Path("data/features/macro_features.parquet")

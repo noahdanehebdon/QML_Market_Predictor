@@ -18,7 +18,9 @@ from market_qml.universe import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--prices", type=Path, default=Path("data/processed/prices.parquet"))
+    parser.add_argument(
+        "--prices", type=Path, default=Path("data/processed/prices.parquet")
+    )
     parser.add_argument(
         "--asset-history",
         type=Path,
@@ -27,7 +29,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--metadata-history", type=Path)
     parser.add_argument("--config", type=Path, default=Path("configs/universe.yaml"))
     parser.add_argument(
-        "--output", type=Path, default=Path("data/processed/universe_membership.parquet")
+        "--output",
+        type=Path,
+        default=Path("data/processed/universe_membership.parquet"),
     )
     parser.add_argument(
         "--coverage", type=Path, default=Path("reports/universe_coverage.parquet")
@@ -59,7 +63,9 @@ def main() -> None:
     prices = pd.read_parquet(args.prices)
     assets = pd.read_parquet(args.asset_history)
     metadata = (
-        pd.read_parquet(args.metadata_history) if args.metadata_history is not None else None
+        pd.read_parquet(args.metadata_history)
+        if args.metadata_history is not None
+        else None
     )
     membership = build_point_in_time_universe(
         prices,

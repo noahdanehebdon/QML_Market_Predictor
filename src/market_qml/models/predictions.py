@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 REQUIRED_PREDICTION_COLUMNS = [
     "symbol",
     "date",
@@ -99,9 +98,7 @@ def _find_forward_return_column(metadata: pd.DataFrame) -> str:
         return "forward_return"
 
     candidates = [
-        column
-        for column in metadata.columns
-        if column.startswith("forward_return_")
+        column for column in metadata.columns if column.startswith("forward_return_")
     ]
     if len(candidates) != 1:
         raise ValueError(

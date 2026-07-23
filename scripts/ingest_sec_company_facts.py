@@ -20,7 +20,6 @@ from market_qml.ingestion.sec import (
     save_raw_company_facts,
 )
 
-
 LOGGER = logging.getLogger(__name__)
 DEFAULT_DATA_SOURCES_CONFIG_PATH = Path("configs/data_sources.yaml")
 DEFAULT_LOOKUP_PATH = Path("data/processed/sec_ticker_cik_lookup.parquet")
@@ -165,7 +164,9 @@ def main() -> None:
     LOGGER.info("Saved raw SEC companyfacts to: %s", args.raw_dir)
     LOGGER.info("Saved normalized fundamentals to: %s", args.output)
     LOGGER.info("Rows: %s", len(normalized))
-    LOGGER.info("Concepts: %s", ", ".join(sorted(normalized["concept"].dropna().unique())))
+    LOGGER.info(
+        "Concepts: %s", ", ".join(sorted(normalized["concept"].dropna().unique()))
+    )
 
 
 if __name__ == "__main__":

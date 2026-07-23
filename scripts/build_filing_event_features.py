@@ -7,7 +7,6 @@ from pathlib import Path
 
 from market_qml.features.filing_events import build_filing_event_feature_table
 
-
 DEFAULT_FEATURE_PATH = Path("data/features/fundamental_features.parquet")
 DEFAULT_SUBMISSIONS_PATH = Path("data/processed/sec_submissions.parquet")
 DEFAULT_OUTPUT_PATH = Path("data/features/filing_event_features.parquet")

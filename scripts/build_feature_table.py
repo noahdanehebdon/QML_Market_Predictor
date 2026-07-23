@@ -7,7 +7,6 @@ from pathlib import Path
 
 from market_qml.features.canonical import build_canonical_feature_table
 
-
 DEFAULT_FEATURE_PATH = Path("data/features/filing_event_features.parquet")
 DEFAULT_OUTPUT_PATH = Path("data/features/feature_table.parquet")
 

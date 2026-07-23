@@ -12,4 +12,6 @@ def test_load_macro_config_reads_expected_series():
     assert bls_series["cpi_all_items_sa"] == "CUSR0000SA0"
     assert bls_series["unemployment_rate"] == "LNS14000000"
     assert fed_series["treasury_10y"]["series_id"] == "RIFLGFCY10_N.B"
-    assert fed_series["treasury_10y"]["url"].startswith("https://www.federalreserve.gov/")
+    assert fed_series["treasury_10y"]["url"].startswith(
+        "https://www.federalreserve.gov/"
+    )

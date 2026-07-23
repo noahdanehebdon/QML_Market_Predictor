@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import is_bool_dtype, is_numeric_dtype
 
-
 KEYS = ["symbol", "date"]
 FAMILY_PREFIXES = {
     "benchmark": ("spy_", "benchmark_", "beta_", "excess_", "relative_"),

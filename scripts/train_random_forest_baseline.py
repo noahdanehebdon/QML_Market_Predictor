@@ -27,7 +27,6 @@ from market_qml.models.random_forest import (
     train_random_forest,
 )
 
-
 DEFAULT_PREPROCESSOR_PATH = Path("artifacts/preprocessing/random_forest_split_000.pkl")
 
 

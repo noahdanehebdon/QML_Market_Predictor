@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
-
 
 DEFAULT_DATA_DIR = Path("data/processed")
 DEFAULT_MANIFEST_NAME = "data_manifest.json"
@@ -23,7 +22,9 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def build_manifest(data_dir: Path, *, manifest_name: str = DEFAULT_MANIFEST_NAME) -> dict:
+def build_manifest(
+    data_dir: Path, *, manifest_name: str = DEFAULT_MANIFEST_NAME
+) -> dict:
     """Describe every processed file with its size and content digest."""
     files = []
     for path in sorted(data_dir.rglob("*")):
@@ -80,7 +81,9 @@ def verify_manifest(data_dir: Path, manifest_path: Path) -> None:
             parts.append("unexpected: " + ", ".join(unexpected))
         if changed:
             parts.append("checksum mismatch: " + ", ".join(changed))
-        raise ValueError("Processed data failed manifest verification (" + "; ".join(parts) + ").")
+        raise ValueError(
+            "Processed data failed manifest verification (" + "; ".join(parts) + ")."
+        )
 
 
 def parse_args() -> argparse.Namespace:

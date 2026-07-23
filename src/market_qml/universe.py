@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-
 REQUIRED_PRICE_COLUMNS = {"symbol", "date", "close", "volume"}
 REQUIRED_ASSET_COLUMNS = {
     "symbol",
@@ -73,9 +72,9 @@ def build_point_in_time_universe(
     panel["has_price"] = panel["close"].notna() & panel["volume"].notna()
     panel["dollar_volume"] = panel["close"] * panel["volume"]
     panel["history_days"] = panel.groupby("symbol", sort=False)["has_price"].cumsum()
-    panel["trailing_median_dollar_volume"] = panel.groupby(
-        "symbol", sort=False
-    )["dollar_volume"].transform(
+    panel["trailing_median_dollar_volume"] = panel.groupby("symbol", sort=False)[
+        "dollar_volume"
+    ].transform(
         lambda values: values.rolling(
             rules.liquidity_window, min_periods=rules.liquidity_window
         ).median()
@@ -91,9 +90,7 @@ def build_point_in_time_universe(
             panel[column] = pd.NA
     panel["market_cap"] = pd.to_numeric(panel["market_cap"], errors="coerce")
 
-    panel["eligible_price"] = panel["has_price"] & (
-        panel["close"] >= rules.min_price
-    )
+    panel["eligible_price"] = panel["has_price"] & (panel["close"] >= rules.min_price)
     panel["eligible_liquidity"] = panel["trailing_median_dollar_volume"] >= (
         rules.min_median_dollar_volume
     )
@@ -131,36 +128,47 @@ def universe_diagnostics(
         "Membership",
     )
     ordered = membership.sort_values(["symbol", "date"]).copy()
-    previous = ordered.groupby("symbol", sort=False)["is_member"].shift(fill_value=False)
+    previous = ordered.groupby("symbol", sort=False)["is_member"].shift(
+        fill_value=False
+    )
     ordered["entered"] = ordered["is_member"] & ~previous
     ordered["exited"] = ~ordered["is_member"] & previous
-    transitions = ordered.loc[ordered["entered"] | ordered["exited"], [
-        "date", "symbol", "entered", "exited", "sector", "size_bucket"
-    ]].reset_index(drop=True)
+    transitions = ordered.loc[
+        ordered["entered"] | ordered["exited"],
+        ["date", "symbol", "entered", "exited", "sector", "size_bucket"],
+    ].reset_index(drop=True)
 
-    daily = ordered.groupby("date", sort=True).agg(
-        observed_names=("has_price", "sum"),
-        member_count=("is_member", "sum"),
-        entries=("entered", "sum"),
-        exits=("exited", "sum"),
-    ).reset_index()
+    daily = (
+        ordered.groupby("date", sort=True)
+        .agg(
+            observed_names=("has_price", "sum"),
+            member_count=("is_member", "sum"),
+            entries=("entered", "sum"),
+            exits=("exited", "sum"),
+        )
+        .reset_index()
+    )
     member_rows = ordered.loc[ordered["is_member"]]
     sector_counts = member_rows.groupby("date")["sector"].nunique(dropna=True)
     size_counts = member_rows.groupby("date")["size_bucket"].nunique(dropna=True)
-    smallest_sector = member_rows.groupby(["date", "sector"], dropna=True).size().groupby(
-        "date"
-    ).min()
+    smallest_sector = (
+        member_rows.groupby(["date", "sector"], dropna=True)
+        .size()
+        .groupby("date")
+        .min()
+    )
     daily["sector_count"] = daily["date"].map(sector_counts).fillna(0).astype(int)
     daily["size_bucket_count"] = daily["date"].map(size_counts).fillna(0).astype(int)
-    daily["smallest_sector_names"] = daily["date"].map(smallest_sector).fillna(0).astype(int)
+    daily["smallest_sector_names"] = (
+        daily["date"].map(smallest_sector).fillna(0).astype(int)
+    )
     previous_count = daily["member_count"].shift()
     daily["membership_turnover"] = (
-        (daily["entries"] + daily["exits"]) / previous_count.replace(0, np.nan)
-    )
+        daily["entries"] + daily["exits"]
+    ) / previous_count.replace(0, np.nan)
     daily["stable_deciles"] = daily["member_count"] >= max(10, rules.min_names)
-    daily["stable_sector_controls"] = (
-        (daily["sector_count"] >= rules.min_sectors)
-        & (daily["smallest_sector_names"] >= rules.min_sector_names)
+    daily["stable_sector_controls"] = (daily["sector_count"] >= rules.min_sectors) & (
+        daily["smallest_sector_names"] >= rules.min_sector_names
     )
     summary = {
         "start_date": daily["date"].min(),
@@ -190,10 +198,14 @@ def _normalize_effective_history(data: pd.DataFrame, name: str) -> pd.DataFrame:
     return result.sort_values(["symbol", "effective_date"]).reset_index(drop=True)
 
 
-def _merge_effective_history(panel: pd.DataFrame, history: pd.DataFrame) -> pd.DataFrame:
+def _merge_effective_history(
+    panel: pd.DataFrame, history: pd.DataFrame
+) -> pd.DataFrame:
     pieces = []
     for symbol, symbol_panel in panel.groupby("symbol", sort=False):
-        symbol_history = history.loc[history["symbol"].eq(symbol)].drop(columns="symbol")
+        symbol_history = history.loc[history["symbol"].eq(symbol)].drop(
+            columns="symbol"
+        )
         merged = pd.merge_asof(
             symbol_panel.sort_values("date"),
             symbol_history.sort_values("effective_date"),
