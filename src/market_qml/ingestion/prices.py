@@ -18,6 +18,7 @@ import requests
 
 ALPACA_STOCK_BARS_URL = "https://data.alpaca.markets/v2/stocks/bars"
 DEFAULT_ALPACA_TRADING_BASE_URL = "https://paper-api.alpaca.markets"
+RETRIABLE_ALPACA_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
 
 @dataclass(frozen=True)
@@ -86,7 +87,10 @@ def _request_page(
             return response.json()
 
         # Retry common temporary failures.
-        if response.status_code in {429, 500, 502, 503, 504} and attempt < max_retries:
+        if (
+            response.status_code in RETRIABLE_ALPACA_STATUS_CODES
+            and attempt < max_retries
+        ):
             time.sleep(sleep_seconds * attempt)
             continue
 
@@ -261,27 +265,67 @@ def fetch_alpaca_asset_snapshot(
     *,
     snapshot_date: str | pd.Timestamp | None = None,
     trading_base_url: str | None = None,
+    max_attempts: int = 5,
+    initial_backoff_seconds: float = 2.0,
 ) -> pd.DataFrame:
-    """Fetch all current US-equity asset states for prospective daily archiving."""
+    """Fetch current US-equity assets, retrying temporary provider failures."""
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least 1.")
+    if initial_backoff_seconds < 0:
+        raise ValueError("initial_backoff_seconds cannot be negative.")
+
     base_url = trading_base_url or os.getenv(
         "ALPACA_TRADING_BASE_URL", DEFAULT_ALPACA_TRADING_BASE_URL
     )
     assets_url = f"{base_url.rstrip('/')}/v2/assets"
-    response = requests.get(
-        assets_url,
-        headers=_headers(),
-        params={"status": "all", "asset_class": "us_equity"},
-        timeout=30,
-    )
-    if response.status_code != 200:
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = requests.get(
+                assets_url,
+                headers=_headers(),
+                params={"status": "all", "asset_class": "us_equity"},
+                timeout=30,
+            )
+        except requests.RequestException as exc:
+            if attempt < max_attempts:
+                time.sleep(initial_backoff_seconds * 2 ** (attempt - 1))
+                continue
+            raise RuntimeError(
+                "Alpaca asset request failed after "
+                f"{max_attempts} attempts. Host={base_url}. "
+                f"Last network error={exc}."
+            ) from exc
+
+        if response.status_code == 200:
+            date = snapshot_date or pd.Timestamp.now(tz="UTC").normalize().tz_localize(
+                None
+            )
+            return normalize_asset_snapshot(response.json(), snapshot_date=date)
+
+        if (
+            response.status_code in RETRIABLE_ALPACA_STATUS_CODES
+            and attempt < max_attempts
+        ):
+            time.sleep(initial_backoff_seconds * 2 ** (attempt - 1))
+            continue
+
+        if response.status_code in RETRIABLE_ALPACA_STATUS_CODES:
+            raise RuntimeError(
+                "Alpaca asset request failed after "
+                f"{max_attempts} attempts. Host={base_url}. "
+                f"Status={response.status_code}. Response={response.text[:500]}. "
+                "Alpaca reported a temporary failure; retry the job later if it "
+                "persists."
+            )
+
         raise RuntimeError(
             "Alpaca asset request failed. "
             f"Host={base_url}. Status={response.status_code}. "
             f"Response={response.text[:500]}. Confirm the host matches the "
             "paper or live credentials in GitHub Secrets."
         )
-    date = snapshot_date or pd.Timestamp.now(tz="UTC").normalize().tz_localize(None)
-    return normalize_asset_snapshot(response.json(), snapshot_date=date)
+
+    raise RuntimeError("Alpaca asset request failed after retries.")
 
 
 def save_raw_pages(pages: list[dict[str, Any]], output_path: str | Path) -> None:
