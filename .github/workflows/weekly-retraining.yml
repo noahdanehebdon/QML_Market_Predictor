@@ -121,6 +121,7 @@ jobs:
           python -m scripts.build_forward_return_labels \
             --horizon "$TARGET_HORIZON_DAYS"
           python -m scripts.build_walk_forward_splits \
+            --target-horizon-days "$TARGET_HORIZON_DAYS" \
             --purge-days "$TARGET_HORIZON_DAYS" \
             --embargo-days "$TARGET_HORIZON_DAYS"
 
