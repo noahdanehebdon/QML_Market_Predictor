@@ -9,9 +9,14 @@ python -m mypy src/market_qml/cli.py scripts/check_git_data_policy.py scripts/ve
 python -m pytest -q --cov=market_qml --cov-report=term-missing:skip-covered --cov-report=json:coverage.json --cov-fail-under=82
 python -m build
 python -m twine check dist/*
-python -m scripts.verify_wheel_install dist/*.whl
+$wheel = Get-ChildItem dist -Filter "*.whl" | Select-Object -First 1 -ExpandProperty FullName
+python -m scripts.verify_wheel_install $wheel
 python -m pip_audit . --strict
 ```
+
+PowerShell does not expand `*.whl` for native commands, so the wheel path is
+resolved explicitly above. In Bash, `python -m scripts.verify_wheel_install
+dist/*.whl` remains valid.
 
 ## Coverage baseline
 

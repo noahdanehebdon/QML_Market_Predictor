@@ -1,5 +1,8 @@
+import warnings
+
 import numpy as np
 import pandas as pd
+from scipy.stats import ConstantInputWarning
 
 from market_qml.models.ensembles import (
     build_chronological_ensembles,
@@ -68,3 +71,17 @@ def test_regime_conditioning_requires_sufficient_samples():
     eligible = result.set_index("regime")["eligible_for_conditioning"]
     assert not eligible["high"]
     assert eligible["low"]
+
+
+def test_constant_removal_scores_do_not_emit_correlation_warnings():
+    predictions = _predictions()
+    predictions.loc[predictions["model_name"].eq("classifier_b"), "y_score"] = 0.5
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        result = build_chronological_ensembles(predictions, min_history_rows=8)
+
+    assert not any(
+        isinstance(warning.message, ConstantInputWarning) for warning in captured
+    )
+    assert result.sensitivity["score_correlation"].isna().any()

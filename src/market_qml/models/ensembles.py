@@ -11,6 +11,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss
 
 from market_qml.models.predictions import REQUIRED_PREDICTION_COLUMNS
+from market_qml.utils.statistics import safe_correlation
 
 KEYS = [
     "symbol",
@@ -134,10 +135,8 @@ def build_chronological_ensembles(
                         "task": task,
                         "split_id": int(split_id),
                         "removed_model": removed,
-                        "score_correlation": float(
-                            pd.Series(full_score).corr(
-                                pd.Series(removal), method="spearman"
-                            )
+                        "score_correlation": safe_correlation(
+                            full_score, removal, method="spearman"
                         ),
                         "mean_absolute_change": float(
                             np.mean(np.abs(full_score - removal))
@@ -211,7 +210,9 @@ def _learn_weights(
                 .groupby("split_id")
                 .apply(
                     lambda f: (
-                        -f["_score"].corr(f["forward_excess_return"], method="spearman")
+                        -safe_correlation(
+                            f["_score"], f["forward_excess_return"], method="spearman"
+                        )
                     ),
                     include_groups=False,
                 )

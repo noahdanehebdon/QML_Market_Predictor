@@ -104,9 +104,14 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install --editable ".[dev]"
+Get-Command ingest-prices
 ```
 
-On macOS or Linux, activate with `source .venv/bin/activate`.
+The final command confirms that the virtual environment's console scripts are
+available. If it cannot find `ingest-prices`, reactivate `.venv`; do not rely on
+commands installed into an unrelated global Python environment. On macOS or
+Linux, activate with `source .venv/bin/activate` and verify with
+`command -v ingest-prices`.
 
 Copy `.env.example` to `.env` and add only the credentials needed for your
 workflow. Never commit `.env`.
