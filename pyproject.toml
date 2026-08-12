@@ -35,6 +35,11 @@ dev = [
 dashboard = [
     "streamlit>=1.36,<2",
 ]
+quantum = [
+    "qiskit~=2.5.0",
+    "qiskit-ibm-runtime~=0.47.0",
+    "qiskit-aer~=0.17",
+]
 tracking = [
     "mlflow-skinny>=3.11.1",
 ]
