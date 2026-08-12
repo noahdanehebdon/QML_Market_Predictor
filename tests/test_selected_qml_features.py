@@ -25,6 +25,9 @@ def _inputs():
                     "forward_return_5d": excess + 0.002,
                     "forward_excess_return_5d": excess,
                     "outperform_spy_5d": int(excess > 0),
+                    "forward_return_10d": excess * 2 + 0.002,
+                    "forward_excess_return_10d": excess * 2,
+                    "outperform_spy_10d": int(excess > 0),
                 }
             )
     splits = pd.DataFrame(
@@ -70,3 +73,20 @@ def test_selected_qml_features_use_classical_budget_and_outer_training_only():
         result.manifest["source_feature"].tolist()
         == changed.manifest["source_feature"].tolist()
     )
+
+
+def test_selected_qml_features_support_development_selected_horizon():
+    features, labels, splits, diagnostics = _inputs()
+
+    result = build_selected_qml_features(
+        features=features,
+        labels=labels,
+        splits=splits,
+        selection_diagnostics=diagnostics,
+        target_horizon_days=10,
+    )
+
+    assert "forward_return_10d" in result.features
+    assert "forward_excess_return_10d" in result.features
+    assert set(result.manifest["target_column"]) == {"outperform_spy_10d"}
+    assert set(result.manifest["target_horizon_days"]) == {10}

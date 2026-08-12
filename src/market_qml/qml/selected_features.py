@@ -26,6 +26,7 @@ def build_selected_qml_features(
     labels: pd.DataFrame,
     splits: pd.DataFrame,
     selection_diagnostics: pd.DataFrame,
+    target_horizon_days: int = 5,
     n_qubits: int = 8,
     correlation_threshold: float = 0.9,
 ) -> SelectedQMLFeatureResult:
@@ -38,6 +39,8 @@ def build_selected_qml_features(
     """
     if n_qubits <= 0:
         raise ValueError("n_qubits must be positive.")
+    if target_horizon_days <= 0:
+        raise ValueError("target_horizon_days must be positive.")
     if not 0 <= correlation_threshold <= 1:
         raise ValueError("correlation_threshold must be between zero and one.")
 
@@ -54,10 +57,13 @@ def build_selected_qml_features(
                 f"Expected one rank-1 classical selection for split {split_id}."
             )
         candidate_count = int(best.iloc[0]["feature_count"])
+        return_column = f"forward_return_{target_horizon_days}d"
+        excess_column = f"forward_excess_return_{target_horizon_days}d"
+        target_column = f"outperform_spy_{target_horizon_days}d"
         datasets = build_train_validation_datasets(
             features=features,
             labels=labels,
-            target_column="forward_excess_return_5d",
+            target_column=excess_column,
             train_start_date=split.train_start_date,
             train_end_date=split.train_end_date,
             validation_start_date=split.validation_start_date,
@@ -90,12 +96,12 @@ def build_selected_qml_features(
         qml_columns = [f"selected_feature_{index:02d}" for index in range(n_qubits)]
         for role, dataset in (("train", data.train), ("validation", data.validation)):
             frame = dataset.metadata[
-                ["symbol", "date", "forward_return_5d", "forward_excess_return_5d"]
+                ["symbol", "date", return_column, excess_column]
             ].copy()
             frame["split_id"] = split_id
             frame["sample_role"] = role
             frame["target"] = pd.to_numeric(
-                dataset.metadata["outperform_spy_5d"], errors="coerce"
+                dataset.metadata[target_column], errors="coerce"
             ).to_numpy()
             transformed = dataset.X[selected].copy()
             transformed.columns = qml_columns
@@ -114,6 +120,9 @@ def build_selected_qml_features(
                     "qml_feature": qml_columns[qubit],
                     "source_feature": source,
                     "target_abs_correlation": float(correlations[source]),
+                    "target_column": target_column,
+                    "return_column": excess_column,
+                    "target_horizon_days": target_horizon_days,
                     "next_qubit_source_feature": neighbor,
                     "neighbor_abs_correlation": float(
                         source_corr.loc[source, neighbor]

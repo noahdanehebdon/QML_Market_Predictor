@@ -43,7 +43,13 @@ def main() -> None:
     parser.add_argument("--iterations", type=int, default=10)
     parser.add_argument("--max-splits", type=int, default=None)
     parser.add_argument("--transaction-cost-bps", type=float, default=10.0)
-    parser.add_argument("--rebalance-frequency", type=int, default=5)
+    parser.add_argument(
+        "--target-horizon-days",
+        type=int,
+        default=5,
+        help="Forward target horizon; selects matching label and return columns.",
+    )
+    parser.add_argument("--rebalance-frequency", type=int, default=None)
     parser.add_argument(
         "--workers",
         type=int,
@@ -60,6 +66,7 @@ def main() -> None:
         labels=labels,
         splits=splits,
         selection_diagnostics=pd.read_parquet(args.classical_selection),
+        target_horizon_days=args.target_horizon_days,
     )
     data = selected.features
     result = run_model_comparison(
@@ -70,7 +77,13 @@ def main() -> None:
             vqc_iterations=args.iterations,
             qcnn_iterations=args.iterations,
             transaction_cost_bps=args.transaction_cost_bps,
-            rebalance_frequency=args.rebalance_frequency,
+            rebalance_frequency=(
+                args.rebalance_frequency
+                if args.rebalance_frequency is not None
+                else args.target_horizon_days
+            ),
+            return_horizon_days=args.target_horizon_days,
+            inner_purge_days=args.target_horizon_days,
             max_workers=args.workers,
         ),
     )

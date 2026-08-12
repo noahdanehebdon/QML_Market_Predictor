@@ -34,7 +34,10 @@ column (or another point-in-time column passed with `--sector-column`). Static
 present-day sector mappings must not be backfilled into historical rows.
 
 The five-day SPY sign label remains the comparison baseline. A chosen target is
-promoted only after its development-period stability or economic relevance is
-better than that baseline; otherwise the selection artifact documents the null
-result. The locked period is opened only after configurations are frozen and
+promoted only when its score exceeds the baseline by the configured practical
+margin, it has at least two chronological validation periods, no more than 20%
+missing labels, and positive rank IC in at least half of those periods.
+Classification candidates must also retain at least 60% balance quality. A
+failure of any gate records a null result rather than promoting a fragile
+winner. The locked period is opened only after configurations are frozen and
 access is logged through `scripts.log_locked_test_access`.

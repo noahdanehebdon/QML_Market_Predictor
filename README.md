@@ -44,6 +44,10 @@ predictions after transaction costs.
 - Research variants: multiple horizons, volatility normalization, and a neutral
   zone for small excess returns.
 
+Full experiments propagate one development-selected horizon through both model
+families, split purging, rebalancing, and annualization. The scheduled full-run
+default is the current 10-trading-day development candidate.
+
 Labels are purged at split boundaries so overlapping future-return windows do
 not leak into validation.
 

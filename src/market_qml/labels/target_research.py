@@ -50,6 +50,8 @@ def research_target_candidates(
     benchmark: str = "SPY",
     period_frequency: str = "Y",
     inner_folds: int = 3,
+    practical_score_margin: float = 0.01,
+    minimum_validation_periods: int = 2,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, object]]:
     """Measure candidates using development dates only and select two primaries."""
     development, _locked, manifest = partition_locked_test(
@@ -126,19 +128,30 @@ def research_target_candidates(
                 }
             )
     diagnostics = _assign_nested_roles(pd.DataFrame(rows), inner_folds=inner_folds)
-    selection = _select_primary_targets(diagnostics)
+    selection = _select_primary_targets(
+        diagnostics,
+        practical_score_margin=practical_score_margin,
+        minimum_validation_periods=minimum_validation_periods,
+    )
     manifest = {
         **manifest,
         "protocol_version": PROTOCOL_VERSION,
         "selection_scope": "development_only",
         "selection_validation": "nested_chronological_inner_outer",
         "inner_folds": inner_folds,
+        "practical_score_margin": practical_score_margin,
+        "minimum_validation_periods": minimum_validation_periods,
         "locked_test_rows_inspected": 0,
     }
     return diagnostics, selection, manifest
 
 
-def _select_primary_targets(diagnostics: pd.DataFrame) -> pd.DataFrame:
+def _select_primary_targets(
+    diagnostics: pd.DataFrame,
+    *,
+    practical_score_margin: float,
+    minimum_validation_periods: int,
+) -> pd.DataFrame:
     """Prefer stable, economically meaningful candidates without test access."""
     if diagnostics.empty:
         return pd.DataFrame()
@@ -155,6 +168,7 @@ def _select_primary_targets(diagnostics: pd.DataFrame) -> pd.DataFrame:
         mean_economic_magnitude=("economic_magnitude", "mean"),
         mean_missing_rate=("missing_rate", "mean"),
         class_balance=("positive_rate", lambda value: 1 - abs(value.mean() - 0.5) * 2),
+        positive_rank_ic_share=("rank_ic", lambda value: (value.dropna() > 0).mean()),
     )
     summary["selection_score"] = (
         summary["mean_rank_ic"].abs().fillna(0)
@@ -189,11 +203,22 @@ def _select_primary_targets(diagnostics: pd.DataFrame) -> pd.DataFrame:
             winner["comparison_baseline"] = baseline_name
             winner["baseline_score"] = baseline_score
             winner["improves_on_baseline"] = bool(
-                pd.isna(baseline_score) or winner["selection_score"] > baseline_score
+                pd.isna(baseline_score)
+                or winner["selection_score"] >= baseline_score + practical_score_margin
+            )
+            winner["passes_stability_gates"] = bool(
+                winner["periods"] >= minimum_validation_periods
+                and winner["mean_missing_rate"] <= 0.2
+                and winner["positive_rank_ic_share"] >= 0.5
+                and (
+                    role != "classification"
+                    or pd.isna(winner["class_balance"])
+                    or winner["class_balance"] >= 0.6
+                )
             )
             winner["decision"] = (
                 "promote_candidate"
-                if winner["improves_on_baseline"]
+                if winner["improves_on_baseline"] and winner["passes_stability_gates"]
                 else "retain_baseline_null_result"
             )
             selected.append(winner)

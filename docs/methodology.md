@@ -59,6 +59,13 @@ sector-relative variants when point-in-time sector data are available. Target se
 is deterministic and development-only. Every candidate uses a purge at least as long
 as its forward horizon. See [Prediction target research](prediction_targets.md).
 
+The full comparison accepts one explicit development-selected horizon and
+propagates it to classical and quantum target columns, split purging, the locked-
+period embargo, portfolio rebalancing, and annualization. Mixed-horizon comparisons
+are not permitted. Promotion also requires a practical score margin, repeated
+chronological evidence, bounded missingness, directional consistency, and adequate
+class balance.
+
 ## Feature construction and information timing
 
 Each observation is keyed by `(symbol, date)`. Features and labels are stored in
@@ -69,7 +76,9 @@ separate tables. Feature families include:
 - macro levels and changes aligned to when the value was actually available;
 - SEC fundamental values selected by filing/acceptance availability;
 - filing-event recency and cadence;
-- same-date cross-sectional ranks computed without using future dates;
+- same-date cross-sectional ranks and robust median/MAD z-scores computed without
+  using future dates;
+- within-sector ranks when effective-dated sector metadata are available;
 - volatility, rate, and yield-curve descriptors used for regime analysis.
 
 Rolling calculations operate within symbol using current-or-earlier observations.

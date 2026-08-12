@@ -73,6 +73,8 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Trading-day step between fixed validation windows.",
     )
+    parser.add_argument("--purge-days", type=int, default=None)
+    parser.add_argument("--embargo-days", type=int, default=None)
     return parser.parse_args()
 
 
@@ -91,9 +93,17 @@ def main() -> None:
         validation_window_days=int(walk_forward.get("validation_window_days", 126)),
         step_days=args.step_days,
         yearly_validation=args.yearly_validation,
-        purge_days=int(walk_forward.get("purge_days", 0)),
+        purge_days=(
+            args.purge_days
+            if args.purge_days is not None
+            else int(walk_forward.get("purge_days", 0))
+        ),
         locked_test_days=int(walk_forward.get("locked_test_days", 0)),
-        embargo_days=int(walk_forward.get("embargo_days", 0)),
+        embargo_days=(
+            args.embargo_days
+            if args.embargo_days is not None
+            else int(walk_forward.get("embargo_days", 0))
+        ),
     )
 
     print(f"Saved walk-forward split metadata to {args.output}")

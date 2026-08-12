@@ -150,6 +150,12 @@ label table.
 
 ## Cross-Sectional Features
 
+For the core momentum, volatility, liquidity, and benchmark-relative signals,
+the canonical table includes same-date percentile ranks, robust median/MAD
+z-scores clipped to `[-5, 5]`, and—when point-in-time sector metadata is
+available—within-sector percentile ranks. These transforms remove broad market
+and sector level effects without using information from another date.
+
 The canonical builder adds same-date percentile ranks for available momentum,
 volatility, volume-shock, and benchmark-relative momentum columns. Each ranked
 column receives an `_xs_rank` suffix and a companion `_missing` indicator.

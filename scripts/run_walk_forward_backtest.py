@@ -334,9 +334,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--rebalance-frequency",
         type=int,
-        default=DEFAULT_REBALANCE_FREQUENCY,
+        default=None,
         help="Number of prediction dates between portfolio rebalances.",
     )
+    parser.add_argument("--target-horizon-days", type=int, default=5)
     parser.add_argument(
         "--mlflow-experiment",
         default=DEFAULT_EXPERIMENT_NAME,
@@ -378,7 +379,13 @@ def main() -> None:
         top_k=args.top_k,
         top_fraction=args.top_fraction,
         transaction_cost_bps=args.transaction_cost_bps,
-        rebalance_frequency=args.rebalance_frequency,
+        rebalance_frequency=(
+            args.rebalance_frequency
+            if args.rebalance_frequency is not None
+            else args.target_horizon_days
+        ),
+        return_horizon_days=args.target_horizon_days,
+        target_horizon_days=args.target_horizon_days,
         enable_mlflow=not args.disable_mlflow,
         mlflow_experiment=args.mlflow_experiment,
         mlflow_run_name=args.mlflow_run_name,
@@ -405,6 +412,7 @@ def run_walk_forward_backtest(
     transaction_cost_bps: float = DEFAULT_TRANSACTION_COST_BPS,
     rebalance_frequency: int = DEFAULT_REBALANCE_FREQUENCY,
     return_horizon_days: int = DEFAULT_RETURN_HORIZON_DAYS,
+    target_horizon_days: int = 5,
     enable_mlflow: bool = False,
     mlflow_experiment: str = DEFAULT_EXPERIMENT_NAME,
     mlflow_run_name: str | None = None,
@@ -434,6 +442,7 @@ def run_walk_forward_backtest(
         universe_membership=universe_membership,
         splits=selected_splits,
         model_names=model_names,
+        target_horizon_days=target_horizon_days,
         artifact_dir=artifact_dir,
         run_config=run_config,
         git_sha=resolve_git_sha(),
@@ -566,6 +575,7 @@ def _walk_forward_predictions(
     universe_membership: pd.DataFrame | None,
     splits: pd.DataFrame,
     model_names: list[str],
+    target_horizon_days: int,
     artifact_dir: Path,
     run_config: dict,
     git_sha: str,
@@ -576,7 +586,10 @@ def _walk_forward_predictions(
     selection_diagnostic_frames = []
     artifact_records = []
     performance_rows = []
-    requested_specs = [(name, MODEL_REGISTRY[name]) for name in model_names]
+    requested_specs = [
+        (name, _spec_for_horizon(MODEL_REGISTRY[name], target_horizon_days))
+        for name in model_names
+    ]
     for split in splits.itertuples(index=False):
         contexts: dict[str, PreparedSplitContext] = {}
         for target_column in dict.fromkeys(
@@ -694,6 +707,21 @@ def _selected_splits(splits: pd.DataFrame, *, max_splits: int | None) -> pd.Data
     if max_splits is not None:
         selected = selected.head(max_splits)
     return selected
+
+
+def _spec_for_horizon(spec: ModelSpec, horizon_days: int) -> ModelSpec:
+    if horizon_days <= 0:
+        raise ValueError("target_horizon_days must be positive.")
+    target = spec.target_column
+    if target.startswith("outperform_spy_"):
+        target = f"outperform_spy_{horizon_days}d"
+    elif target.startswith("vol_normalized_excess_return_"):
+        target = f"vol_normalized_excess_return_{horizon_days}d"
+    elif target.startswith("forward_excess_return_"):
+        target = f"forward_excess_return_{horizon_days}d"
+    return ModelSpec(
+        target_column=target, train=spec.train, model_family=spec.model_family
+    )
 
 
 def _binary_predictions(predictions: pd.DataFrame) -> pd.DataFrame:
