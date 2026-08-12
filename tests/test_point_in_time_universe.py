@@ -173,3 +173,17 @@ def test_full_security_master_does_not_expand_the_priced_candidate_panel():
 
     assert set(result["symbol"]) == {"AAA", "BBB", "CCC", "SPY"}
     assert len(result) == 4 * _prices()["date"].nunique()
+
+
+def test_timestamp_resolutions_are_normalized_before_effective_history_merge():
+    prices = _prices().astype({"date": "datetime64[s]"})
+    assets = _assets()
+    assets["effective_date"] = pd.to_datetime(assets["effective_date"]).astype(
+        "datetime64[us]"
+    )
+
+    result = build_point_in_time_universe(prices, assets, rules=RULES)
+
+    assert result["date"].dtype == "datetime64[ns]"
+    assert result["effective_date"].dtype == "datetime64[ns]"
+    assert len(result) == len(_prices())

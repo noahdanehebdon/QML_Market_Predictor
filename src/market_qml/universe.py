@@ -44,9 +44,11 @@ def build_point_in_time_universe(
 
     normalized_prices = prices.copy()
     normalized_prices["symbol"] = normalized_prices["symbol"].astype(str).str.upper()
-    normalized_prices["date"] = pd.to_datetime(
-        normalized_prices["date"], errors="coerce"
-    ).dt.normalize()
+    normalized_prices["date"] = (
+        pd.to_datetime(normalized_prices["date"], errors="coerce")
+        .dt.normalize()
+        .astype("datetime64[ns]")
+    )
     normalized_prices["close"] = pd.to_numeric(
         normalized_prices["close"], errors="coerce"
     )
@@ -188,9 +190,11 @@ def _normalize_effective_history(data: pd.DataFrame, name: str) -> pd.DataFrame:
     result = data.copy()
     _require_columns(result, {"symbol", "effective_date"}, name)
     result["symbol"] = result["symbol"].astype(str).str.upper()
-    result["effective_date"] = pd.to_datetime(
-        result["effective_date"], errors="coerce"
-    ).dt.normalize()
+    result["effective_date"] = (
+        pd.to_datetime(result["effective_date"], errors="coerce")
+        .dt.normalize()
+        .astype("datetime64[ns]")
+    )
     if result["effective_date"].isna().any():
         raise ValueError(f"{name} contains invalid effective dates.")
     if result.duplicated(["symbol", "effective_date"]).any():
