@@ -25,8 +25,11 @@ The project tests three QML families:
 
 These are compared with linear and RBF SVM controls and, in the final classical
 comparison, logistic regression and histogram gradient boosting. All current
-quantum circuits run on the repository's exact NumPy statevector simulator. No
-reported result comes from physical quantum hardware.
+quantum circuits run on the repository's exact NumPy statevector simulator. A
+separate, explicitly invoked IBM Quantum Runtime smoke path supports bounded
+hardware inference with fixed, locally trained VQC parameters; the comparisons
+reported in this document remain simulator results. No reported comparison
+result comes from physical quantum hardware.
 
 ## Leakage-safe experimental design
 

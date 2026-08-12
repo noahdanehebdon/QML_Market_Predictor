@@ -147,7 +147,9 @@ single favorable validation or portfolio statistic.
 ## Quantum models
 
 All reported quantum models currently run on an exact local NumPy statevector
-simulator. No result in this repository is evidence from physical quantum hardware.
+simulator. A separate bounded IBM Quantum Runtime path can execute inference for
+fixed, locally trained VQC parameters on physical hardware. Simulator results
+remain simulator evidence and must not be described as hardware validation.
 
 ### Variational quantum classifier
 

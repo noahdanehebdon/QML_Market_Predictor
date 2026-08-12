@@ -14,6 +14,7 @@ then move to methodology or the subsystem relevant to your work.
 
 ## Data, targets, and features
 
+- [Data sources and rights](data_sources.md)
 - [Data versioning](data_versioning.md)
 - [Point-in-time universe](point_in_time_universe.md)
 - [Prediction targets](prediction_targets.md)
@@ -30,6 +31,7 @@ then move to methodology or the subsystem relevant to your work.
 - [QCNN blocks](qcnn_blocks.md)
 - [QCNN classifier](qcnn_classifier.md)
 - [QCNN stability](qcnn_stability.md)
+- [IBM Quantum backend](ibm_quantum_backend.md)
 
 ## Evaluation and operations
 

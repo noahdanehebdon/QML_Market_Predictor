@@ -24,10 +24,9 @@ def test_methodology_covers_issue_sections_and_claim_boundaries():
 
     assert "does not demonstrate quantum advantage" in content
     assert "does not support claims of future profitability" in content
-    assert (
-        "No result in this repository is evidence from physical quantum hardware"
-        in content
-    )
+    assert "IBM Quantum Runtime" in content
+    assert "fixed, locally trained VQC parameters" in content
+    assert "must not be described as hardware validation" in content
 
 
 def test_methodology_relative_links_resolve():
