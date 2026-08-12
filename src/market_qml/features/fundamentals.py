@@ -134,14 +134,22 @@ def merge_fundamental_features(
 
     market = market_features.copy()
     market["symbol"] = market["symbol"].astype(str).str.upper()
-    market["date"] = pd.to_datetime(market["date"], errors="coerce").dt.normalize()
+    market["date"] = (
+        pd.to_datetime(market["date"], errors="coerce")
+        .dt.normalize()
+        .astype("datetime64[ns]")
+    )
 
     filings = filing_features.copy()
     filings["symbol"] = filings["symbol"].astype(str).str.upper()
-    filings["filing_date"] = pd.to_datetime(
-        filings["filing_date"],
-        errors="coerce",
-    ).dt.normalize()
+    filings["filing_date"] = (
+        pd.to_datetime(
+            filings["filing_date"],
+            errors="coerce",
+        )
+        .dt.normalize()
+        .astype("datetime64[ns]")
+    )
 
     if market["date"].isna().any():
         raise ValueError("Market feature table contains invalid dates.")

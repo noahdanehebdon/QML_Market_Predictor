@@ -132,12 +132,16 @@ def merge_asof_to_trading_dates(
     Each trading date receives the most recent macro observation whose available
     date is less than or equal to that trading date.
     """
-    left = pd.DataFrame({"date": trading_dates}).sort_values("date")
+    left = pd.DataFrame({"date": trading_dates})
+    left["date"] = pd.to_datetime(left["date"]).astype("datetime64[ns]")
+    left = left.sort_values("date")
 
     right = observations.copy()
     right = right.sort_index()
     right = right.reset_index(names="date")
-    right["date"] = pd.to_datetime(right["date"]).dt.normalize()
+    right["date"] = (
+        pd.to_datetime(right["date"]).dt.normalize().astype("datetime64[ns]")
+    )
     right = right.sort_values("date")
 
     merged = pd.merge_asof(

@@ -88,17 +88,25 @@ def merge_filing_event_features(
     form_windows = form_recent_windows_days or FORM_RECENT_WINDOWS_DAYS
     market = market_features.copy()
     market["symbol"] = market["symbol"].astype(str).str.upper()
-    market["date"] = pd.to_datetime(market["date"], errors="coerce").dt.normalize()
+    market["date"] = (
+        pd.to_datetime(market["date"], errors="coerce")
+        .dt.normalize()
+        .astype("datetime64[ns]")
+    )
     if market["date"].isna().any():
         raise ValueError("Market feature table contains invalid dates.")
 
     events = filing_events.copy()
     events["symbol"] = events["symbol"].astype(str).str.upper()
     events["form"] = events["form"].astype(str).str.upper()
-    events["filing_date"] = pd.to_datetime(
-        events["filing_date"],
-        errors="coerce",
-    ).dt.normalize()
+    events["filing_date"] = (
+        pd.to_datetime(
+            events["filing_date"],
+            errors="coerce",
+        )
+        .dt.normalize()
+        .astype("datetime64[ns]")
+    )
     events = events.dropna(subset=["symbol", "form", "filing_date"])
     events = events[events["form"].isin(FILING_FORMS)]
 

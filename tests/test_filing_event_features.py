@@ -112,6 +112,17 @@ def test_merge_filing_event_features_uses_only_known_filings():
     assert aapl.loc[3, "sec_days_since_last_8k"] == 9
 
 
+def test_merge_filing_events_normalizes_mixed_timestamp_resolutions():
+    market = _market_features().astype({"date": "datetime64[s]"})
+    events = build_filing_event_features(_submissions())
+    events["filing_date"] = events["filing_date"].astype("datetime64[us]")
+
+    result = merge_filing_event_features(market, events)
+
+    assert result["date"].dtype == "datetime64[ns]"
+    assert result["sec_last_filing_date"].dtype == "datetime64[ns]"
+
+
 def test_merge_filing_event_features_adds_recent_and_form_indicators():
     events = build_filing_event_features(_submissions())
 

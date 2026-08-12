@@ -89,6 +89,17 @@ def test_merge_fundamental_features_uses_filing_date_asof_without_leakage():
     assert aapl.loc[2, "filing_recency_days"] == 14
 
 
+def test_merge_fundamentals_normalizes_mixed_timestamp_resolutions():
+    market = _market_features().astype({"date": "datetime64[s]"})
+    filings = build_filing_fundamental_features(_fundamental_rows())
+    filings["filing_date"] = filings["filing_date"].astype("datetime64[us]")
+
+    result = merge_fundamental_features(market, filings)
+
+    assert result["date"].dtype == "datetime64[ns]"
+    assert result["filing_date"].dtype == "datetime64[ns]"
+
+
 def test_merge_fundamental_features_preserves_symbols_without_filings():
     filing_features = build_filing_fundamental_features(_fundamental_rows())
     market = pd.DataFrame(
