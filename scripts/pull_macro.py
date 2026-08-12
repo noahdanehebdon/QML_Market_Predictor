@@ -36,8 +36,10 @@ from pathlib import Path
 
 import pandas as pd
 import requests
-import yaml
 from dotenv import load_dotenv
+
+from market_qml.ingestion.macro_config import load_series_config
+from market_qml.ingestion.macro_io import save_macro_outputs
 
 # ---------------------------------------------------------------------
 # Paths
@@ -125,58 +127,7 @@ def load_macro_config(
     config_path: Path = DEFAULT_CONFIG_PATH,
 ) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
     """Load macro series definitions from configs/data_sources.yaml."""
-    if not config_path.exists():
-        raise FileNotFoundError(f"Macro data source config not found: {config_path}")
-
-    with config_path.open("r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-
-    macro = config.get("macro")
-    if not isinstance(macro, dict):
-        raise ValueError(f"Missing 'macro' section in {config_path}")
-
-    bls_series: dict[str, str] = {}
-    for item in macro.get("bls_api", {}).values():
-        column = item.get("column")
-        series_id = item.get("series_id")
-        if column and series_id:
-            bls_series[column] = series_id
-
-    fed_series: dict[str, dict[str, str]] = {}
-    fed_config = macro.get("federal_reserve_ddp", {})
-    for release, release_series in fed_config.items():
-        for item in release_series.values():
-            column = item.get("column")
-            series_id = item.get("series_id")
-            url = item.get("url")
-            source = item.get("source", f"federal_reserve_{release}")
-
-            if column and series_id and url:
-                fed_series[column] = {
-                    "series_id": series_id,
-                    "url": url,
-                    "source": source,
-                }
-
-    missing_columns = [
-        column
-        for column in EXPECTED_COLUMNS
-        if column not in bls_series and column not in fed_series
-    ]
-    if missing_columns:
-        raise ValueError(
-            "Macro config is missing expected columns: " + ", ".join(missing_columns)
-        )
-
-    if not bls_series:
-        raise ValueError(f"No BLS macro series configured in {config_path}")
-
-    if not fed_series:
-        raise ValueError(
-            f"No Federal Reserve DDP macro series configured in {config_path}"
-        )
-
-    return bls_series, fed_series
+    return load_series_config(config_path, EXPECTED_COLUMNS)
 
 
 # ---------------------------------------------------------------------
@@ -517,12 +468,16 @@ def save_outputs(
     clean: pd.DataFrame,
 ) -> None:
     """Save raw and cleaned macro data."""
-    ensure_output_dirs()
-
-    bls_raw.to_parquet(BLS_RAW_OUTPUT_PATH, index=False)
-    fed_raw.to_parquet(FED_RAW_OUTPUT_PATH, index=False)
-    combined_raw.to_parquet(COMBINED_RAW_OUTPUT_PATH, index=False)
-    clean.to_parquet(PROCESSED_OUTPUT_PATH)
+    save_macro_outputs(
+        bls_raw=bls_raw,
+        fed_raw=fed_raw,
+        combined_raw=combined_raw,
+        clean=clean,
+        bls_path=BLS_RAW_OUTPUT_PATH,
+        fed_path=FED_RAW_OUTPUT_PATH,
+        combined_path=COMBINED_RAW_OUTPUT_PATH,
+        processed_path=PROCESSED_OUTPUT_PATH,
+    )
 
     print(f"\nSaved raw BLS data to {BLS_RAW_OUTPUT_PATH}")
     print(f"Saved raw Fed data to {FED_RAW_OUTPUT_PATH}")

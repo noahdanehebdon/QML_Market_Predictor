@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import time
 import tracemalloc
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
 from itertools import product
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -15,10 +14,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, brier_score_loss, log_loss, roc_auc_score
 
 from market_qml.backtest.portfolio import (
-    DEFAULT_REBALANCE_FREQUENCY,
-    DEFAULT_RETURN_HORIZON_DAYS,
-    DEFAULT_TRANSACTION_COST_BPS,
-    TRADING_DAYS_PER_YEAR,
     run_portfolio_backtest,
     summarize_portfolio_risk,
 )
@@ -28,91 +23,38 @@ from market_qml.backtest.validation import (
     prediction_date_block_metrics,
 )
 from market_qml.models.predictions import build_prediction_table
+from market_qml.qml.comparison_reporting import (
+    config_text,
+    render_comparison_report,
+    save_comparison_result,
+)
+from market_qml.qml.comparison_types import (
+    DEFAULT_FEATURE_SELECTIONS,
+    DEFAULT_SELECTED_FEATURES,
+    ComparisonConfig,
+    ComparisonResult,
+)
+from market_qml.qml.encoding import AngleEncodingConfig, angle_encode_dataset
+from market_qml.qml.feature_map import QuantumFeatureMapConfig, QuantumKernelFeatureMap
 from market_qml.qml.interface import QMLModelConfig, build_qml_train_validation
 from market_qml.qml.qcnn import train_qcnn
-from market_qml.qml.qsvm import QuantumKernelSVM, calibrated_svc
+from market_qml.qml.qsvm import (
+    CachedStateFidelityKernel,
+    QuantumKernelSVM,
+    calibrated_svc,
+)
 from market_qml.qml.vqc import train_vqc
 
-DEFAULT_FEATURE_SELECTIONS = {
-    "broad_market": [
-        "raw_price_pca_00",
-        "returns_momentum_pca_00",
-        "volatility_pca_00",
-        "volume_liquidity_pca_00",
-        "benchmark_relative_pca_00",
-        "macro_pca_00",
-        "fundamentals_pca_00",
-        "other_pca_00",
-    ],
-    "market_dynamics": [
-        "raw_price_pca_00",
-        "raw_price_pca_01",
-        "returns_momentum_pca_00",
-        "returns_momentum_pca_01",
-        "returns_momentum_pca_02",
-        "volatility_pca_00",
-        "volume_liquidity_pca_00",
-        "benchmark_relative_pca_00",
-    ],
-    "benchmark_macro": [
-        "benchmark_relative_pca_00",
-        "benchmark_relative_pca_01",
-        "benchmark_relative_pca_02",
-        "macro_pca_00",
-        "macro_pca_01",
-        "returns_momentum_pca_00",
-        "volatility_pca_00",
-        "fundamentals_pca_00",
-    ],
-}
-DEFAULT_SELECTED_FEATURES = [f"selected_feature_{index:02d}" for index in range(8)]
-
-
-@dataclass(frozen=True)
-class ComparisonConfig:
-    train_rows: int = 128
-    validation_rows: int = 128
-    random_state: int = 42
-    vqc_iterations: int = 10
-    qcnn_iterations: int = 10
-    vqc_ansatz_depths: tuple[int, ...] = (1, 2)
-    vqc_learning_rates: tuple[float, ...] = (0.05, 0.1)
-    vqc_optimizers: tuple[str, ...] = ("spsa", "finite_difference")
-    qcnn_learning_rates: tuple[float, ...] = (0.03, 0.05, 0.1)
-    qcnn_initialization_scales: tuple[float, ...] = (0.05, 0.1)
-    qsvm_c_values: tuple[float, ...] = (0.01, 0.1, 1.0, 10.0)
-    qsvm_repetitions: tuple[int, ...] = (1, 2, 3)
-    feature_selection_names: tuple[str, ...] = ("classical_selected",)
-    interaction_scales: tuple[float, ...] = (0.0, 0.5, 1.0)
-    bootstrap_iterations: int = 2000
-    portfolio_top_fraction: float = 0.1
-    transaction_cost_bps: float = DEFAULT_TRANSACTION_COST_BPS
-    rebalance_frequency: int = DEFAULT_REBALANCE_FREQUENCY
-    return_horizon_days: int = DEFAULT_RETURN_HORIZON_DAYS
-    inner_folds: int = 3
-    inner_purge_days: int = DEFAULT_RETURN_HORIZON_DAYS
-    practical_auc_threshold: float = 0.02
-    bootstrap_block_days: int = 20
-
-
-@dataclass(frozen=True)
-class ComparisonResult:
-    predictions: pd.DataFrame
-    split_metrics: pd.DataFrame
-    aggregate_metrics: pd.DataFrame
-    resource_usage: pd.DataFrame
-    qsvm_tuning_trials: pd.DataFrame
-    qsvm_selected_configs: pd.DataFrame
-    vqc_tuning_trials: pd.DataFrame
-    vqc_selected_configs: pd.DataFrame
-    qcnn_tuning_trials: pd.DataFrame
-    qcnn_selected_configs: pd.DataFrame
-    sample_manifest: pd.DataFrame
-    ranking_metrics: pd.DataFrame
-    portfolio_returns: pd.DataFrame
-    portfolio_metrics: pd.DataFrame
-    paired_comparisons: pd.DataFrame
-    date_block_metrics: pd.DataFrame
+__all__ = [
+    "DEFAULT_FEATURE_SELECTIONS",
+    "ComparisonConfig",
+    "ComparisonResult",
+    "aggregate_split_metrics",
+    "config_text",
+    "render_comparison_report",
+    "run_model_comparison",
+    "save_comparison_result",
+]
 
 
 def run_model_comparison(
@@ -129,13 +71,31 @@ def run_model_comparison(
         primary = build_qml_train_validation(
             sampled, split_id=int(split_id), feature_columns=primary_columns
         )
-        chosen, split_trials = _select_qsvm(sampled, int(split_id), config)
+        inner_folds = _prepared_inner_folds(sampled, int(split_id), config)
+        angle_cache = _prepared_angle_cache(
+            inner_folds[config.feature_selection_names[0]]
+        )
+        chosen, split_trials = _select_qsvm(
+            sampled, int(split_id), config, prepared_folds=inner_folds
+        )
         trials.append(split_trials)
         selected.append(chosen)
-        chosen_vqc, split_vqc_trials = _select_vqc(sampled, int(split_id), config)
+        chosen_vqc, split_vqc_trials = _select_vqc(
+            sampled,
+            int(split_id),
+            config,
+            prepared_folds=inner_folds,
+            angle_cache=angle_cache,
+        )
         vqc_trials.append(split_vqc_trials)
         vqc_selected.append(chosen_vqc)
-        chosen_qcnn, split_qcnn_trials = _select_qcnn(sampled, int(split_id), config)
+        chosen_qcnn, split_qcnn_trials = _select_qcnn(
+            sampled,
+            int(split_id),
+            config,
+            prepared_folds=inner_folds,
+            angle_cache=angle_cache,
+        )
         qcnn_trials.append(split_qcnn_trials)
         qcnn_selected.append(chosen_qcnn)
 
@@ -280,176 +240,67 @@ def aggregate_split_metrics(
     return pd.DataFrame(rows)
 
 
-def save_comparison_result(
-    result: ComparisonResult, output_dir: str | Path
-) -> dict[str, Path]:
-    """Persist auditable tables and a concise decision report."""
-    output = Path(output_dir)
-    output.mkdir(parents=True, exist_ok=True)
-    tables = {
-        "predictions": result.predictions,
-        "split_metrics": result.split_metrics,
-        "aggregate_metrics": result.aggregate_metrics,
-        "resource_usage": result.resource_usage,
-        "qsvm_tuning_trials": result.qsvm_tuning_trials,
-        "qsvm_selected_configs": result.qsvm_selected_configs,
-        "vqc_tuning_trials": result.vqc_tuning_trials,
-        "vqc_selected_configs": result.vqc_selected_configs,
-        "qcnn_tuning_trials": result.qcnn_tuning_trials,
-        "qcnn_selected_configs": result.qcnn_selected_configs,
-        "sample_manifest": result.sample_manifest,
-        "ranking_metrics": result.ranking_metrics,
-        "portfolio_returns": result.portfolio_returns,
-        "portfolio_metrics": result.portfolio_metrics,
-        "paired_comparisons": result.paired_comparisons,
-        "date_block_metrics": result.date_block_metrics,
-    }
-    paths = {}
-    for name, table in tables.items():
-        paths[name] = output / f"{name}.parquet"
-        table.to_parquet(paths[name], index=False)
-    paths["report"] = output / "comparison_report.md"
-    paths["report"].write_text(render_comparison_report(result), encoding="utf-8")
-    return paths
-
-
-def render_comparison_report(result: ComparisonResult) -> str:
-    pivot = result.aggregate_metrics.pivot(
-        index="model_name", columns="metric", values="mean"
-    )
-    ranked = pivot.sort_values("roc_auc", ascending=False)
-    best = ranked.index[0]
-    qml_models = ["vqc", "qcnn", "qsvm", "qsvm_tuned"]
-    classical_models = ["logistic_regression", "gradient_boosting"]
-    best_qml = pivot.loc[qml_models, "roc_auc"].idxmax()
-    best_classical = pivot.loc[classical_models, "roc_auc"].idxmax()
-    qml_auc = float(pivot.loc[best_qml, "roc_auc"])
-    classical_auc = float(pivot.loc[best_classical, "roc_auc"])
-    if classical_auc > qml_auc + 0.02:
-        decision = f"QML underperforms the requested classical baselines on mean ROC-AUC ({qml_auc:.4f} versus {classical_auc:.4f})."
-    elif qml_auc > classical_auc + 0.02:
-        decision = f"QML outperforms the requested classical baselines on mean ROC-AUC ({qml_auc:.4f} versus {classical_auc:.4f}); confirm the result on additional chronological splits."
-    else:
-        decision = f"QML and the requested classical baselines behave similarly on mean ROC-AUC ({qml_auc:.4f} versus {classical_auc:.4f}); ranking and portfolio metrics should drive interpretation."
-    overall_ranking = result.ranking_metrics.query("scope == 'overall'").set_index(
-        "model_name"
-    )
-    overall_portfolio = result.portfolio_metrics.query("scope == 'overall'").set_index(
-        "model_name"
-    )
-    display = (
-        ranked[["accuracy", "roc_auc", "log_loss", "brier_score"]]
-        .join(overall_ranking[["rank_information_coefficient", "long_short_spread"]])
-        .join(
-            overall_portfolio[
-                ["cumulative_net_return", "cumulative_net_excess_return", "net_sharpe"]
-            ]
-        )
-    )
-    ranking_winner = _metric_leader(display["rank_information_coefficient"])
-    portfolio_winner = _metric_leader(display["net_sharpe"])
-    headers = ["model"] + list(display.columns)
-    table = [
-        "| " + " | ".join(headers) + " |",
-        "| " + " | ".join(["---"] * len(headers)) + " |",
-    ]
-    table.extend(
-        "| "
-        + " | ".join([str(index)] + [_format_report_value(value) for value in row])
-        + " |"
-        for index, row in display.iterrows()
-    )
-    return "\n".join(
-        [
-            "# QML model comparison",
-            "",
-            "All models used identical outer validation rows. VQC, QCNN, and QSVM choices were made only from an inner chronological portion of each training window.",
-            "",
-            f"Portfolio assumptions: {config_text(result.portfolio_returns)}.",
-            "",
-            *table,
-            "",
-            f"Classification leader (mean ROC-AUC): **{best}**. Ranking leader (overall rank IC): **{ranking_winner}**. Portfolio leader (overall net Sharpe): **{portfolio_winner}**.",
-            "",
-            f"Best QML: **{best_qml}**; best requested classical baseline: **{best_classical}**.",
-            "",
-            f"Decision: {decision}",
-            "",
-            "Classification uncertainty is recorded in `aggregate_metrics.parquet`; paired bootstrap intervals, sign-permutation tests, Holm correction, effect sizes, and the practical decision threshold are recorded in `paired_comparisons.parquet`. Date-level ranking results are in `ranking_metrics.parquet`; transaction-cost-aware returns and risk metrics are in `portfolio_returns.parquet` and `portfolio_metrics.parquet`.",
-            "",
-            "Runtime, peak traced memory, selected configurations, tuning trials, and exact sampled-row hashes are retained beside this report.",
-        ]
-    )
-
-
-def config_text(portfolio_returns: pd.DataFrame) -> str:
-    row = portfolio_returns.iloc[0]
-    periods = TRADING_DAYS_PER_YEAR / float(row["rebalance_frequency"])
-    return (
-        f"{int(row['return_horizon_days'])}-trading-day returns, rebalance every "
-        f"{int(row['rebalance_frequency'])} prediction dates, {periods:g} periods/year, "
-        f"and {float(row['transaction_cost_bps']):g} bps one-way costs"
-    )
-
-
-def _metric_leader(values: pd.Series) -> str:
-    available = pd.to_numeric(values, errors="coerce").dropna()
-    if available.empty:
-        return "not available"
-    maximum = available.max()
-    winners = [
-        str(name) for name, value in available.items() if np.isclose(value, maximum)
-    ]
-    return ", ".join(winners)
-
-
-def _format_report_value(value) -> str:
-    return "NA" if pd.isna(value) else f"{value:.4f}"
-
-
-def _select_qsvm(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
-    trial_rows = []
+def _select_qsvm(
+    sampled: pd.DataFrame,
+    split_id: int,
+    config: ComparisonConfig,
+    *,
+    prepared_folds: dict[str, list] | None = None,
+):
+    folds = prepared_folds or _prepared_inner_folds(sampled, split_id, config)
+    state_cache = {}
+    tasks = []
     for selection in config.feature_selection_names:
         for reps in config.qsvm_repetitions:
-            for C in config.qsvm_c_values:
-                for interaction_scale in config.interaction_scales:
-                    for fold_id, fold in enumerate(
-                        _inner_training_folds(sampled, config)
-                    ):
-                        inner = build_qml_train_validation(
-                            fold,
-                            split_id=split_id,
-                            feature_columns=_feature_columns(fold, selection),
+            for interaction_scale in config.interaction_scales:
+                feature_map = QuantumKernelFeatureMap(
+                    QuantumFeatureMapConfig(
+                        n_qubits=8,
+                        repetitions=reps,
+                        interaction_scale=interaction_scale,
+                    )
+                )
+                for fold_id, inner in enumerate(folds[selection]):
+                    key = (selection, reps, interaction_scale, fold_id)
+                    train_states = feature_map.transform(inner.train).states
+                    state_cache[key] = (
+                        train_states,
+                        feature_map.transform(inner.validation).states,
+                        CachedStateFidelityKernel(train_states),
+                    )
+                    for C in config.qsvm_c_values:
+                        tasks.append(
+                            (selection, reps, C, interaction_scale, fold_id, inner, key)
                         )
-                        started = time.perf_counter()
-                        pred = _qsvm_predictions(
-                            inner,
-                            C,
-                            reps,
-                            interaction_scale,
-                            "qsvm_candidate",
-                            config.random_state,
-                        )
-                        trial_rows.append(
-                            {
-                                "split_id": split_id,
-                                "inner_fold_id": fold_id,
-                                "feature_selection": selection,
-                                "repetitions": reps,
-                                "C": C,
-                                "interaction_scale": interaction_scale,
-                                "inner_roc_auc": roc_auc_score(
-                                    pred.y_true, pred.y_score
-                                ),
-                                "runtime_seconds": time.perf_counter() - started,
-                                "inner_train_end": pd.to_datetime(
-                                    inner.train.metadata.date
-                                ).max(),
-                                "inner_validation_start": pd.to_datetime(
-                                    inner.validation.metadata.date
-                                ).min(),
-                            }
-                        )
+
+    def evaluate(task):
+        selection, reps, C, interaction_scale, fold_id, inner, key = task
+        started = time.perf_counter()
+        pred = _qsvm_predictions_from_states(
+            inner,
+            state_cache[key],
+            C,
+            reps,
+            interaction_scale,
+            "qsvm_candidate",
+            config.random_state,
+        )
+        return {
+            "split_id": split_id,
+            "inner_fold_id": fold_id,
+            "feature_selection": selection,
+            "repetitions": reps,
+            "C": C,
+            "interaction_scale": interaction_scale,
+            "inner_roc_auc": roc_auc_score(pred.y_true, pred.y_score),
+            "runtime_seconds": time.perf_counter() - started,
+            "inner_train_end": pd.to_datetime(inner.train.metadata.date).max(),
+            "inner_validation_start": pd.to_datetime(
+                inner.validation.metadata.date
+            ).min(),
+        }
+
+    trial_rows = _ordered_map(evaluate, tasks, config.max_workers)
     trials = pd.DataFrame(trial_rows)
     keys = ["feature_selection", "repetitions", "C", "interaction_scale"]
     means = (
@@ -466,21 +317,25 @@ def _select_qsvm(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig)
     return chosen, trials.reset_index(drop=True)
 
 
-def _select_vqc(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
+def _select_vqc(
+    sampled: pd.DataFrame,
+    split_id: int,
+    config: ComparisonConfig,
+    *,
+    prepared_folds: dict[str, list] | None = None,
+    angle_cache: list[tuple[np.ndarray, np.ndarray]] | None = None,
+):
     rows = []
+    folds = prepared_folds or _prepared_inner_folds(sampled, split_id, config)
+    cached_angles = angle_cache or _prepared_angle_cache(
+        folds[config.feature_selection_names[0]]
+    )
     for depth, learning_rate, optimizer in product(
         config.vqc_ansatz_depths,
         config.vqc_learning_rates,
         config.vqc_optimizers,
     ):
-        for fold_id, fold in enumerate(_inner_training_folds(sampled, config)):
-            inner = build_qml_train_validation(
-                fold,
-                split_id=split_id,
-                feature_columns=_feature_columns(
-                    fold, config.feature_selection_names[0]
-                ),
-            )
+        for fold_id, inner in enumerate(folds[config.feature_selection_names[0]]):
             started = time.perf_counter()
             predictions = train_vqc(
                 inner,
@@ -489,6 +344,8 @@ def _select_vqc(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
                 optimizer=optimizer,
                 max_iter=config.vqc_iterations,
                 random_state=config.random_state + split_id,
+                train_angles=cached_angles[fold_id][0],
+                validation_angles=cached_angles[fold_id][1],
             ).predictions
             rows.append(
                 {
@@ -522,20 +379,24 @@ def _select_vqc(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
     return trials.iloc[0].to_dict(), trials.reset_index(drop=True)
 
 
-def _select_qcnn(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig):
+def _select_qcnn(
+    sampled: pd.DataFrame,
+    split_id: int,
+    config: ComparisonConfig,
+    *,
+    prepared_folds: dict[str, list] | None = None,
+    angle_cache: list[tuple[np.ndarray, np.ndarray]] | None = None,
+):
     rows = []
+    folds = prepared_folds or _prepared_inner_folds(sampled, split_id, config)
+    cached_angles = angle_cache or _prepared_angle_cache(
+        folds[config.feature_selection_names[0]]
+    )
     for learning_rate, initialization_scale in product(
         config.qcnn_learning_rates,
         config.qcnn_initialization_scales,
     ):
-        for fold_id, fold in enumerate(_inner_training_folds(sampled, config)):
-            inner = build_qml_train_validation(
-                fold,
-                split_id=split_id,
-                feature_columns=_feature_columns(
-                    fold, config.feature_selection_names[0]
-                ),
-            )
+        for fold_id, inner in enumerate(folds[config.feature_selection_names[0]]):
             started = time.perf_counter()
             predictions = train_qcnn(
                 inner,
@@ -543,6 +404,8 @@ def _select_qcnn(sampled: pd.DataFrame, split_id: int, config: ComparisonConfig)
                 initialization_scale=initialization_scale,
                 max_iter=config.qcnn_iterations,
                 random_state=config.random_state + split_id,
+                train_angles=cached_angles[fold_id][0],
+                validation_angles=cached_angles[fold_id][1],
             ).predictions
             rows.append(
                 {
@@ -608,6 +471,50 @@ def _inner_training_folds(
     return folds
 
 
+def _prepared_inner_folds(sampled, split_id, config):
+    """Build chronological folds and their QML frames once per outer split."""
+    raw_folds = _inner_training_folds(sampled, config)
+    return {
+        selection: [
+            build_qml_train_validation(
+                fold,
+                split_id=split_id,
+                feature_columns=_feature_columns(fold, selection),
+            )
+            for fold in raw_folds
+        ]
+        for selection in config.feature_selection_names
+    }
+
+
+def _prepared_angle_cache(folds):
+    """Encode each fold role once for reuse by VQC and QCNN candidates."""
+    config = AngleEncodingConfig(n_qubits=8)
+    return [
+        (
+            angle_encode_dataset(
+                fold.train,
+                config=config,
+                feature_columns=list(fold.train.X.columns),
+            ).X.to_numpy(dtype=float),
+            angle_encode_dataset(
+                fold.validation,
+                config=config,
+                feature_columns=list(fold.validation.X.columns),
+            ).X.to_numpy(dtype=float),
+        )
+        for fold in folds
+    ]
+
+
+def _ordered_map(function, items, max_workers):
+    """Evaluate independent tasks concurrently while preserving input order."""
+    if max_workers <= 1 or len(items) <= 1:
+        return [function(item) for item in items]
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(function, items))
+
+
 def _qsvm_predictions(data, C, repetitions, interaction_scale, model_name, seed):
     model = QuantumKernelSVM(
         QMLModelConfig(
@@ -639,6 +546,39 @@ def _qsvm_predictions(data, C, repetitions, interaction_scale, model_name, seed)
         "support_vectors": model.support_vector_count,
     }
     return result
+
+
+def _qsvm_predictions_from_states(
+    data,
+    states,
+    C,
+    repetitions,
+    interaction_scale,
+    model_name,
+    seed,
+):
+    """Run a QSVM candidate from cached train/validation circuit states."""
+    train_states, validation_states, kernel = states
+    model = QuantumKernelSVM(
+        QMLModelConfig(
+            model_name=model_name,
+            seed=seed,
+            params={
+                "C": C,
+                "n_qubits": 8,
+                "repetitions": repetitions,
+                "interaction_scale": interaction_scale,
+            },
+        )
+    ).fit_states(train_states, data.train.y, kernel=kernel)
+    scores = model.predict_state_scores(validation_states)
+    return build_prediction_table(
+        metadata=data.validation.metadata,
+        y_true=data.validation.y,
+        y_score=scores,
+        model_name=model_name,
+        split_id=data.split_id,
+    )
 
 
 def _classical_predictions(data, kernel, model_name, seed):
@@ -823,6 +763,8 @@ def _validate_inputs(data, config):
         raise ValueError("inner_purge_days cannot be negative")
     if config.bootstrap_block_days <= 0:
         raise ValueError("bootstrap_block_days must be positive")
+    if config.max_workers <= 0:
+        raise ValueError("max_workers must be positive")
     if not config.interaction_scales or any(
         value < 0 for value in config.interaction_scales
     ):

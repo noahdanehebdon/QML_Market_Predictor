@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -137,10 +138,9 @@ from market_qml.models.xgboost_baselines import (
     train_xgboost_classifier,
     train_xgboost_ranker,
 )
-from market_qml.qml.interface import build_qml_train_validation
-from market_qml.qml.pca import fit_pca
 from market_qml.qml.vqc import MODEL_NAME as VQC_MODEL_NAME
 from market_qml.qml.vqc import train_vqc
+from market_qml.qml.walk_forward import build_qml_split_sample
 from market_qml.reporting.baseline_evidence import compare_to_naive_baselines
 from market_qml.reporting.ensemble_evidence import compare_ensemble_performance
 from market_qml.utils.mlflow_tracking import (
@@ -174,6 +174,19 @@ class WalkForwardPredictionResult:
     validation_metrics: pd.DataFrame
     selection_diagnostics: pd.DataFrame
     artifact_records: list[dict]
+    performance_metrics: pd.DataFrame
+
+
+@dataclass(frozen=True)
+class PreparedSplitContext:
+    """Leakage-safe data shared by models with the same split and target."""
+
+    split_id: int
+    target_column: str
+    preprocessed: object
+    qml_sample: object | None
+    pca: object | None
+    preparation_seconds: float
 
 
 MODEL_REGISTRY = {
@@ -481,6 +494,8 @@ def run_walk_forward_backtest(
         output_paths["selection_diagnostics"] = (
             output_dir / "selection_diagnostics.parquet"
         )
+    if not prediction_result.performance_metrics.empty:
+        output_paths["performance_metrics"] = output_dir / "performance_metrics.parquet"
 
     predictions.to_parquet(output_paths["predictions"], index=False)
     baseline_evidence.to_parquet(output_paths["baseline_evidence"], index=False)
@@ -504,6 +519,10 @@ def run_walk_forward_backtest(
     if "selection_diagnostics" in output_paths:
         prediction_result.selection_diagnostics.to_parquet(
             output_paths["selection_diagnostics"], index=False
+        )
+    if "performance_metrics" in output_paths:
+        prediction_result.performance_metrics.to_parquet(
+            output_paths["performance_metrics"], index=False
         )
     save_classification_metrics(
         classification_metrics,
@@ -556,35 +575,60 @@ def _walk_forward_predictions(
     validation_metric_frames = []
     selection_diagnostic_frames = []
     artifact_records = []
-    for model_name in model_names:
-        spec = MODEL_REGISTRY[model_name]
-        for split in splits.itertuples(index=False):
+    performance_rows = []
+    requested_specs = [(name, MODEL_REGISTRY[name]) for name in model_names]
+    for split in splits.itertuples(index=False):
+        contexts: dict[str, PreparedSplitContext] = {}
+        for target_column in dict.fromkeys(
+            spec.target_column for _, spec in requested_specs
+        ):
+            started = time.perf_counter()
             datasets = build_train_validation_datasets(
                 features=features,
                 labels=labels,
                 universe_membership=universe_membership,
-                target_column=spec.target_column,
+                target_column=target_column,
                 train_start_date=split.train_start_date,
                 train_end_date=split.train_end_date,
                 validation_start_date=split.validation_start_date,
                 validation_end_date=split.validation_end_date,
             )
             preprocessed = fit_transform_train_validation(datasets)
+            qml_sample = None
             pca = None
-            if spec.model_family == "qml":
-                qml_sample, pca = _build_qml_split_sample(
+            if any(
+                spec.target_column == target_column and spec.model_family == "qml"
+                for _, spec in requested_specs
+            ):
+                qml_sample, pca = build_qml_split_sample(
                     preprocessed=preprocessed,
                     split_id=int(split.split_id),
+                    n_components=DEFAULT_QML_N_COMPONENTS,
                 )
+            contexts[target_column] = PreparedSplitContext(
+                split_id=int(split.split_id),
+                target_column=target_column,
+                preprocessed=preprocessed,
+                qml_sample=qml_sample,
+                pca=pca,
+                preparation_seconds=time.perf_counter() - started,
+            )
+
+        for model_name, spec in requested_specs:
+            context = contexts[spec.target_column]
+            started = time.perf_counter()
+            if spec.model_family == "qml":
+                if context.qml_sample is None:
+                    raise RuntimeError("QML split context was not prepared.")
                 result = spec.train(
-                    qml_sample,
+                    context.qml_sample,
                     split_id=int(split.split_id),
                 )
                 training_loss_frames.append(result.training_loss)
                 validation_metric_frames.append(result.validation_metrics)
             else:
                 result = spec.train(
-                    preprocessed,
+                    context.preprocessed,
                     split_id=int(split.split_id),
                 )
                 if hasattr(result, "selection_diagnostics"):
@@ -594,11 +638,11 @@ def _walk_forward_predictions(
                 model_name=model_name,
                 split_id=int(split.split_id),
                 model=result.model,
-                preprocessor=preprocessed.preprocessor,
-                pca=pca,
+                preprocessor=context.preprocessed.preprocessor,
+                pca=context.pca if spec.model_family == "qml" else None,
                 result=result,
-                train_metadata=preprocessed.train.metadata,
-                validation_metadata=preprocessed.validation.metadata,
+                train_metadata=context.preprocessed.train.metadata,
+                validation_metadata=context.preprocessed.validation.metadata,
                 target_column=spec.target_column,
                 run_config=run_config,
                 git_sha=git_sha,
@@ -607,6 +651,15 @@ def _walk_forward_predictions(
             model_predictions = result.predictions.copy()
             model_predictions["artifact_id"] = record["artifact_id"]
             frames.append(model_predictions)
+            performance_rows.append(
+                {
+                    "split_id": int(split.split_id),
+                    "model_name": model_name,
+                    "target_column": spec.target_column,
+                    "shared_preparation_seconds": context.preparation_seconds,
+                    "training_and_artifact_seconds": time.perf_counter() - started,
+                }
+            )
 
     if not frames:
         raise ValueError("No prediction rows were produced.")
@@ -629,67 +682,8 @@ def _walk_forward_predictions(
             else pd.DataFrame()
         ),
         artifact_records=artifact_records,
+        performance_metrics=pd.DataFrame(performance_rows),
     )
-
-
-def _build_qml_split_sample(
-    *,
-    preprocessed,
-    split_id: int,
-):
-    pca = fit_pca(preprocessed.train.X, n_components=DEFAULT_QML_N_COMPONENTS)
-    train_rows = _pca_rows(
-        X=preprocessed.train.X,
-        y=preprocessed.train.y,
-        metadata=preprocessed.train.metadata,
-        pca=pca,
-        split_id=split_id,
-        sample_role="train",
-    )
-    validation_rows = _pca_rows(
-        X=preprocessed.validation.X,
-        y=preprocessed.validation.y,
-        metadata=preprocessed.validation.metadata,
-        pca=pca,
-        split_id=split_id,
-        sample_role="validation",
-    )
-    qml_sample = pd.concat([train_rows, validation_rows], ignore_index=True)
-    return build_qml_train_validation(qml_sample, split_id=split_id), pca
-
-
-def _pca_rows(
-    *,
-    X: pd.DataFrame,
-    y: pd.Series,
-    metadata: pd.DataFrame,
-    pca,
-    split_id: int,
-    sample_role: str,
-) -> pd.DataFrame:
-    component_columns = [
-        f"pca_{component_index:02d}"
-        for component_index in range(DEFAULT_QML_N_COMPONENTS)
-    ]
-    component_frame = pd.DataFrame(
-        pca.transform(X),
-        columns=component_columns,
-        index=X.index,
-    )
-    result = metadata.copy().reset_index(drop=True)
-    result["date"] = pd.to_datetime(result["date"], errors="coerce").dt.normalize()
-    result["split_id"] = split_id
-    result["sample_role"] = sample_role
-    result["target"] = pd.to_numeric(y, errors="coerce").to_numpy()
-    result = pd.concat(
-        [result, component_frame.reset_index(drop=True)],
-        axis=1,
-    )
-    if result["date"].isna().any():
-        raise ValueError("QML walk-forward PCA rows contain invalid dates.")
-    if result["target"].isna().any():
-        raise ValueError("QML walk-forward PCA rows contain invalid targets.")
-    return result
 
 
 def _selected_splits(splits: pd.DataFrame, *, max_splits: int | None) -> pd.DataFrame:

@@ -74,9 +74,15 @@ class QuantumConvolutionalClassifier(BaseQMLModel):
 
     def fit(self, dataset: QMLDataset) -> QuantumConvolutionalClassifier:
         """Fit the 30 QCNN parameters on binary labels with SPSA updates."""
-        self._validate_hyperparameters()
-        targets = _binary_targets(dataset.y, require_two_classes=True)
         angles = _encoded_angles(dataset, n_qubits=self.n_qubits)
+        return self.fit_angles(angles, dataset.y)
+
+    def fit_angles(
+        self, angles: np.ndarray, y: pd.Series | np.ndarray
+    ) -> QuantumConvolutionalClassifier:
+        """Fit from reusable angle encodings."""
+        self._validate_hyperparameters()
+        targets = _binary_targets(pd.Series(y), require_two_classes=True)
         weights = initialize_qcnn_parameters(
             self.architecture,
             random_state=self.seed,
@@ -139,6 +145,12 @@ class QuantumConvolutionalClassifier(BaseQMLModel):
         if self.weights_ is None:
             raise ValueError("QCNN model must be fitted before prediction.")
         angles = _encoded_angles(dataset, n_qubits=self.n_qubits)
+        return self.predict_angle_scores(angles)
+
+    def predict_angle_scores(self, angles: np.ndarray) -> list[float]:
+        """Predict from reusable angle encodings."""
+        if self.weights_ is None:
+            raise ValueError("QCNN model must be fitted before prediction.")
         return _qcnn_probabilities(
             angles,
             self.weights_,
@@ -174,6 +186,8 @@ def train_qcnn(
     l2: float = DEFAULT_L2,
     initialization_scale: float = DEFAULT_INITIALIZATION_SCALE,
     random_state: int = DEFAULT_RANDOM_STATE,
+    train_angles: np.ndarray | None = None,
+    validation_angles: np.ndarray | None = None,
 ) -> QCNNResult:
     """Train the QCNN and build standard validation outputs."""
     split_id = data.split_id if split_id is None else split_id
@@ -194,8 +208,16 @@ def train_qcnn(
             "backend": "numpy_statevector",
         },
     )
-    model = QuantumConvolutionalClassifier(config).fit(data.train)
-    validation_scores = model.predict_scores(data.validation)
+    model = QuantumConvolutionalClassifier(config)
+    if train_angles is None:
+        model.fit(data.train)
+    else:
+        model.fit_angles(train_angles, data.train.y)
+    validation_scores = (
+        model.predict_scores(data.validation)
+        if validation_angles is None
+        else model.predict_angle_scores(validation_angles)
+    )
     predictions = build_prediction_table(
         metadata=data.validation.metadata,
         y_true=data.validation.y,
@@ -203,7 +225,11 @@ def train_qcnn(
         model_name=model_name,
         split_id=split_id,
     )
-    train_scores = model.predict_scores(data.train)
+    train_scores = (
+        model.predict_scores(data.train)
+        if train_angles is None
+        else model.predict_angle_scores(train_angles)
+    )
     training_metrics = build_qcnn_metrics(
         data.train.y,
         train_scores,

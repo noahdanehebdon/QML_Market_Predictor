@@ -44,6 +44,12 @@ def main() -> None:
     parser.add_argument("--max-splits", type=int, default=None)
     parser.add_argument("--transaction-cost-bps", type=float, default=10.0)
     parser.add_argument("--rebalance-frequency", type=int, default=5)
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Bounded worker count for independent QML tuning candidates.",
+    )
     args = parser.parse_args()
     features, labels = pd.read_parquet(args.features), pd.read_parquet(args.labels)
     splits = pd.read_parquet(args.splits).sort_values("split_id")
@@ -65,6 +71,7 @@ def main() -> None:
             qcnn_iterations=args.iterations,
             transaction_cost_bps=args.transaction_cost_bps,
             rebalance_frequency=args.rebalance_frequency,
+            max_workers=args.workers,
         ),
     )
     paths = save_comparison_result(result, args.output_dir)
