@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+import market_qml.qml.comparison as comparison
 from market_qml.qml.comparison import (
     DEFAULT_FEATURE_SELECTIONS,
     ComparisonConfig,
@@ -163,3 +164,34 @@ def test_aggregate_and_save_outputs(tmp_path):
         "paired_comparisons",
         "date_block_metrics",
     } <= set(paths)
+
+
+def test_qsvm_tuning_reuses_feature_map_states_across_c_values(monkeypatch):
+    calls = 0
+    original = comparison.QuantumKernelFeatureMap.transform
+
+    def counted_transform(self, dataset):
+        nonlocal calls
+        calls += 1
+        return original(self, dataset)
+
+    monkeypatch.setattr(
+        comparison.QuantumKernelFeatureMap, "transform", counted_transform
+    )
+    data = _comparison_data().query("split_id == 0")
+    config = ComparisonConfig(
+        train_rows=16,
+        validation_rows=16,
+        qsvm_c_values=(0.1, 1.0, 10.0),
+        qsvm_repetitions=(1,),
+        interaction_scales=(0.0,),
+        feature_selection_names=("broad_market",),
+        inner_purge_days=0,
+    )
+    sampled = comparison._sample_split(data, 0, config)
+    folds = comparison._prepared_inner_folds(sampled, 0, config)
+
+    _, trials = comparison._select_qsvm(sampled, 0, config, prepared_folds=folds)
+
+    assert len(trials) == len(folds["broad_market"]) * 3
+    assert calls == len(folds["broad_market"]) * 2

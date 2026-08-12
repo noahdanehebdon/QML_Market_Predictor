@@ -76,9 +76,15 @@ class VariationalQuantumClassifier(BaseQMLModel):
 
     def fit(self, dataset: QMLDataset) -> VariationalQuantumClassifier:
         """Fit trainable variational readout weights on binary labels."""
-        self._validate_hyperparameters()
-        y = _binary_targets(dataset.y, require_two_classes=True)
         angles = _encoded_angles(dataset, n_qubits=self.n_qubits)
+        return self.fit_angles(angles, dataset.y)
+
+    def fit_angles(
+        self, angles: np.ndarray, y: pd.Series | np.ndarray
+    ) -> VariationalQuantumClassifier:
+        """Fit from reusable angle encodings."""
+        self._validate_hyperparameters()
+        y = _binary_targets(pd.Series(y), require_two_classes=True)
 
         rng = np.random.default_rng(self.seed)
         weights = rng.uniform(
@@ -124,6 +130,12 @@ class VariationalQuantumClassifier(BaseQMLModel):
         if self.weights_ is None:
             raise ValueError("VQC model must be fitted before prediction.")
         angles = _encoded_angles(dataset, n_qubits=self.n_qubits)
+        return self.predict_angle_scores(angles)
+
+    def predict_angle_scores(self, angles: np.ndarray) -> list[float]:
+        """Predict from reusable angle encodings."""
+        if self.weights_ is None:
+            raise ValueError("VQC model must be fitted before prediction.")
         return _circuit_probabilities(angles, self.weights_).tolist()
 
     def _validate_hyperparameters(self) -> None:
@@ -161,6 +173,8 @@ def train_vqc(
     batch_size: int = DEFAULT_BATCH_SIZE,
     optimizer: str = DEFAULT_OPTIMIZER,
     random_state: int = DEFAULT_RANDOM_STATE,
+    train_angles: np.ndarray | None = None,
+    validation_angles: np.ndarray | None = None,
 ) -> VQCResult:
     """Train a VQC baseline on one QML train/validation split."""
     split_id = data.split_id if split_id is None else split_id
@@ -181,8 +195,15 @@ def train_vqc(
         },
     )
     model = VariationalQuantumClassifier(config)
-    model.fit(data.train)
-    y_score = model.predict_scores(data.validation)
+    if train_angles is None:
+        model.fit(data.train)
+    else:
+        model.fit_angles(train_angles, data.train.y)
+    y_score = (
+        model.predict_scores(data.validation)
+        if validation_angles is None
+        else model.predict_angle_scores(validation_angles)
+    )
     predictions = build_prediction_table(
         metadata=data.validation.metadata,
         y_true=data.validation.y,

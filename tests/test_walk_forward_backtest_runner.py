@@ -118,6 +118,7 @@ def test_run_walk_forward_backtest_writes_report_bundle(tmp_path):
         "ensemble_diagnostics",
         "ensemble_evidence",
         "ensemble_sensitivity",
+        "performance_metrics",
         "portfolio_backtest",
         "portfolio_risk_metrics",
         "predictions",
@@ -144,6 +145,8 @@ def test_run_walk_forward_backtest_writes_report_bundle(tmp_path):
         tmp_path / "model_artifacts/logistic_regression/split_000/preprocessor.pkl"
     ).exists()
     assert len(predictions) == 6
+    performance = pd.read_parquet(outputs["performance_metrics"])
+    assert performance["model_name"].tolist() == ["logistic_regression"]
     assert classification["scope"].tolist() == ["split", "overall"]
     assert set(ranking["scope"]) == {"date", "split", "overall"}
     assert "net_return" in portfolio.columns
@@ -165,6 +168,29 @@ def test_run_walk_forward_backtest_respects_max_splits(tmp_path):
     predictions = pd.read_parquet(outputs["predictions"])
 
     assert predictions["split_id"].unique().tolist() == [0]
+
+
+def test_walk_forward_reuses_preprocessing_for_models_with_same_target(
+    tmp_path, monkeypatch
+):
+    calls = 0
+    original = runner.fit_transform_train_validation
+
+    def counted_preprocessing(datasets):
+        nonlocal calls
+        calls += 1
+        return original(datasets)
+
+    monkeypatch.setattr(runner, "fit_transform_train_validation", counted_preprocessing)
+    run_walk_forward_backtest(
+        features=_features(),
+        labels=_labels(),
+        splits=_splits(),
+        model_names=["logistic_regression", "gradient_boosting"],
+        output_dir=tmp_path,
+    )
+
+    assert calls == 1
 
 
 def test_run_walk_forward_backtest_supports_huber_regression_lane(tmp_path):

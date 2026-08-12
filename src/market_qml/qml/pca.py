@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pickle
 from collections import OrderedDict
-from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
@@ -15,9 +13,14 @@ from market_qml.models.dataset import (
     build_train_validation_datasets,
 )
 from market_qml.models.preprocessing import (
-    FittedPreprocessor,
     PreprocessedDataset,
     fit_transform_train_validation,
+)
+from market_qml.qml.pca_io import load_artifact, save_artifacts, save_frame
+from market_qml.qml.pca_types import (
+    GroupedPCAArtifact,
+    PCAArtifact,
+    QMLPCACompressionResult,
 )
 
 CLASSIFICATION_TARGET_COLUMN = "outperform_spy_5d"
@@ -55,39 +58,6 @@ FEATURE_GROUP_COMPONENT_TARGETS = OrderedDict(
         ("other", 1),
     ]
 )
-
-
-@dataclass(frozen=True)
-class PCAArtifact:
-    """Train-fitted preprocessing and PCA state for one split."""
-
-    split_id: int
-    target_column: str
-    feature_columns: list[str]
-    preprocessor: FittedPreprocessor
-    pca: PCA
-
-
-@dataclass(frozen=True)
-class GroupedPCAArtifact:
-    """Train-fitted preprocessing and grouped PCA state for one split."""
-
-    split_id: int
-    target_column: str
-    feature_columns: list[str]
-    group_columns: dict[str, list[str]]
-    component_columns: list[str]
-    preprocessor: FittedPreprocessor
-    pcas: dict[str, PCA]
-
-
-@dataclass(frozen=True)
-class QMLPCACompressionResult:
-    """Compressed QML feature rows, diagnostics, and fitted PCA artifacts."""
-
-    features: pd.DataFrame
-    diagnostics: pd.DataFrame
-    artifacts: dict[int, PCAArtifact | GroupedPCAArtifact]
 
 
 def build_qml_pca_features(
@@ -425,9 +395,7 @@ def save_qml_pca_features(
     output_path: str | Path = DEFAULT_QML_PCA_FEATURE_PATH,
 ) -> None:
     """Save PCA-compressed QML features to parquet."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    pca_features.to_parquet(output_path, index=False)
+    save_frame(pca_features, output_path)
 
 
 def save_qml_pca_diagnostics(
@@ -435,9 +403,7 @@ def save_qml_pca_diagnostics(
     output_path: str | Path = DEFAULT_QML_PCA_DIAGNOSTICS_PATH,
 ) -> None:
     """Save PCA explained-variance diagnostics to parquet."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    diagnostics.to_parquet(output_path, index=False)
+    save_frame(diagnostics, output_path)
 
 
 def save_qml_pca_artifacts(
@@ -445,27 +411,12 @@ def save_qml_pca_artifacts(
     artifact_dir: str | Path = DEFAULT_QML_PCA_ARTIFACT_DIR,
 ) -> list[Path]:
     """Save train-fitted PCA artifacts, one pickle per split."""
-    artifact_dir = Path(artifact_dir)
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-
-    paths = []
-    for split_id, artifact in sorted(artifacts.items()):
-        path = artifact_dir / f"pca_split_{split_id:03d}.pkl"
-        with path.open("wb") as f:
-            pickle.dump(artifact, f)
-        paths.append(path)
-    return paths
+    return save_artifacts(artifacts, artifact_dir)
 
 
 def load_qml_pca_artifact(path: str | Path) -> PCAArtifact:
     """Load one saved PCA artifact."""
-    path = Path(path)
-    with path.open("rb") as f:
-        artifact = pickle.load(f)
-
-    if not isinstance(artifact, PCAArtifact | GroupedPCAArtifact):
-        raise TypeError(f"Unexpected PCA artifact type: {type(artifact)!r}")
-    return artifact
+    return load_artifact(path)
 
 
 def infer_feature_groups(columns: pd.Index | list[str]) -> OrderedDict[str, list[str]]:
