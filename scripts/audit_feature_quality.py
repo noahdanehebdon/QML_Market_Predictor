@@ -28,15 +28,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir", type=Path, default=Path("reports/feature_audit")
     )
+    parser.add_argument(
+        "--target-horizon-days",
+        type=int,
+        default=5,
+        help="Forward target horizon used by the label table.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.target_horizon_days <= 0:
+        raise ValueError("target_horizon_days must be positive.")
+    horizon = args.target_horizon_days
     result = audit_features(
         pd.read_parquet(args.features),
         pd.read_parquet(args.labels),
         pd.read_parquet(args.splits),
+        return_target=f"forward_excess_return_{horizon}d",
+        classification_target=f"outperform_spy_{horizon}d",
         membership=pd.read_parquet(args.membership) if args.membership else None,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -49,6 +60,7 @@ def main() -> None:
         "stable_features": int(
             result.stability.get("stable_evidence", pd.Series(dtype=bool)).sum()
         ),
+        "target_horizon_days": horizon,
         "artifacts": sorted(f"{name}.parquet" for name in tables),
     }
     (args.output_dir / "manifest.json").write_text(

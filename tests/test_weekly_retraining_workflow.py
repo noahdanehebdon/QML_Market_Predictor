@@ -20,6 +20,7 @@ def test_weekly_retraining_supports_manual_and_scheduled_runs():
     assert inputs["full_experiment"]["default"] == "false"
     assert inputs["quantum_sample_rows"]["default"] == "512"
     assert inputs["quantum_iterations"]["default"] == "30"
+    assert inputs["target_horizon_days"]["default"] == "10"
 
 
 def test_weekly_retraining_downloads_and_verifies_latest_r2_snapshot():
@@ -60,7 +61,27 @@ def test_weekly_retraining_audits_features_before_training():
         "Retrain selected models"
     )
     assert "scripts.audit_feature_quality" in commands
+    assert '--target-horizon-days "$TARGET_HORIZON_DAYS"' in commands
     assert "reports/weekly_retraining/feature_audit" in commands
+
+
+def test_weekly_retraining_materializes_selected_horizon_before_audit():
+    steps = _workflow()["jobs"]["retrain"]["steps"]
+    names = [step["name"] for step in steps]
+    align = next(
+        step
+        for step in steps
+        if step["name"] == "Align labels and splits to selected horizon"
+    )
+
+    assert names.index("Align labels and splits to selected horizon") < names.index(
+        "Audit feature quality and predictive stability"
+    )
+    assert "scripts.build_forward_return_labels" in align["run"]
+    assert '--horizon "$TARGET_HORIZON_DAYS"' in align["run"]
+    assert "scripts.build_walk_forward_splits" in align["run"]
+    assert '--purge-days "$TARGET_HORIZON_DAYS"' in align["run"]
+    assert '--embargo-days "$TARGET_HORIZON_DAYS"' in align["run"]
 
 
 def test_weekly_retraining_uploads_reports_only_to_private_r2():
