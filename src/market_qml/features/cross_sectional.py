@@ -19,6 +19,7 @@ def add_cross_sectional_features(
     features: pd.DataFrame,
     *,
     rank_features: tuple[str, ...] = DEFAULT_RANK_FEATURES,
+    sector_column: str = "sector",
 ) -> pd.DataFrame:
     """Add same-date percentile ranks and missingness indicators.
 
@@ -39,4 +40,19 @@ def add_cross_sectional_features(
             method="average",
             pct=True,
         )
+        date_group = numeric.groupby(result["date"])
+        median = date_group.transform("median")
+        mad = (numeric - median).abs().groupby(result["date"]).transform("median")
+        scale = (1.4826 * mad).where(mad > 0)
+        result[f"{column}_xs_robust_z"] = ((numeric - median) / scale).clip(-5, 5)
+        if sector_column in result.columns:
+            sectors = result[sector_column].astype("string")
+            valid_sector = sectors.notna()
+            sector_rank = pd.Series(pd.NA, index=result.index, dtype="Float64")
+            sector_rank.loc[valid_sector] = (
+                numeric.loc[valid_sector]
+                .groupby([result.loc[valid_sector, "date"], sectors.loc[valid_sector]])
+                .rank(method="average", pct=True)
+            )
+            result[f"{column}_sector_rank"] = sector_rank
     return result

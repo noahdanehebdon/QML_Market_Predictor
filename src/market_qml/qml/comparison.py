@@ -747,8 +747,8 @@ def _validate_inputs(data, config):
         "split_id",
         "sample_role",
         "target",
-        "forward_return_5d",
-        "forward_excess_return_5d",
+        f"forward_return_{config.return_horizon_days}d",
+        f"forward_excess_return_{config.return_horizon_days}d",
     }
     for name in config.feature_selection_names:
         required.update(_feature_columns(data, name))
@@ -777,6 +777,8 @@ def _validate_inputs(data, config):
         raise ValueError("transaction_cost_bps must be non-negative")
     if config.rebalance_frequency <= 0:
         raise ValueError("rebalance_frequency must be positive")
+    if config.return_horizon_days <= 0:
+        raise ValueError("return_horizon_days must be positive")
     if (
         not config.vqc_ansatz_depths
         or not config.vqc_learning_rates

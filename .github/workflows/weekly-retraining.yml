@@ -32,6 +32,12 @@ on:
         required: true
         default: "30"
         type: string
+      target_horizon_days:
+        description: Development-selected classification horizon
+        required: true
+        default: "10"
+        type: choice
+        options: ["5", "10", "20", "60"]
   schedule:
     # Saturday morning, after the final weekday data refresh has completed.
     - cron: "0 8 * * 6"
@@ -54,6 +60,7 @@ jobs:
       FULL_EXPERIMENT: ${{ inputs.full_experiment || 'false' }}
       QUANTUM_SAMPLE_ROWS: ${{ inputs.quantum_sample_rows || '512' }}
       QUANTUM_ITERATIONS: ${{ inputs.quantum_iterations || '30' }}
+      TARGET_HORIZON_DAYS: ${{ inputs.target_horizon_days || '10' }}
 
     steps:
       - name: Check out repository
@@ -139,6 +146,9 @@ jobs:
             echo "::error title=Invalid quantum iterations::quantum_iterations must be positive."
             exit 1
           fi
+          python -m scripts.build_walk_forward_splits \
+            --purge-days "$TARGET_HORIZON_DAYS" \
+            --embargo-days "$TARGET_HORIZON_DAYS"
           python -m scripts.run_walk_forward_backtest \
             --models \
               logistic_regression elastic_net ridge_regression huber_regression \
@@ -147,6 +157,7 @@ jobs:
               vol_normalized_gradient_boosting_regressor \
             --output-dir reports/weekly_retraining/classical_full \
             --transaction-cost-bps 10 \
+            --target-horizon-days "$TARGET_HORIZON_DAYS" \
             --disable-mlflow
           python scripts/compare_qml_models.py \
             --classical-selection \
@@ -155,6 +166,7 @@ jobs:
             --train-rows "$QUANTUM_SAMPLE_ROWS" \
             --validation-rows "$QUANTUM_SAMPLE_ROWS" \
             --iterations "$QUANTUM_ITERATIONS" \
+            --target-horizon-days "$TARGET_HORIZON_DAYS" \
             --transaction-cost-bps 10
           python -m scripts.build_definitive_qml_comparison \
             --equal-dir reports/weekly_retraining/qml_tuned_full \
