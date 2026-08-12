@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import time
 from pathlib import Path
@@ -12,6 +11,8 @@ import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+from market_qml.ingestion.sec_io import save_json, save_parquet
 
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_URL_TEMPLATE = "https://data.sec.gov/submissions/CIK{cik}.json"
@@ -508,40 +509,24 @@ def lookup_ciks(
 
 
 def save_company_tickers(df: pd.DataFrame, output_path: str | Path) -> None:
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(output_path, index=False)
+    save_parquet(df, output_path)
 
 
 def save_ticker_cik_lookup(df: pd.DataFrame, output_path: str | Path) -> None:
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(output_path, index=False)
+    save_parquet(df, output_path)
 
 
 def save_raw_submission(payload: dict[str, Any], output_path: str | Path) -> None:
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with output_path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+    save_json(payload, output_path)
 
 
 def save_submissions(df: pd.DataFrame, output_path: str | Path) -> None:
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(output_path, index=False)
+    save_parquet(df, output_path)
 
 
 def save_raw_company_facts(payload: dict[str, Any], output_path: str | Path) -> None:
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with output_path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+    save_json(payload, output_path)
 
 
 def save_fundamentals(df: pd.DataFrame, output_path: str | Path) -> None:
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(output_path, index=False)
+    save_parquet(df, output_path)

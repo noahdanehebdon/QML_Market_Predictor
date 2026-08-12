@@ -74,19 +74,30 @@ class QuantumKernelSVM(BaseQMLModel):
         """Build the train fidelity matrix and fit a precomputed-kernel SVM."""
         if self.C <= 0:
             raise ValueError("C must be positive.")
-        y = _binary_targets(dataset.y, require_two_classes=True)
         self.train_states_ = self.feature_map.transform(dataset).states
-        self.train_kernel_ = fidelity_kernel(
-            self.train_states_,
-            self.train_states_,
-        )
+        return self.fit_states(self.train_states_, dataset.y)
+
+    def fit_states(
+        self,
+        states: np.ndarray,
+        y: pd.Series | np.ndarray,
+        *,
+        kernel: CachedStateFidelityKernel | None = None,
+    ) -> QuantumKernelSVM:
+        """Fit from reusable feature-map states without changing model semantics."""
+        if self.C <= 0:
+            raise ValueError("C must be positive.")
+        targets = _binary_targets(y, require_two_classes=True)
+        self.train_states_ = np.asarray(states)
+        cached_kernel = kernel or CachedStateFidelityKernel(self.train_states_)
+        self.train_kernel_ = cached_kernel.matrix
         self.estimator_ = calibrated_svc(
             C=self.C,
-            kernel=state_fidelity_kernel,
-            y=y,
+            kernel=cached_kernel,
+            y=targets,
             random_state=self.seed,
         )
-        self.estimator_.fit(_state_features(self.train_states_), y)
+        self.estimator_.fit(_state_features(self.train_states_), targets)
         return self
 
     def predict_scores(self, dataset: QMLDataset) -> list[float]:
@@ -94,6 +105,12 @@ class QuantumKernelSVM(BaseQMLModel):
         if self.estimator_ is None or self.train_states_ is None:
             raise ValueError("QSVM model must be fitted before prediction.")
         states = self.feature_map.transform(dataset).states
+        return self.predict_state_scores(states)
+
+    def predict_state_scores(self, states: np.ndarray) -> list[float]:
+        """Score reusable feature-map states."""
+        if self.estimator_ is None or self.train_states_ is None:
+            raise ValueError("QSVM model must be fitted before prediction.")
         self.last_prediction_kernel_ = fidelity_kernel(states, self.train_states_)
         positive_class_index = int(np.where(self.estimator_.classes_ == 1)[0][0])
         return self.estimator_.predict_proba(_state_features(states))[
@@ -139,6 +156,25 @@ def calibrated_svc(
 def state_fidelity_kernel(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     """Compute state fidelity from real-valued statevector representations."""
     return fidelity_kernel(_features_to_states(left), _features_to_states(right))
+
+
+class CachedStateFidelityKernel:
+    """Serve arbitrary training submatrices from one fidelity calculation."""
+
+    def __init__(self, states: np.ndarray) -> None:
+        self.features = _state_features(np.asarray(states))
+        self.matrix = fidelity_kernel(states, states)
+        self._row_lookup = {
+            row.tobytes(): index for index, row in enumerate(self.features)
+        }
+
+    def __call__(self, left: np.ndarray, right: np.ndarray) -> np.ndarray:
+        try:
+            left_indices = [self._row_lookup[row.tobytes()] for row in left]
+            right_indices = [self._row_lookup[row.tobytes()] for row in right]
+        except KeyError:
+            return state_fidelity_kernel(left, right)
+        return self.matrix[np.ix_(left_indices, right_indices)]
 
 
 def _state_features(states: np.ndarray) -> np.ndarray:
@@ -278,8 +314,10 @@ def save_qsvm_result(
     return paths
 
 
-def _binary_targets(y: pd.Series, *, require_two_classes: bool) -> np.ndarray:
-    targets = pd.to_numeric(y, errors="coerce")
+def _binary_targets(
+    y: pd.Series | np.ndarray, *, require_two_classes: bool
+) -> np.ndarray:
+    targets = pd.Series(pd.to_numeric(y, errors="coerce"))
     if targets.isna().any() or not set(targets.tolist()).issubset({0, 1}):
         raise ValueError("QSVM requires binary targets encoded as 0/1.")
     values = targets.to_numpy(dtype=int)
