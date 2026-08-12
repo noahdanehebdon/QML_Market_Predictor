@@ -1,0 +1,59 @@
+name: IBM Quantum hardware smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: "IBM backend name; leave empty for least busy"
+        required: false
+        type: string
+      rows:
+        description: "Validation circuits (1-4)"
+        required: true
+        default: "2"
+        type: choice
+        options: ["1", "2", "4"]
+      shots:
+        description: "Shots per circuit"
+        required: true
+        default: "1024"
+        type: choice
+        options: ["256", "512", "1024"]
+
+permissions:
+  contents: read
+
+jobs:
+  hardware-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      IBM_QUANTUM_API_KEY: ${{ secrets.IBM_QUANTUM_API_KEY }}
+      IBM_QUANTUM_INSTANCE: ${{ secrets.IBM_QUANTUM_INSTANCE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Validate secrets
+        run: |
+          test -n "$IBM_QUANTUM_API_KEY" || { echo "::error::Missing IBM_QUANTUM_API_KEY"; exit 1; }
+          test -n "$IBM_QUANTUM_INSTANCE" || { echo "::error::Missing IBM_QUANTUM_INSTANCE"; exit 1; }
+      - name: Install quantum dependencies
+        run: python -m pip install -e ".[quantum]"
+      - name: Run bounded hardware comparison
+        env:
+          BACKEND_INPUT: ${{ inputs.backend }}
+          ROWS_INPUT: ${{ inputs.rows }}
+          SHOTS_INPUT: ${{ inputs.shots }}
+        run: |
+          args=(--deterministic-fixture --output-dir artifacts/ibm-smoke --rows "$ROWS_INPUT" --shots "$SHOTS_INPUT" --max-total-shots 4096)
+          if [[ -n "$BACKEND_INPUT" ]]; then args+=(--backend "$BACKEND_INPUT"); fi
+          python -m scripts.run_ibm_vqc_smoke "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ibm-quantum-smoke-${{ github.run_id }}
+          path: artifacts/ibm-smoke
+          if-no-files-found: warn
