@@ -80,6 +80,7 @@ def test_weekly_retraining_materializes_selected_horizon_before_audit():
     assert "scripts.build_forward_return_labels" in align["run"]
     assert '--horizon "$TARGET_HORIZON_DAYS"' in align["run"]
     assert "scripts.build_walk_forward_splits" in align["run"]
+    assert '--target-horizon-days "$TARGET_HORIZON_DAYS"' in align["run"]
     assert '--purge-days "$TARGET_HORIZON_DAYS"' in align["run"]
     assert '--embargo-days "$TARGET_HORIZON_DAYS"' in align["run"]
 

@@ -75,15 +75,24 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--purge-days", type=int, default=None)
     parser.add_argument("--embargo-days", type=int, default=None)
+    parser.add_argument(
+        "--target-horizon-days",
+        type=int,
+        default=5,
+        help="Forward target horizon used to load the modeling dataset.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.target_horizon_days <= 0:
+        raise ValueError("target_horizon_days must be positive.")
     walk_forward = load_walk_forward_config(args.config)
     dataset = load_modeling_dataset(
         feature_path=args.features,
         label_path=args.labels,
+        target_column=f"outperform_spy_{args.target_horizon_days}d",
     )
 
     splits = build_walk_forward_split_table(
