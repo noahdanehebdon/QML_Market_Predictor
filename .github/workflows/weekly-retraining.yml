@@ -116,9 +116,18 @@ jobs:
       - name: Build features and walk-forward splits
         run: build-features
 
+      - name: Align labels and splits to selected horizon
+        run: |
+          python -m scripts.build_forward_return_labels \
+            --horizon "$TARGET_HORIZON_DAYS"
+          python -m scripts.build_walk_forward_splits \
+            --purge-days "$TARGET_HORIZON_DAYS" \
+            --embargo-days "$TARGET_HORIZON_DAYS"
+
       - name: Audit feature quality and predictive stability
         run: >-
           python -m scripts.audit_feature_quality
+          --target-horizon-days "$TARGET_HORIZON_DAYS"
           --output-dir reports/weekly_retraining/feature_audit
 
       - name: Retrain selected models
@@ -132,6 +141,7 @@ jobs:
           python -m scripts.run_walk_forward_backtest \
             --models "${models[@]}" \
             --output-dir reports/weekly_retraining \
+            --target-horizon-days "$TARGET_HORIZON_DAYS" \
             --disable-mlflow
 
       - name: Run full classical and tuned quantum experiment
@@ -146,9 +156,6 @@ jobs:
             echo "::error title=Invalid quantum iterations::quantum_iterations must be positive."
             exit 1
           fi
-          python -m scripts.build_walk_forward_splits \
-            --purge-days "$TARGET_HORIZON_DAYS" \
-            --embargo-days "$TARGET_HORIZON_DAYS"
           python -m scripts.run_walk_forward_backtest \
             --models \
               logistic_regression elastic_net ridge_regression huber_regression \
