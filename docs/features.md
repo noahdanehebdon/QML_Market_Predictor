@@ -286,6 +286,11 @@ Fundamental value and ratio features include:
 These features describe company scale, profitability, balance-sheet structure,
 growth, and how stale the most recent known filing is.
 
+The expanded point-in-time family includes operating income and cash flow, capital
+expenditure, liquidity, debt, gross profit, R&D, stock compensation, and share
+count. Derived signals emphasize same-fiscal-period growth, margins, free cash
+flow, accruals, balance-sheet quality, and dilution rather than raw company size.
+
 Fundamentals are merged by `symbol/date` using filing-date-aware as-of
 alignment. A market row only receives a fundamental value after the corresponding
 SEC filing date.

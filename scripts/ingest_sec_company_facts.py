@@ -36,13 +36,30 @@ def resolve_fundamental_collisions(
     if missing:
         raise ValueError("Fundamentals are missing: " + ", ".join(sorted(missing)))
     ordered = fundamentals.copy()
-    ordered["_unit_priority"] = ordered["unit"].eq("USD").map({True: 0, False: 1})
+    preferred_unit = (
+        ordered["concept"].eq("shares_outstanding").map({True: "shares", False: "USD"})
+    )
+    ordered["_unit_priority"] = (
+        ordered["unit"].eq(preferred_unit).map({True: 0, False: 1})
+    )
     if {"start_date", "end_date"}.issubset(ordered):
         duration = (
             pd.to_datetime(ordered["end_date"], errors="coerce")
             - pd.to_datetime(ordered["start_date"], errors="coerce")
         ).dt.days
-        flow = ordered["concept"].isin({"revenue", "net_income"})
+        flow = ordered["concept"].isin(
+            {
+                "revenue",
+                "net_income",
+                "operating_income",
+                "operating_cash_flow",
+                "capital_expenditure",
+                "gross_profit",
+                "interest_expense",
+                "research_and_development",
+                "stock_based_compensation",
+            }
+        )
         ordered["_period_priority"] = duration.where(flow, 0).fillna(float("inf"))
     else:
         ordered["_period_priority"] = 0
