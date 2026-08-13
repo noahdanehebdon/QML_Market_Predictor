@@ -73,6 +73,7 @@ def main() -> None:
         metadata_history=metadata,
         rules=rules,
         benchmark_symbol=config["universe"]["benchmark"],
+        legacy_seed_symbols=config["universe"]["symbols"],
     )
     coverage, transitions, summary = universe_diagnostics(membership, rules=rules)
     for path in [args.output, args.coverage, args.transitions, args.manifest]:

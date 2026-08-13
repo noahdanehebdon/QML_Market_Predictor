@@ -61,6 +61,7 @@ point_in_time:
     min_names: 100
     min_sectors: 8
     min_sector_names: 3
+    allowed_security_types: ["common_stock"]
   limitations:
     historical_security_master: >-
       Alpaca asset snapshots are current-state observations, not a historical

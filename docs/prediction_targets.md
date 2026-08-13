@@ -41,3 +41,9 @@ Classification candidates must also retain at least 60% balance quality. A
 failure of any gate records a null result rather than promoting a fragile
 winner. The locked period is opened only after configurations are frozen and
 access is logged through `scripts.log_locked_test_access`.
+
+`residualized_forward_excess_return_{horizon}d` removes available same-date beta,
+volatility, liquidity, sector, and size exposures for stock-specific ranking. Label
+tables also retain `return_integrity_valid`, `return_integrity_status`, and a robust
+cross-sectional return z-score. Invalid outcomes remain auditable but are excluded
+from modeling datasets rather than clipped after model selection.

@@ -119,10 +119,12 @@ def test_run_walk_forward_backtest_writes_report_bundle(tmp_path):
         "ensemble_evidence",
         "ensemble_sensitivity",
         "performance_metrics",
+        "permutation_evidence",
         "portfolio_backtest",
         "portfolio_risk_metrics",
         "predictions",
         "ranking_metrics",
+        "research_promotion",
     ]
     for path in outputs.values():
         assert path.exists()

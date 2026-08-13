@@ -258,6 +258,12 @@ See [trade intents](docs/trade_intents.md),
 
 ## Limitations
 
+The development pipeline uses prospective common-stock eligibility, deterministic
+return-integrity flags, residual ranking targets, fold-local stability selection,
+LambdaMART and naive controls, sector-budgeted portfolios, within-date permutation
+tests, and explicit locked-test eligibility gates. Missing historical security-master
+information is not backfilled from current constituents.
+
 - Results are historical backtests on a limited equity universe and do not
   establish future profitability.
 - Regimes, costs, revisions, survivorship, universe construction, and date

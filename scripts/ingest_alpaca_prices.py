@@ -38,6 +38,7 @@ def load_candidate_symbols(
         "exchange",
         "status",
         "tradable",
+        "security_type",
     }
     missing = required - set(assets)
     if missing:
@@ -50,6 +51,7 @@ def load_candidate_symbols(
         & latest["exchange"].isin(exchanges)
         & latest["status"].eq("active")
         & latest["tradable"].fillna(False)
+        & latest["security_type"].eq("common_stock")
     ]
     latest["selection_key"] = (
         latest["symbol"]
@@ -121,6 +123,9 @@ def main() -> None:
         )
         LOGGER.info(
             "Using prospective candidate pool from latest private asset snapshot."
+        )
+        symbols = sorted(
+            set(symbols) | {str(symbol).upper() for symbol in universe["symbols"]}
         )
     elif point_in_time.get("enabled"):
         LOGGER.warning(

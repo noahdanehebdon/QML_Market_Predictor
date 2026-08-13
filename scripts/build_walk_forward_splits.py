@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import pandas as pd
 import yaml
 
 from market_qml.backtest.splits import (
@@ -50,6 +51,7 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_LABEL_PATH,
         help="Path to forward return label table parquet.",
     )
+    parser.add_argument("--universe-membership", type=Path, default=None)
     parser.add_argument(
         "--config",
         type=Path,
@@ -93,6 +95,11 @@ def main() -> None:
         feature_path=args.features,
         label_path=args.labels,
         target_column=f"outperform_spy_{args.target_horizon_days}d",
+        universe_membership=(
+            pd.read_parquet(args.universe_membership)
+            if args.universe_membership is not None
+            else None
+        ),
     )
 
     splits = build_walk_forward_split_table(

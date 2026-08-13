@@ -42,9 +42,12 @@ def main() -> None:
     if args.target_horizon_days <= 0:
         raise ValueError("target_horizon_days must be positive.")
     horizon = args.target_horizon_days
+    labels = pd.read_parquet(args.labels)
+    if "return_integrity_valid" in labels:
+        labels = labels.loc[labels["return_integrity_valid"].eq(True)].copy()
     result = audit_features(
         pd.read_parquet(args.features),
-        pd.read_parquet(args.labels),
+        labels,
         pd.read_parquet(args.splits),
         return_target=f"forward_excess_return_{horizon}d",
         classification_target=f"outperform_spy_{horizon}d",

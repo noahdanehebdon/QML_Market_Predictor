@@ -63,7 +63,11 @@ def train_tuned_gradient_boosting_regressor(
     if y_inner_train.isna().any() or y_inner_validation.isna().any():
         raise ValueError("Training targets contain missing or non-numeric values.")
 
-    ranked_features = _rank_features(X_inner_train, y_inner_train)
+    ranked_features = _rank_features(
+        X_inner_train,
+        y_inner_train,
+        dates.loc[inner_train_mask].reset_index(drop=True),
+    )
     rows: list[dict[str, object]] = []
     configurations = product(
         feature_counts, learning_rates, max_leaf_nodes_values, l2_values
@@ -115,6 +119,7 @@ def train_tuned_gradient_boosting_regressor(
     selected_features = _rank_features(
         data.train.X,
         pd.to_numeric(data.train.y, errors="coerce"),
+        dates,
     )[: int(best["feature_count"])]
     final_model = HistGradientBoostingRegressor(
         learning_rate=float(best["learning_rate"]),
@@ -149,17 +154,27 @@ def train_tuned_gradient_boosting_regressor(
     )
 
 
-def _rank_features(X: pd.DataFrame, y: pd.Series) -> list[str]:
-    # Absolute correlation is stable for perfectly linear features, where an
-    # F-statistic can overflow because the residual variance approaches zero.
-    scores = pd.Series(
-        {
-            column: abs(correlation)
-            if np.isfinite(correlation := safe_correlation(X[column], y))
-            else -np.inf
-            for column in X
-        }
-    )
+def _rank_features(
+    X: pd.DataFrame, y: pd.Series, dates: pd.Series | None = None
+) -> list[str]:
+    """Rank features on training rows by strength and cross-date sign stability."""
+    scores = {}
+    for column in X:
+        correlation = safe_correlation(X[column], y)
+        strength = abs(correlation) if np.isfinite(correlation) else 0.0
+        stability = 0.5
+        if dates is not None:
+            frame = pd.DataFrame({"x": X[column], "y": y, "date": dates})
+            daily = frame.groupby("date", sort=False).apply(
+                lambda group: safe_correlation(group["x"], group["y"]),
+                include_groups=False,
+            )
+            finite = daily[np.isfinite(daily)]
+            if not finite.empty and correlation != 0:
+                stability = float((np.sign(finite) == np.sign(correlation)).mean())
+        missing_penalty = 1 - float(X[column].isna().mean())
+        scores[column] = strength * stability * missing_penalty
+    scores = pd.Series(scores)
     return [str(column) for column in scores.sort_values(ascending=False).index]
 
 

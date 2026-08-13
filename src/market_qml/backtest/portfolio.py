@@ -21,6 +21,7 @@ PORTFOLIO_RETURN_COLUMNS = [
     "return_horizon_days",
     "rebalance_frequency",
     "transaction_cost_bps",
+    "neutralization",
     "selected_count",
     "turnover",
     "transaction_cost",
@@ -45,6 +46,7 @@ PORTFOLIO_RISK_COLUMNS = [
     "rebalance_frequency",
     "periods_per_year",
     "transaction_cost_bps",
+    "neutralization",
     "cumulative_gross_return",
     "cumulative_net_return",
     "benchmark_cumulative_return",
@@ -79,6 +81,7 @@ def run_portfolio_backtest(
     transaction_cost_bps: float = DEFAULT_TRANSACTION_COST_BPS,
     rebalance_frequency: int = DEFAULT_REBALANCE_FREQUENCY,
     return_horizon_days: int = DEFAULT_RETURN_HORIZON_DAYS,
+    sector_neutral: bool = False,
 ) -> pd.DataFrame:
     """Run an equal-weight long-only backtest from model scores."""
     _validate_prediction_table(predictions)
@@ -102,14 +105,33 @@ def run_portfolio_backtest(
             if date_index % rebalance_frequency != 0:
                 continue
 
-            selected = _select_names(group, top_k=top_k, top_fraction=top_fraction)
-            current_weights = _equal_weights(selected["symbol"])
+            selected = _select_names(
+                group,
+                top_k=top_k,
+                top_fraction=top_fraction,
+                sector_neutral=sector_neutral,
+            )
+            use_sector_weights = sector_neutral and "sector" in selected
+            current_weights = (
+                _sector_equal_weights(selected)
+                if use_sector_weights
+                else _equal_weights(selected["symbol"])
+            )
             turnover = _portfolio_turnover(previous_weights, current_weights)
             transaction_cost = turnover * (transaction_cost_bps / 10_000)
-            gross_return = float(selected["forward_return"].mean())
+            gross_return = float(
+                sum(
+                    current_weights[str(row.symbol)] * float(row.forward_return)
+                    for row in selected.itertuples()
+                )
+            )
             net_return = gross_return - transaction_cost
             benchmark_return = float(
-                (selected["forward_return"] - selected["forward_excess_return"]).mean()
+                sum(
+                    current_weights[str(row.symbol)]
+                    * float(row.forward_return - row.forward_excess_return)
+                    for row in selected.itertuples()
+                )
             )
             rows.append(
                 {
@@ -119,6 +141,9 @@ def run_portfolio_backtest(
                     "return_horizon_days": return_horizon_days,
                     "rebalance_frequency": rebalance_frequency,
                     "transaction_cost_bps": transaction_cost_bps,
+                    "neutralization": "sector_equal_weight"
+                    if use_sector_weights
+                    else "none",
                     "selected_count": len(selected),
                     "turnover": turnover,
                     "transaction_cost": transaction_cost,
@@ -235,7 +260,15 @@ def _select_names(
     *,
     top_k: int | None,
     top_fraction: float,
+    sector_neutral: bool = False,
 ) -> pd.DataFrame:
+    if sector_neutral and "sector" in predictions:
+        selected = []
+        for _, sector in predictions.groupby("sector", dropna=False, sort=True):
+            ordered = sector.sort_values(["y_score", "symbol"], ascending=[False, True])
+            count = max(1, math.ceil(len(ordered) * top_fraction))
+            selected.append(ordered.head(count))
+        return pd.concat(selected, ignore_index=True)
     ordered = predictions.sort_values(["y_score", "symbol"], ascending=[False, True])
     count = top_k if top_k is not None else math.ceil(len(ordered) * top_fraction)
     count = max(1, min(count, len(ordered)))
@@ -246,6 +279,17 @@ def _equal_weights(symbols: pd.Series) -> dict[str, float]:
     symbol_list = symbols.astype(str).tolist()
     weight = 1 / len(symbol_list)
     return dict.fromkeys(symbol_list, weight)
+
+
+def _sector_equal_weights(selected: pd.DataFrame) -> dict[str, float]:
+    sectors = selected["sector"].fillna("unknown").astype(str)
+    sector_count = sectors.nunique()
+    weights = {}
+    for _, group in selected.assign(_sector=sectors).groupby("_sector"):
+        sector_weight = 1 / sector_count
+        name_weight = sector_weight / len(group)
+        weights.update(dict.fromkeys(group["symbol"].astype(str), name_weight))
+    return weights
 
 
 def _portfolio_turnover(
@@ -285,6 +329,7 @@ def _risk_row(
         "rebalance_frequency": int(ordered["rebalance_frequency"].iloc[0]),
         "periods_per_year": periods_per_year,
         "transaction_cost_bps": float(ordered["transaction_cost_bps"].iloc[0]),
+        "neutralization": str(ordered["neutralization"].iloc[0]),
         "cumulative_gross_return": _cumulative_return(gross),
         "cumulative_net_return": _cumulative_return(net),
         "benchmark_cumulative_return": _cumulative_return(benchmark),
@@ -389,16 +434,19 @@ def _validate_rebalance_frequency(rebalance_frequency: int) -> None:
         raise ValueError("rebalance_frequency must be positive.")
 
 
-def _portfolio_settings(portfolio_returns: pd.DataFrame) -> dict[str, float]:
+def _portfolio_settings(portfolio_returns: pd.DataFrame) -> dict[str, object]:
     columns = [
         "return_horizon_days",
         "rebalance_frequency",
         "transaction_cost_bps",
+        "neutralization",
     ]
     settings = {}
     for column in columns:
         values = portfolio_returns[column].dropna().unique()
         if len(values) != 1:
             raise ValueError(f"Portfolio returns must have one consistent {column}.")
-        settings[column] = float(values[0])
+        settings[column] = (
+            str(values[0]) if column == "neutralization" else float(values[0])
+        )
     return settings

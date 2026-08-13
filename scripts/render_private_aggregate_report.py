@@ -35,6 +35,7 @@ TABLE_COLUMNS = {
         "return_horizon_days",
         "rebalance_frequency",
         "periods_per_year",
+        "neutralization",
         "cumulative_net_return",
         "cumulative_net_excess_return",
         "net_sharpe",
