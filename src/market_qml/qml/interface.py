@@ -187,7 +187,7 @@ def _infer_qml_feature_columns(data: pd.DataFrame) -> list[str]:
     return sorted(
         column
         for column in data.columns
-        if column.startswith("pca_") or "_pca_" in column
+        if column.startswith(("pca_", "selected_feature_")) or "_pca_" in column
     )
 
 

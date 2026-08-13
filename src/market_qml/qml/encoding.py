@@ -27,6 +27,7 @@ class AngleEncodingConfig:
     n_qubits: int = 8
     angle_prefix: str = DEFAULT_ANGLE_PREFIX
     gate: str = DEFAULT_ANGLE_GATE
+    scaling: str = "auto"
 
 
 @dataclass(frozen=True)
@@ -66,7 +67,19 @@ def angle_encode_features(
         )
 
     angle_columns = _angle_columns(config)
-    angles = numeric.map(_scale_value_to_angle)
+    scaling = config.scaling
+    if scaling == "auto":
+        scaling = (
+            "rank_linear"
+            if all(column.startswith("selected_feature_") for column in feature_columns)
+            else "atan"
+        )
+    if scaling == "rank_linear":
+        if ((numeric < -1) | (numeric > 1)).any().any():
+            raise ValueError("Rank-linear encoding requires features in [-1, 1].")
+        angles = numeric * pi
+    else:
+        angles = numeric.map(_scale_value_to_angle)
     angles.columns = angle_columns
     operations = angle_encoding_operations(
         feature_columns=feature_columns,
@@ -134,7 +147,7 @@ def _infer_angle_feature_columns(features: pd.DataFrame) -> list[str]:
     return sorted(
         column
         for column in features.columns
-        if column.startswith("pca_") or "_pca_" in column
+        if column.startswith(("pca_", "selected_feature_")) or "_pca_" in column
     )
 
 
@@ -149,6 +162,8 @@ def _validate_config(config: AngleEncodingConfig) -> None:
         raise ValueError("angle_prefix must be provided.")
     if not config.gate:
         raise ValueError("gate must be provided.")
+    if config.scaling not in {"auto", "atan", "rank_linear"}:
+        raise ValueError("scaling must be auto, atan, or rank_linear.")
 
 
 def _validate_requested_columns(

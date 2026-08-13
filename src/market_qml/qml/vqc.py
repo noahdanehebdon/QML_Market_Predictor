@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pickle
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -75,9 +76,53 @@ class VariationalQuantumClassifier(BaseQMLModel):
         self.loss_history_: list[float] = []
 
     def fit(self, dataset: QMLDataset) -> VariationalQuantumClassifier:
-        """Fit trainable variational readout weights on binary labels."""
+        """Fit with same-date pairwise ranking when continuous targets are present."""
         angles = _encoded_angles(dataset, n_qubits=self.n_qubits)
+        if {"ranking_target", "date"}.issubset(dataset.metadata):
+            ranking_target = pd.to_numeric(
+                dataset.metadata["ranking_target"], errors="coerce"
+            )
+            if ranking_target.notna().all():
+                return self.fit_ranking_angles(
+                    angles,
+                    ranking_target.to_numpy(float),
+                    pd.to_datetime(dataset.metadata["date"]).to_numpy(),
+                )
         return self.fit_angles(angles, dataset.y)
+
+    def fit_ranking_angles(
+        self,
+        angles: np.ndarray,
+        targets: np.ndarray,
+        dates: np.ndarray,
+    ) -> VariationalQuantumClassifier:
+        """Fit a circuit score with within-date pairwise logistic loss."""
+        self._validate_hyperparameters()
+        pairs = _ranking_pairs(targets, dates)
+        if not len(pairs):
+            raise ValueError("VQC ranking requires comparable same-date target pairs.")
+        rng = np.random.default_rng(self.seed)
+        weights = rng.uniform(-0.1, 0.1, size=(self.ansatz_depth, self.n_qubits))
+        losses = []
+        for _ in range(self.max_iter):
+            selected = rng.choice(
+                len(pairs), size=min(self.batch_size, len(pairs)), replace=False
+            )
+            batch_pairs = pairs[selected]
+            gradient = _estimate_pairwise_gradient(
+                optimizer=self.optimizer,
+                angles=angles,
+                pairs=batch_pairs,
+                weights=weights,
+                l2=self.l2,
+                perturbation=self.perturbation,
+                rng=rng,
+            )
+            weights -= self.learning_rate * gradient
+            losses.append(_pairwise_circuit_loss(angles, batch_pairs, weights, self.l2))
+        self.weights_ = weights
+        self.loss_history_ = losses
+        return self
 
     def fit_angles(
         self, angles: np.ndarray, y: pd.Series | np.ndarray
@@ -375,6 +420,57 @@ def _estimate_gradient(
             gradient[index] = (loss_plus - loss_minus) / (2.0 * perturbation)
         return gradient
 
+    raise ValueError(
+        "optimizer must be one of: " + ", ".join(sorted(SUPPORTED_OPTIMIZERS))
+    )
+
+
+def _ranking_pairs(targets: np.ndarray, dates: np.ndarray) -> np.ndarray:
+    pairs = []
+    frame = pd.DataFrame({"target": targets, "date": dates})
+    for _, day in frame.groupby("date", sort=False):
+        ordered = day.sort_values("target")
+        indices = ordered.index.to_numpy()
+        if len(indices) < 2:
+            continue
+        # Adjacent and extreme pairs bound cost while spanning the daily ordering.
+        for lower, upper in pairwise(indices):
+            if targets[upper] != targets[lower]:
+                pairs.append((lower, upper))
+        if len(indices) > 2 and targets[indices[-1]] != targets[indices[0]]:
+            pairs.append((indices[0], indices[-1]))
+    return np.asarray(pairs, dtype=int).reshape(-1, 2)
+
+
+def _pairwise_circuit_loss(
+    angles: np.ndarray, pairs: np.ndarray, weights: np.ndarray, l2: float
+) -> float:
+    scores = _circuit_probabilities(angles, weights)
+    margin = scores[pairs[:, 1]] - scores[pairs[:, 0]]
+    return float(np.logaddexp(0.0, -margin).mean()) + _l2_penalty(weights, l2)
+
+
+def _estimate_pairwise_gradient(
+    *, optimizer, angles, pairs, weights, l2, perturbation, rng
+) -> np.ndarray:
+    if optimizer == "spsa":
+        direction = rng.choice((-1.0, 1.0), size=weights.shape)
+        plus = _pairwise_circuit_loss(
+            angles, pairs, weights + perturbation * direction, l2
+        )
+        minus = _pairwise_circuit_loss(
+            angles, pairs, weights - perturbation * direction, l2
+        )
+        return (plus - minus) / (2.0 * perturbation) * direction
+    if optimizer == "finite_difference":
+        gradient = np.zeros_like(weights)
+        for index in np.ndindex(weights.shape):
+            offset = np.zeros_like(weights)
+            offset[index] = perturbation
+            plus = _pairwise_circuit_loss(angles, pairs, weights + offset, l2)
+            minus = _pairwise_circuit_loss(angles, pairs, weights - offset, l2)
+            gradient[index] = (plus - minus) / (2.0 * perturbation)
+        return gradient
     raise ValueError(
         "optimizer must be one of: " + ", ".join(sorted(SUPPORTED_OPTIMIZERS))
     )

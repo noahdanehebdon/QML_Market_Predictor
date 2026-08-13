@@ -88,3 +88,12 @@ def test_angle_encode_features_validates_shape_and_values():
 
     with pytest.raises(ValueError, match="positive"):
         angle_encode_features(_features(), config=AngleEncodingConfig(n_qubits=0))
+
+
+def test_selected_features_use_direct_rank_angles():
+    features = pd.DataFrame(
+        {f"selected_feature_{index:02d}": [-1.0, 0.0, 1.0] for index in range(8)}
+    )
+    result = angle_encode_features(features)
+
+    assert result.angles.iloc[:, 0].tolist() == pytest.approx([-pi, 0.0, pi])

@@ -110,6 +110,9 @@ def run_model_comparison(
                     random_state=config.random_state + int(split_id),
                 ).predictions
             ),
+            "vqc_stable_rank": lambda c=chosen_vqc: _vqc_seed_ensemble_predictions(
+                primary, c, config
+            ),
             "qcnn": lambda c=chosen_qcnn: (
                 train_qcnn(
                     primary,
@@ -549,6 +552,28 @@ def _qsvm_predictions(data, C, repetitions, interaction_scale, model_name, seed)
     return result
 
 
+def _vqc_seed_ensemble_predictions(data, chosen, config):
+    """Average ranking-aligned circuit scores across registered initializations."""
+    frames = [
+        train_vqc(
+            data,
+            model_name="vqc_stable_rank",
+            max_iter=config.vqc_iterations,
+            ansatz_depth=int(chosen["ansatz_depth"]),
+            learning_rate=float(chosen["learning_rate"]),
+            optimizer=str(chosen["optimizer"]),
+            random_state=seed,
+        ).predictions
+        for seed in config.vqc_seeds
+    ]
+    result = frames[0].copy()
+    result["y_score"] = np.mean(
+        [frame["y_score"].to_numpy(float) for frame in frames], axis=0
+    )
+    result.attrs = _non_kernel_resource_attrs() | {"seed_count": len(config.vqc_seeds)}
+    return result
+
+
 def _qsvm_predictions_from_states(
     data,
     states,
@@ -788,6 +813,8 @@ def _validate_inputs(data, config):
         raise ValueError("VQC tuning grids must not be empty")
     if not config.qcnn_learning_rates or not config.qcnn_initialization_scales:
         raise ValueError("QCNN tuning grids must not be empty")
+    if not config.vqc_seeds:
+        raise ValueError("vqc_seeds must not be empty")
 
 
 def _feature_columns(data: pd.DataFrame, selection: str) -> list[str]:

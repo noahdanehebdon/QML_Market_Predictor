@@ -9,6 +9,7 @@ from market_qml.qml.comparison import (
     run_model_comparison,
     save_comparison_result,
 )
+from scripts.compare_qml_models import _write_hardware_qualification
 
 
 def _comparison_data():
@@ -62,6 +63,7 @@ def test_comparison_uses_identical_rows_and_training_only_qsvm_selection():
     )
     assert set(result.predictions.model_name) == {
         "vqc",
+        "vqc_stable_rank",
         "qcnn",
         "qsvm",
         "qsvm_tuned",
@@ -195,3 +197,18 @@ def test_qsvm_tuning_reuses_feature_map_states_across_c_values(monkeypatch):
 
     assert len(trials) == len(folds["broad_market"]) * 3
     assert calls == len(folds["broad_market"]) * 2
+
+
+def test_hardware_qualification_requires_stable_vqc_to_beat_controls(tmp_path):
+    metrics = pd.DataFrame(
+        {
+            "scope": ["split"] * 6,
+            "model_name": ["vqc_stable_rank"] * 3 + ["linear_svm"] * 3,
+            "rank_information_coefficient": [0.1, 0.2, 0.1, 0.01, 0.02, 0.03],
+        }
+    )
+    path = _write_hardware_qualification(metrics, tmp_path)
+
+    import json
+
+    assert json.loads(path.read_text())["qualified_for_hardware"] is True

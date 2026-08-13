@@ -15,8 +15,8 @@ Run it with:
 python scripts/compare_qml_models.py
 ```
 
-The default run uses all six chronological outer splits and exactly 256 balanced
-training and 256 balanced validation rows per split. Every primary model receives
+The default run uses chronological outer splits and up to 512 balanced training and
+512 balanced validation rows per split. Every primary model receives
 the same eight training-only classical-selected inputs and identical outer row keys. The
 sample manifest stores a SHA-256 hash for those keys.
 
@@ -29,17 +29,27 @@ validation period is evaluated once after selection and never influences it.
 
 The current comparison rebuilds inputs from the 30-equity-plus-SPY universe.
 For each outer split, it takes the winning feature-count budget from the
-classical gradient-boosting tuner, ranks source features against continuous
-excess return using outer-training rows only, removes highly correlated
-duplicates, and assigns eight surviving standardized features to qubits.
+classical gradient-boosting tuner, ranks source features against the continuous
+20-day residualized excess-return target using outer-training rows only, rewards
+daily IC sign stability and coverage, removes highly correlated duplicates, and
+assigns eight surviving features to qubits. When the residual target is unavailable,
+the builder explicitly falls back to ordinary excess return.
 
-Features are ordered so strongly related inputs are adjacent on the circuit's
-ring. The redesigned kernel additionally tests neighbor interaction
+Inputs are converted to same-date percentile ranks in `[-1, 1]` and mapped directly
+to angles in `[-pi, pi]`; global variance-oriented PCA is not used for the selected
+path. Features are grouped by economic family and related inputs remain adjacent on
+the circuit ring. VQC training uses same-date pairwise ordering loss and a three-seed
+score ensemble is reported as `vqc_stable_rank`. The redesigned kernel additionally tests neighbor interaction
 re-uploading strengths `{0, 0.5, 1.0}` together with `C` and circuit
 repetitions. All choices use an inner chronological partition of outer training.
 The selected source feature, target correlation, qubit assignment, neighboring
-feature, and neighboring correlation are saved in
+feature, feature family, encoding, and neighboring correlation are saved in
 `selected_feature_manifest.parquet`.
+
+IBM execution of a fitted model is inference-only and requires a simulator
+qualification report with `qualified_for_hardware: true`. Hardware output records
+Spearman rank preservation against exact simulation; deterministic fixture mode
+remains available solely as an infrastructure smoke test.
 
 Outputs under `reports/qml_comparison/` include predictions, per-split classification metrics,
 split-bootstrap confidence intervals, timing and peak traced memory, QSVM kernel
