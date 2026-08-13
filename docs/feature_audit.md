@@ -19,6 +19,12 @@ Each run writes machine-readable Parquet tables plus a JSON manifest under the i
 - `ablations`: train-weighted, validation-scored feature-family results and whether
   dropping a family helps, hurts, or has no measurable effect;
 - `exposures`: sector/size mean-exposure and missingness-dependence ranges.
+- `decisions`: deterministic retain, transform, conditional, remove, or
+  insufficient-coverage dispositions with the evidence behind each decision.
+
+The decision table is a research triage artifact, not an automatic production feature
+selector. It uses development folds only and exists to make additions and removals
+reviewable before an expensive model run.
 
 Feature inclusion must be justified by repeated validation evidence. The implementation
 requires at least two folds, at least 60% train/validation sign agreement, and median

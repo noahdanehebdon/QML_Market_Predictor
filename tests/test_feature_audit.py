@@ -78,6 +78,10 @@ def test_audit_profiles_quality_stability_redundancy_and_ablations():
     pairs = set(map(frozenset, result.redundancy[["feature_a", "feature_b"]].values))
     assert frozenset({"return_5d", "return_10d"}) in pairs
     assert {"technical", "macro", "filing_events"} <= set(result.ablations["family"])
+    decisions = result.decisions.set_index("feature")
+    assert decisions.loc["return_5d", "decision"] == "transform"
+    assert decisions.loc["sparse_feature", "decision"] == "remove"
+    assert decisions["reason"].str.len().gt(0).all()
 
 
 def test_validation_sign_is_reported_separately_from_training():
