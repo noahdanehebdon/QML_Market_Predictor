@@ -32,10 +32,17 @@ def resolve_fundamental_collisions(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Choose one deterministic monetary fact per accession/concept/period."""
     key = ["symbol", "accession_number", "concept", "end_date"]
-    missing = set(key + ["unit", "sec_concept"]) - set(fundamentals)
+    missing = set(key + ["unit", "sec_concept", "filing_date"]) - set(fundamentals)
     if missing:
         raise ValueError("Fundamentals are missing: " + ", ".join(sorted(missing)))
     ordered = fundamentals.copy()
+    filing = pd.to_datetime(ordered["filing_date"], errors="coerce")
+    period_end = pd.to_datetime(ordered["end_date"], errors="coerce")
+    impossible_period = filing.notna() & period_end.notna() & filing.lt(period_end)
+    invalid_periods = ordered.loc[impossible_period].copy()
+    if not invalid_periods.empty:
+        invalid_periods.insert(0, "reason", "filing_precedes_reporting_period")
+    ordered = ordered.loc[~impossible_period].copy()
     preferred_unit = (
         ordered["concept"].eq("shares_outstanding").map({True: "shares", False: "USD"})
     )
@@ -71,6 +78,7 @@ def resolve_fundamental_collisions(
     quarantine = ordered.loc[duplicate].drop(columns=helper_columns).copy()
     if not quarantine.empty:
         quarantine.insert(0, "reason", "alternate_xbrl_fact")
+    quarantine = pd.concat([invalid_periods, quarantine], ignore_index=True)
     resolved = (
         ordered.loc[~duplicate].drop(columns=helper_columns).reset_index(drop=True)
     )

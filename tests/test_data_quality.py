@@ -129,3 +129,20 @@ def test_sec_fact_collisions_prefer_usd_and_are_quarantined():
         {"unit": "USD", "value": 100.0}
     ]
     assert quarantine["reason"].tolist() == ["alternate_xbrl_fact"]
+
+
+def test_sec_facts_quarantine_periods_ending_after_filing():
+    _, _, _, fundamentals, _ = _valid_inputs()
+    fundamentals = fundamentals.assign(sec_concept="Revenues")
+    impossible = fundamentals.assign(
+        filing_date=pd.Timestamp("2024-01-15"),
+        end_date=pd.Timestamp("2024-03-31"),
+        accession_number="future-period",
+    )
+
+    resolved, quarantine = resolve_fundamental_collisions(
+        pd.concat([fundamentals, impossible], ignore_index=True)
+    )
+
+    assert resolved["accession_number"].astype(str).tolist() == ["1"]
+    assert quarantine["reason"].tolist() == ["filing_precedes_reporting_period"]
