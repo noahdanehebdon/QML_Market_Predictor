@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from market_qml.features.conditional import add_conditional_features
 from market_qml.features.cross_sectional import add_cross_sectional_features
 from market_qml.features.market_signals import add_market_signal_features
 
@@ -46,6 +47,7 @@ def build_canonical_features(
 
     if {"close", "high", "low", "volume", "return_1d"}.issubset(result):
         result = add_market_signal_features(result)
+    result = add_conditional_features(result)
 
     if add_cross_sectional:
         result = add_cross_sectional_features(result)

@@ -45,7 +45,7 @@ on:
       target_horizon_days:
         description: Development-selected classification horizon
         required: true
-        default: "10"
+        default: "20"
         type: choice
         options: ["5", "10", "20", "60"]
   schedule:
@@ -72,7 +72,7 @@ jobs:
       FULL_EXPERIMENT: ${{ inputs.full_experiment || 'false' }}
       QUANTUM_SAMPLE_ROWS: ${{ inputs.quantum_sample_rows || '512' }}
       QUANTUM_ITERATIONS: ${{ inputs.quantum_iterations || '30' }}
-      TARGET_HORIZON_DAYS: ${{ inputs.target_horizon_days || '10' }}
+      TARGET_HORIZON_DAYS: ${{ inputs.target_horizon_days || '20' }}
 
     steps:
       - name: Check out repository
