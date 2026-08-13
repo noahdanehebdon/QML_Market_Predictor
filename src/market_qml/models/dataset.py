@@ -205,6 +205,9 @@ def _prepare_labels(labels: pd.DataFrame, *, target_column: str) -> pd.DataFrame
     result["symbol"] = result["symbol"].astype(str).str.upper()
     result["date"] = pd.to_datetime(result["date"], errors="coerce").dt.normalize()
 
+    if "return_integrity_valid" in result:
+        result = result.loc[result["return_integrity_valid"].eq(True)].copy()
+
     if result["date"].isna().any():
         raise ValueError("Label table contains invalid dates.")
 

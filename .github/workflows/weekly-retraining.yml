@@ -120,8 +120,11 @@ jobs:
         run: |
           python -m scripts.build_forward_return_labels \
             --horizon "$TARGET_HORIZON_DAYS"
+          python -m scripts.augment_research_targets \
+            --target-horizon-days "$TARGET_HORIZON_DAYS"
           python -m scripts.build_walk_forward_splits \
             --target-horizon-days "$TARGET_HORIZON_DAYS" \
+            --universe-membership data/processed/universe_membership.parquet \
             --purge-days "$TARGET_HORIZON_DAYS" \
             --embargo-days "$TARGET_HORIZON_DAYS"
 
@@ -129,6 +132,7 @@ jobs:
         run: >-
           python -m scripts.audit_feature_quality
           --target-horizon-days "$TARGET_HORIZON_DAYS"
+          --membership data/processed/universe_membership.parquet
           --output-dir reports/weekly_retraining/feature_audit
 
       - name: Retrain selected models
@@ -142,6 +146,7 @@ jobs:
           python -m scripts.run_walk_forward_backtest \
             --models "${models[@]}" \
             --output-dir reports/weekly_retraining \
+            --universe-membership data/processed/universe_membership.parquet \
             --target-horizon-days "$TARGET_HORIZON_DAYS" \
             --disable-mlflow
 
@@ -162,8 +167,11 @@ jobs:
               logistic_regression elastic_net ridge_regression huber_regression \
               random_forest random_forest_regressor gradient_boosting \
               gradient_boosting_regressor tuned_gradient_boosting_regressor \
-              vol_normalized_gradient_boosting_regressor \
+              vol_normalized_gradient_boosting_regressor xgboost_ranker \
+              residualized_xgboost_ranker residualized_huber_regression \
+              momentum_rank random_rank sector_neutral_rank \
             --output-dir reports/weekly_retraining/classical_full \
+            --universe-membership data/processed/universe_membership.parquet \
             --transaction-cost-bps 10 \
             --target-horizon-days "$TARGET_HORIZON_DAYS" \
             --disable-mlflow
@@ -171,6 +179,7 @@ jobs:
             --classical-selection \
               reports/weekly_retraining/classical_full/selection_diagnostics.parquet \
             --output-dir reports/weekly_retraining/qml_tuned_full \
+            --universe-membership data/processed/universe_membership.parquet \
             --train-rows "$QUANTUM_SAMPLE_ROWS" \
             --validation-rows "$QUANTUM_SAMPLE_ROWS" \
             --iterations "$QUANTUM_ITERATIONS" \

@@ -172,6 +172,7 @@ def run_model_comparison(
         transaction_cost_bps=config.transaction_cost_bps,
         rebalance_frequency=config.rebalance_frequency,
         return_horizon_days=config.return_horizon_days,
+        sector_neutral=True,
     )
     portfolio_metrics = summarize_portfolio_risk(portfolio_returns)
     date_block_metrics = prediction_date_block_metrics(

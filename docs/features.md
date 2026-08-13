@@ -425,3 +425,7 @@ Common missing-value sources include:
 The modeling dataset constructor can optionally drop rows with too many missing
 features using `max_missing_feature_fraction`. Later preprocessing steps should
 handle remaining missing values in a model-specific way.
+
+The tuned boosted-regression selector runs within each outer training fold. Its
+feature score combines training-only target association, sign consistency across
+training dates, and usable coverage; outer-validation targets never participate.

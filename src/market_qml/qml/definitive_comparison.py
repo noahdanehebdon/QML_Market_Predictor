@@ -77,6 +77,7 @@ def build_definitive_comparison(
                 top_fraction=0.1,
                 return_horizon_days=return_horizon_days,
                 rebalance_frequency=rebalance_frequency or return_horizon_days,
+                sector_neutral=True,
             )
         )
         portfolio = portfolio.loc[portfolio["scope"].eq("overall")].copy()

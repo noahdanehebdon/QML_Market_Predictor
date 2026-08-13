@@ -26,6 +26,7 @@ def build_selected_qml_features(
     labels: pd.DataFrame,
     splits: pd.DataFrame,
     selection_diagnostics: pd.DataFrame,
+    universe_membership: pd.DataFrame | None = None,
     target_horizon_days: int = 5,
     n_qubits: int = 8,
     correlation_threshold: float = 0.9,
@@ -63,6 +64,7 @@ def build_selected_qml_features(
         datasets = build_train_validation_datasets(
             features=features,
             labels=labels,
+            universe_membership=universe_membership,
             target_column=excess_column,
             train_start_date=split.train_start_date,
             train_end_date=split.train_end_date,
@@ -95,9 +97,13 @@ def build_selected_qml_features(
         selected = _order_by_relationship(data.train.X[selected], selected)
         qml_columns = [f"selected_feature_{index:02d}" for index in range(n_qubits)]
         for role, dataset in (("train", data.train), ("validation", data.validation)):
-            frame = dataset.metadata[
-                ["symbol", "date", return_column, excess_column]
-            ].copy()
+            metadata_columns = ["symbol", "date", return_column, excess_column]
+            metadata_columns += [
+                column
+                for column in ["sector", "size_bucket"]
+                if column in dataset.metadata
+            ]
+            frame = dataset.metadata[metadata_columns].copy()
             frame["split_id"] = split_id
             frame["sample_role"] = role
             frame["target"] = pd.to_numeric(

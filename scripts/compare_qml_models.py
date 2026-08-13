@@ -25,6 +25,7 @@ def main() -> None:
     parser.add_argument(
         "--labels", type=Path, default=Path("data/labels/forward_return_labels.parquet")
     )
+    parser.add_argument("--universe-membership", type=Path, default=None)
     parser.add_argument(
         "--splits",
         type=Path,
@@ -64,6 +65,11 @@ def main() -> None:
     selected = build_selected_qml_features(
         features=features,
         labels=labels,
+        universe_membership=(
+            pd.read_parquet(args.universe_membership)
+            if args.universe_membership is not None
+            else None
+        ),
         splits=splits,
         selection_diagnostics=pd.read_parquet(args.classical_selection),
         target_horizon_days=args.target_horizon_days,

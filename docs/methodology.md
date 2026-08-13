@@ -275,3 +275,22 @@ production readiness, or a general quantum advantage in finance.
 - [Regime analysis](qml_regime_analysis.md)
 - [Strong classical baselines](strong_baselines.md)
 - [Current result status](results_status.md)
+
+## Predictive-quality protocol
+
+Before the first archived security-master snapshot, only the documented legacy
+large-cap seed universe is eligible. Later dates require provider-classified common
+stock status plus trailing price, liquidity, history, and tradability gates. Missing
+security type fails closed; current constituents are never backfilled historically.
+
+Forward returns remain unchanged for auditability but receive deterministic integrity
+flags. Impossible losses, fixed absolute extremes, and robust cross-sectional
+extremes are excluded before fitting. Ranking research also uses stock-specific
+residual targets based on available same-date beta, volatility, liquidity, sector,
+and size exposures.
+
+Feature selection occurs inside each outer-training fold and rewards association,
+cross-date sign consistency, and coverage. Promotion requires permutation evidence,
+positive rank IC across most folds, improvement over a naive ranker, plausible
+cost-adjusted economics, bounded turnover and drawdown, and no extreme portfolio
+periods. Failure of any gate keeps the model in development.

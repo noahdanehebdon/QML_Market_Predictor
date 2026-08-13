@@ -39,6 +39,9 @@ def build_prediction_table(
     forward_excess_return_column = _find_forward_excess_return_column(metadata)
 
     result = metadata[["symbol", "date"]].copy()
+    for column in ["sector", "size_bucket"]:
+        if column in metadata:
+            result[column] = metadata[column].to_numpy()
     result["date"] = pd.to_datetime(result["date"], errors="coerce").dt.normalize()
     if result["date"].isna().any():
         raise ValueError("Validation metadata contains invalid dates.")
@@ -65,8 +68,9 @@ def build_prediction_table(
     if result[numeric_columns].isna().any().any():
         raise ValueError("Prediction table contains missing or non-numeric values.")
 
+    optional = [column for column in ["sector", "size_bucket"] if column in result]
     return (
-        result[REQUIRED_PREDICTION_COLUMNS]
+        result[REQUIRED_PREDICTION_COLUMNS + optional]
         .sort_values(["symbol", "date"])
         .reset_index(drop=True)
     )

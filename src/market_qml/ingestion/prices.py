@@ -228,6 +228,7 @@ def normalize_asset_snapshot(
         "symbol",
         "effective_date",
         "asset_id",
+        "asset_name",
         "asset_class",
         "exchange",
         "status",
@@ -236,6 +237,7 @@ def normalize_asset_snapshot(
         "marginable",
         "shortable",
         "borrow_status",
+        "security_type",
     ]
     rows = []
     for asset in payload:
@@ -244,6 +246,7 @@ def normalize_asset_snapshot(
                 "symbol": str(asset.get("symbol", "")).upper(),
                 "effective_date": effective_date,
                 "asset_id": asset.get("id"),
+                "asset_name": asset.get("name"),
                 "asset_class": asset.get("class"),
                 "exchange": asset.get("exchange"),
                 "status": asset.get("status"),
@@ -252,6 +255,10 @@ def normalize_asset_snapshot(
                 "marginable": bool(asset.get("marginable", False)),
                 "shortable": bool(asset.get("shortable", False)),
                 "borrow_status": asset.get("borrow_status"),
+                "security_type": classify_security_type(
+                    symbol=str(asset.get("symbol", "")),
+                    name=asset.get("name"),
+                ),
             }
         )
     if not rows:
@@ -259,6 +266,33 @@ def normalize_asset_snapshot(
     result = pd.DataFrame(rows, columns=columns).dropna(subset=["symbol"])
     result = result.loc[result["symbol"].ne("")]
     return result.drop_duplicates(["symbol", "effective_date"]).sort_values("symbol")
+
+
+def classify_security_type(*, symbol: str, name: object) -> str:
+    """Conservatively classify Alpaca assets from auditable security-master text."""
+    normalized_name = "" if name is None else str(name).strip().lower()
+    normalized_symbol = symbol.strip().upper()
+    exclusions = {
+        "warrant": ("warrant",),
+        "unit": (" units", "unit exp", "unit each"),
+        "right": (" right", "rights"),
+        "preferred": ("preferred", "depositary shares", "depositary share"),
+        "fund": (
+            " etf",
+            "exchange traded fund",
+            "exchange-traded fund",
+            "closed-end fund",
+            "index fund",
+            "portfolio",
+        ),
+        "note": (" etn", "exchange traded note", "exchange-traded note"),
+    }
+    for security_type, markers in exclusions.items():
+        if any(marker in f" {normalized_name}" for marker in markers):
+            return security_type
+    if not normalized_name or not normalized_symbol:
+        return "unknown"
+    return "common_stock"
 
 
 def fetch_alpaca_asset_snapshot(

@@ -96,6 +96,33 @@ def test_run_portfolio_backtest_supports_top_fraction():
     assert result["gross_excess_return"].tolist() == pytest.approx([0.03, 0.04])
 
 
+def test_sector_neutral_portfolio_assigns_equal_sector_budgets():
+    predictions = pd.DataFrame(
+        {
+            "symbol": ["T1", "T2", "T3", "F1"],
+            "date": pd.to_datetime(["2024-01-01"] * 4),
+            "y_true": [1, 1, 1, 0],
+            "y_score": [0.9, 0.8, 0.7, 0.6],
+            "forward_return": [0.1, 0.1, 0.1, 0.0],
+            "forward_excess_return": [0.1, 0.1, 0.1, 0.0],
+            "model_name": ["model"] * 4,
+            "split_id": [0] * 4,
+            "sector": ["tech", "tech", "tech", "finance"],
+        }
+    )
+
+    result = run_portfolio_backtest(
+        predictions,
+        top_fraction=1.0,
+        rebalance_frequency=1,
+        return_horizon_days=1,
+        sector_neutral=True,
+    )
+
+    assert result.loc[0, "gross_return"] == pytest.approx(0.05)
+    assert result.loc[0, "neutralization"] == "sector_equal_weight"
+
+
 def test_run_portfolio_backtest_supports_multiple_models():
     predictions = pd.concat(
         [_predictions("model_a"), _predictions("model_b")],
@@ -224,6 +251,7 @@ def test_five_day_returns_use_frequency_aware_annualization():
                 "return_horizon_days": 5,
                 "rebalance_frequency": 5,
                 "transaction_cost_bps": 10.0,
+                "neutralization": "none",
                 "selected_count": 1,
                 "turnover": 0.0,
                 "transaction_cost": 0.0,

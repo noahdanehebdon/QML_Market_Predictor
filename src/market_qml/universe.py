@@ -26,6 +26,7 @@ class UniverseRules:
     min_names: int = 100
     min_sectors: int = 8
     min_sector_names: int = 3
+    allowed_security_types: tuple[str, ...] = ("common_stock",)
 
 
 def build_point_in_time_universe(
@@ -35,6 +36,7 @@ def build_point_in_time_universe(
     metadata_history: pd.DataFrame | None = None,
     rules: UniverseRules = UniverseRules(),
     benchmark_symbol: str = "SPY",
+    legacy_seed_symbols: tuple[str, ...] | list[str] = (),
 ) -> pd.DataFrame:
     """Return a complete date/symbol panel with trailing-only membership flags."""
     _require_columns(prices, REQUIRED_PRICE_COLUMNS, "Prices")
@@ -102,12 +104,25 @@ def build_point_in_time_universe(
         & panel["status"].eq("active")
         & panel["tradable"].eq(True)
     )
+    panel["eligible_security_type"] = (
+        panel["security_type"].isin(rules.allowed_security_types)
+        if "security_type" in panel
+        else False
+    )
+    first_snapshot = assets["effective_date"].min()
+    legacy_symbols = {str(symbol).upper() for symbol in legacy_seed_symbols}
+    panel["legacy_seed_period"] = panel["date"].lt(first_snapshot) & panel[
+        "symbol"
+    ].isin(legacy_symbols)
+    panel.loc[panel["legacy_seed_period"], "eligible_tradability"] = True
+    panel.loc[panel["legacy_seed_period"], "eligible_security_type"] = True
     panel["is_benchmark"] = panel["symbol"].eq(benchmark_symbol)
     panel["is_member"] = (
         panel["eligible_price"]
         & panel["eligible_liquidity"]
         & panel["eligible_history"]
         & panel["eligible_tradability"]
+        & panel["eligible_security_type"]
         & ~panel["is_benchmark"]
     )
     panel["size_bucket"] = pd.NA
@@ -250,3 +265,5 @@ def _validate_rules(rules: UniverseRules) -> None:
     ]:
         if value <= 0:
             raise ValueError("Universe count and window rules must be positive.")
+    if not rules.allowed_security_types:
+        raise ValueError("At least one security type must be allowed.")

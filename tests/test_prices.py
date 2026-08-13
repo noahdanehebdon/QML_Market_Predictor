@@ -2,7 +2,11 @@ import pandas as pd
 import pytest
 
 import market_qml.ingestion.prices as price_ingestion
-from market_qml.ingestion.prices import _normalize_bar_pages, normalize_asset_snapshot
+from market_qml.ingestion.prices import (
+    _normalize_bar_pages,
+    classify_security_type,
+    normalize_asset_snapshot,
+)
 from scripts.ingest_alpaca_prices import load_candidate_symbols, merge_price_history
 from scripts.snapshot_alpaca_assets import append_asset_snapshot
 
@@ -70,6 +74,7 @@ def test_asset_snapshots_are_effective_dated_and_append_only(tmp_path):
                 "symbol": "AAA",
                 "status": "active",
                 "tradable": True,
+                "name": "AAA Common Stock",
             },
             {
                 "id": "2",
@@ -78,6 +83,7 @@ def test_asset_snapshots_are_effective_dated_and_append_only(tmp_path):
                 "symbol": "OLD",
                 "status": "inactive",
                 "tradable": False,
+                "name": "OLD Common Stock",
             },
         ],
         snapshot_date="2024-01-02",
@@ -91,6 +97,7 @@ def test_asset_snapshots_are_effective_dated_and_append_only(tmp_path):
                 "symbol": "AAA",
                 "status": "inactive",
                 "tradable": False,
+                "name": "AAA Common Stock",
             }
         ],
         snapshot_date="2024-01-03",
@@ -105,6 +112,20 @@ def test_asset_snapshots_are_effective_dated_and_append_only(tmp_path):
         "active",
         "inactive",
     ]
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("Example Corporation Common Stock", "common_stock"),
+        ("Example Acquisition Corp Warrant", "warrant"),
+        ("Example Preferred Depositary Shares", "preferred"),
+        ("Example Exchange Traded Fund ETF", "fund"),
+        (None, "unknown"),
+    ],
+)
+def test_security_type_classification_is_conservative(name, expected):
+    assert classify_security_type(symbol="EX", name=name) == expected
 
 
 def test_asset_snapshot_defaults_to_paper_host_and_allows_live_override(monkeypatch):
@@ -273,6 +294,7 @@ def test_candidate_pool_uses_only_latest_tradable_snapshot(tmp_path):
                 "exchange": "NYSE",
                 "status": "active",
                 "tradable": True,
+                "security_type": "common_stock",
             },
             {
                 "symbol": "OLD",
@@ -281,6 +303,7 @@ def test_candidate_pool_uses_only_latest_tradable_snapshot(tmp_path):
                 "exchange": "NYSE",
                 "status": "inactive",
                 "tradable": False,
+                "security_type": "common_stock",
             },
             {
                 "symbol": "AAA",
@@ -289,6 +312,7 @@ def test_candidate_pool_uses_only_latest_tradable_snapshot(tmp_path):
                 "exchange": "NASDAQ",
                 "status": "active",
                 "tradable": True,
+                "security_type": "common_stock",
             },
             {
                 "symbol": "OTC",
@@ -297,6 +321,7 @@ def test_candidate_pool_uses_only_latest_tradable_snapshot(tmp_path):
                 "exchange": "OTC",
                 "status": "active",
                 "tradable": True,
+                "security_type": "common_stock",
             },
         ]
     )

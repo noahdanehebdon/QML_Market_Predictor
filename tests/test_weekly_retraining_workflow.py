@@ -61,6 +61,10 @@ def test_weekly_retraining_audits_features_before_training():
         "Retrain selected models"
     )
     assert "scripts.audit_feature_quality" in commands
+    assert "scripts.augment_research_targets" in commands
+    assert (
+        "--universe-membership data/processed/universe_membership.parquet" in commands
+    )
     assert '--target-horizon-days "$TARGET_HORIZON_DAYS"' in commands
     assert "reports/weekly_retraining/feature_audit" in commands
 

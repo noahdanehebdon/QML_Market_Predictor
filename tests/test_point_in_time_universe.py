@@ -32,6 +32,7 @@ def _assets() -> pd.DataFrame:
                 "asset_class": "us_equity",
                 "status": "active",
                 "tradable": True,
+                "security_type": "common_stock",
             }
             for symbol in ["AAA", "BBB", "CCC", "SPY"]
         ]
@@ -42,6 +43,7 @@ def _assets() -> pd.DataFrame:
                 "asset_class": "us_equity",
                 "status": "inactive",
                 "tradable": False,
+                "security_type": "common_stock",
             }
         ]
     )
@@ -161,6 +163,7 @@ def test_full_security_master_does_not_expand_the_priced_candidate_panel():
                         "asset_class": "us_equity",
                         "status": "active",
                         "tradable": True,
+                        "security_type": "common_stock",
                     }
                     for i in range(1_000)
                 ]

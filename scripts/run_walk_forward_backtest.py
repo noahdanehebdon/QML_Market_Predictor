@@ -143,6 +143,10 @@ from market_qml.qml.vqc import train_vqc
 from market_qml.qml.walk_forward import build_qml_split_sample
 from market_qml.reporting.baseline_evidence import compare_to_naive_baselines
 from market_qml.reporting.ensemble_evidence import compare_ensemble_performance
+from market_qml.reporting.research_promotion import (
+    build_research_promotion_table,
+    rank_ic_permutation_evidence,
+)
 from market_qml.utils.mlflow_tracking import (
     DEFAULT_EXPERIMENT_NAME,
     log_walk_forward_backtest_run,
@@ -154,6 +158,7 @@ VOL_NORMALIZED_GRADIENT_BOOSTING_MODEL_NAME = (
     "vol_normalized_gradient_boosting_regressor"
 )
 VOL_NORMALIZED_TARGET_COLUMN = "vol_normalized_excess_return_5d"
+RESIDUALIZED_TARGET_COLUMN = "residualized_forward_excess_return_5d"
 
 
 @dataclass(frozen=True)
@@ -207,6 +212,12 @@ MODEL_REGISTRY = {
         target_column=XGBOOST_RANK_TARGET,
         train=train_xgboost_ranker,
     ),
+    "residualized_xgboost_ranker": ModelSpec(
+        target_column=RESIDUALIZED_TARGET_COLUMN,
+        train=lambda data, split_id: train_xgboost_ranker(
+            data, split_id=split_id, model_name="residualized_xgboost_ranker"
+        ),
+    ),
     LOGISTIC_REGRESSION_MODEL_NAME: ModelSpec(
         target_column=DEFAULT_TARGET_COLUMN,
         train=train_logistic_regression,
@@ -222,6 +233,12 @@ MODEL_REGISTRY = {
     HUBER_REGRESSION_MODEL_NAME: ModelSpec(
         target_column=HUBER_TARGET_COLUMN,
         train=train_huber_regression,
+    ),
+    "residualized_huber_regression": ModelSpec(
+        target_column=RESIDUALIZED_TARGET_COLUMN,
+        train=lambda data, split_id: train_huber_regression(
+            data, split_id=split_id, model_name="residualized_huber_regression"
+        ),
     ),
     RANDOM_FOREST_MODEL_NAME: ModelSpec(
         target_column=DEFAULT_TARGET_COLUMN,
@@ -471,6 +488,7 @@ def run_walk_forward_backtest(
         transaction_cost_bps=transaction_cost_bps,
         rebalance_frequency=rebalance_frequency,
         return_horizon_days=return_horizon_days,
+        sector_neutral=True,
     )
     portfolio_risk_metrics = summarize_portfolio_risk(
         portfolio_returns,
@@ -479,6 +497,13 @@ def run_walk_forward_backtest(
         ranking_metrics, portfolio_risk_metrics
     )
     baseline_evidence = compare_to_naive_baselines(predictions)
+    permutation_evidence = rank_ic_permutation_evidence(predictions)
+    research_promotion = build_research_promotion_table(
+        ranking_metrics,
+        portfolio_risk_metrics,
+        baseline_evidence,
+        permutation_evidence,
+    )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_paths = {
@@ -488,6 +513,8 @@ def run_walk_forward_backtest(
         "portfolio_backtest": output_dir / "portfolio_backtest.parquet",
         "portfolio_risk_metrics": output_dir / "portfolio_risk_metrics.parquet",
         "baseline_evidence": output_dir / "baseline_evidence.parquet",
+        "permutation_evidence": output_dir / "permutation_evidence.parquet",
+        "research_promotion": output_dir / "research_promotion.parquet",
         "ensemble_diagnostics": output_dir / "ensemble_diagnostics.parquet",
         "ensemble_sensitivity": output_dir / "ensemble_sensitivity.parquet",
         "ensemble_evidence": output_dir / "ensemble_evidence.parquet",
@@ -508,6 +535,8 @@ def run_walk_forward_backtest(
 
     predictions.to_parquet(output_paths["predictions"], index=False)
     baseline_evidence.to_parquet(output_paths["baseline_evidence"], index=False)
+    permutation_evidence.to_parquet(output_paths["permutation_evidence"], index=False)
+    research_promotion.to_parquet(output_paths["research_promotion"], index=False)
     ensemble_result.diagnostics.to_parquet(
         output_paths["ensemble_diagnostics"], index=False
     )
@@ -719,6 +748,8 @@ def _spec_for_horizon(spec: ModelSpec, horizon_days: int) -> ModelSpec:
         target = f"vol_normalized_excess_return_{horizon_days}d"
     elif target.startswith("forward_excess_return_"):
         target = f"forward_excess_return_{horizon_days}d"
+    elif target.startswith("residualized_forward_excess_return_"):
+        target = f"residualized_forward_excess_return_{horizon_days}d"
     return ModelSpec(
         target_column=target, train=spec.train, model_family=spec.model_family
     )
