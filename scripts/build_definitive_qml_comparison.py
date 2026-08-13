@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--equal-dir", type=Path, required=True)
     parser.add_argument("--best-classical-dir", type=Path, required=True)
     parser.add_argument("--best-qml-dir", type=Path, required=True)
+    parser.add_argument("--target-horizon-days", type=int, required=True)
     parser.add_argument(
         "--locked-manifest",
         type=Path,
@@ -56,6 +57,8 @@ def main():
         if best_resources_path.exists()
         else None,
         locked_test_manifest=manifest,
+        return_horizon_days=args.target_horizon_days,
+        rebalance_frequency=args.target_horizon_days,
     )
     save_definitive_comparison(result, args.private_output, args.public_output)
     print(result.conclusion["decision"])

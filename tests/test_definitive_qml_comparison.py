@@ -39,6 +39,7 @@ def test_unaccessed_locked_test_prevents_quantum_advantage_and_saves_outputs(tmp
         predictions,
         locked_test_manifest={"locked_test_accessed": False},
         bootstrap_iterations=20,
+        return_horizon_days=5,
     )
 
     assert set(result.aggregate_metrics["lane"]) == {"equal_input", "best_available"}
@@ -62,4 +63,5 @@ def test_equal_input_lane_rejects_different_outer_rows():
             predictions.drop(index=remove),
             predictions,
             bootstrap_iterations=10,
+            return_horizon_days=5,
         )
