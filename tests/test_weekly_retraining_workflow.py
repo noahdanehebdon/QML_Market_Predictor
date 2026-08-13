@@ -17,6 +17,7 @@ def test_weekly_retraining_supports_manual_and_scheduled_runs():
     inputs = triggers["workflow_dispatch"]["inputs"]
     assert inputs["baseline_model"]["default"] == "tuned_gradient_boosting_regressor"
     assert inputs["run_qml"]["default"] == "false"
+    assert inputs["classical_sweep"]["default"] == "false"
     assert inputs["full_experiment"]["default"] == "false"
     assert inputs["quantum_sample_rows"]["default"] == "512"
     assert inputs["quantum_iterations"]["default"] == "30"
@@ -47,7 +48,10 @@ def test_weekly_retraining_builds_features_and_gates_qml():
 
     assert "build-features" in commands
     assert 'models=("$BASELINE_MODEL")' in commands
-    assert 'if [[ "$RUN_QML" == "true" ]]' in commands
+    assert 'if [[ "$CLASSICAL_SWEEP" == "true" ]]' in commands
+    assert "residualized_xgboost_ranker" in commands
+    assert "random_rank" in commands
+    assert 'if [[ "$RUN_QML" == "true" && "$CLASSICAL_SWEEP" != "true" ]]' in commands
     assert "models+=(vqc)" in commands
     assert "--disable-mlflow" in commands
 
