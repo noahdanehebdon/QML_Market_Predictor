@@ -22,6 +22,11 @@ on:
         required: true
         default: false
         type: boolean
+      leakage_stress_test:
+        description: Lag signals and use shorter folds plus block-aware inference
+        required: true
+        default: false
+        type: boolean
       full_experiment:
         description: Run every classical model plus nested-tuned QML comparison
         required: true
@@ -63,6 +68,7 @@ jobs:
       BASELINE_MODEL: ${{ inputs.baseline_model || 'tuned_gradient_boosting_regressor' }}
       RUN_QML: ${{ inputs.run_qml || 'false' }}
       CLASSICAL_SWEEP: ${{ inputs.classical_sweep || 'false' }}
+      LEAKAGE_STRESS_TEST: ${{ inputs.leakage_stress_test || 'false' }}
       FULL_EXPERIMENT: ${{ inputs.full_experiment || 'false' }}
       QUANTUM_SAMPLE_ROWS: ${{ inputs.quantum_sample_rows || '512' }}
       QUANTUM_ITERATIONS: ${{ inputs.quantum_iterations || '30' }}
@@ -123,7 +129,12 @@ jobs:
         run: build-features
 
       - name: Align labels and splits to selected horizon
+        shell: bash
         run: |
+          split_args=()
+          if [[ "$LEAKAGE_STRESS_TEST" == "true" ]]; then
+            split_args+=(--train-window-days 504 --validation-window-days 63 --step-days 63)
+          fi
           python -m scripts.build_forward_return_labels \
             --horizon "$TARGET_HORIZON_DAYS"
           python -m scripts.augment_research_targets \
@@ -132,10 +143,11 @@ jobs:
             --target-horizon-days "$TARGET_HORIZON_DAYS" \
             --universe-membership data/processed/universe_membership.parquet \
             --purge-days "$TARGET_HORIZON_DAYS" \
-            --embargo-days "$TARGET_HORIZON_DAYS"
+            --embargo-days "$TARGET_HORIZON_DAYS" \
+            "${split_args[@]}"
 
       - name: Audit feature quality and predictive stability
-        if: env.CLASSICAL_SWEEP != 'true'
+        if: env.CLASSICAL_SWEEP != 'true' && env.LEAKAGE_STRESS_TEST != 'true'
         run: >-
           python -m scripts.audit_feature_quality
           --target-horizon-days "$TARGET_HORIZON_DAYS"
@@ -147,7 +159,14 @@ jobs:
         if: env.FULL_EXPERIMENT != 'true'
         shell: bash
         run: |
-          if [[ "$CLASSICAL_SWEEP" == "true" ]]; then
+          if [[ "$LEAKAGE_STRESS_TEST" == "true" ]]; then
+            models=(
+              logistic_regression random_forest gradient_boosting
+              random_forest_regressor gradient_boosting_regressor
+              tuned_gradient_boosting_regressor momentum_rank random_rank
+              sector_neutral_rank
+            )
+          elif [[ "$CLASSICAL_SWEEP" == "true" ]]; then
             models=(
               logistic_regression elastic_net ridge_regression huber_regression
               random_forest random_forest_regressor gradient_boosting
@@ -159,7 +178,7 @@ jobs:
           else
             models=("$BASELINE_MODEL")
           fi
-          if [[ "$RUN_QML" == "true" && "$CLASSICAL_SWEEP" != "true" ]]; then
+          if [[ "$RUN_QML" == "true" && "$CLASSICAL_SWEEP" != "true" && "$LEAKAGE_STRESS_TEST" != "true" ]]; then
             models+=(vqc)
           fi
           python -m scripts.run_walk_forward_backtest \
@@ -167,6 +186,7 @@ jobs:
             --output-dir reports/weekly_retraining \
             --universe-membership data/processed/universe_membership.parquet \
             --target-horizon-days "$TARGET_HORIZON_DAYS" \
+            $([[ "$LEAKAGE_STRESS_TEST" == "true" ]] && echo "--feature-lag-days 1 --permutation-iterations 2000 --permutation-block-days $TARGET_HORIZON_DAYS") \
             --disable-mlflow
 
       - name: Run full classical and tuned quantum experiment
@@ -219,6 +239,7 @@ jobs:
             echo "- Baseline: \`$BASELINE_MODEL\`"
             echo "- QML enabled: \`$RUN_QML\`"
             echo "- Classical development sweep: \`$CLASSICAL_SWEEP\`"
+            echo "- Leakage stress test: \`$LEAKAGE_STRESS_TEST\`"
             echo "- Full feature audit: \`$([[ \"$CLASSICAL_SWEEP\" == \"true\" ]] && echo skipped || echo completed)\`"
             echo "- Full nested-tuning experiment: \`$FULL_EXPERIMENT\`"
             echo "- Reports are stored in the private R2 bucket under \`reports/runs/${GITHUB_RUN_ID}/\`."

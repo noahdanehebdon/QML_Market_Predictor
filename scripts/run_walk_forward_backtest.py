@@ -355,6 +355,9 @@ def parse_args() -> argparse.Namespace:
         help="Number of prediction dates between portfolio rebalances.",
     )
     parser.add_argument("--target-horizon-days", type=int, default=5)
+    parser.add_argument("--feature-lag-days", type=int, default=0)
+    parser.add_argument("--permutation-iterations", type=int, default=200)
+    parser.add_argument("--permutation-block-days", type=int, default=1)
     parser.add_argument(
         "--mlflow-experiment",
         default=DEFAULT_EXPERIMENT_NAME,
@@ -381,7 +384,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     outputs = run_walk_forward_backtest(
-        features=pd.read_parquet(args.features),
+        features=_lag_features(pd.read_parquet(args.features), args.feature_lag_days),
         labels=pd.read_parquet(args.labels),
         splits=pd.read_parquet(args.splits),
         universe_membership=(
@@ -403,6 +406,8 @@ def main() -> None:
         ),
         return_horizon_days=args.target_horizon_days,
         target_horizon_days=args.target_horizon_days,
+        permutation_iterations=args.permutation_iterations,
+        permutation_block_days=args.permutation_block_days,
         enable_mlflow=not args.disable_mlflow,
         mlflow_experiment=args.mlflow_experiment,
         mlflow_run_name=args.mlflow_run_name,
@@ -430,6 +435,8 @@ def run_walk_forward_backtest(
     rebalance_frequency: int = DEFAULT_REBALANCE_FREQUENCY,
     return_horizon_days: int = DEFAULT_RETURN_HORIZON_DAYS,
     target_horizon_days: int = 5,
+    permutation_iterations: int = 200,
+    permutation_block_days: int = 1,
     enable_mlflow: bool = False,
     mlflow_experiment: str = DEFAULT_EXPERIMENT_NAME,
     mlflow_run_name: str | None = None,
@@ -497,7 +504,11 @@ def run_walk_forward_backtest(
         ranking_metrics, portfolio_risk_metrics
     )
     baseline_evidence = compare_to_naive_baselines(predictions)
-    permutation_evidence = rank_ic_permutation_evidence(predictions)
+    permutation_evidence = rank_ic_permutation_evidence(
+        predictions,
+        iterations=permutation_iterations,
+        block_days=permutation_block_days,
+    )
     research_promotion = build_research_promotion_table(
         ranking_metrics,
         portfolio_risk_metrics,
@@ -595,6 +606,17 @@ def run_walk_forward_backtest(
         )
 
     return output_paths
+
+
+def _lag_features(features: pd.DataFrame, lag_days: int) -> pd.DataFrame:
+    if lag_days < 0:
+        raise ValueError("feature_lag_days cannot be negative.")
+    if lag_days == 0:
+        return features
+    ordered = features.sort_values(["symbol", "date"]).copy()
+    columns = [column for column in ordered if column not in {"symbol", "date"}]
+    ordered[columns] = ordered.groupby("symbol", sort=False)[columns].shift(lag_days)
+    return ordered
 
 
 def _walk_forward_predictions(

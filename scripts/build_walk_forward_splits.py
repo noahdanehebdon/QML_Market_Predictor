@@ -77,6 +77,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--purge-days", type=int, default=None)
     parser.add_argument("--embargo-days", type=int, default=None)
+    parser.add_argument("--train-window-days", type=int, default=None)
+    parser.add_argument("--validation-window-days", type=int, default=None)
     parser.add_argument(
         "--target-horizon-days",
         type=int,
@@ -105,8 +107,10 @@ def main() -> None:
     splits = build_walk_forward_split_table(
         metadata=dataset.metadata,
         output_path=args.output,
-        train_window_days=int(walk_forward.get("train_window_days", 756)),
-        validation_window_days=int(walk_forward.get("validation_window_days", 126)),
+        train_window_days=args.train_window_days
+        or int(walk_forward.get("train_window_days", 756)),
+        validation_window_days=args.validation_window_days
+        or int(walk_forward.get("validation_window_days", 126)),
         step_days=args.step_days,
         yearly_validation=args.yearly_validation,
         purge_days=(
