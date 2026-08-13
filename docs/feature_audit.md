@@ -11,6 +11,11 @@ python -m scripts.audit_feature_quality \
 Each run writes machine-readable Parquet tables plus a JSON manifest under the ignored
 `reports/feature_audit/` directory:
 
+Automated runs deterministically cap each date at 64 symbols for diagnostics. The
+stable hash sample is independent of labels, preserves the full date range, and does
+not alter model training or evaluation rows. This bounds quadratic redundancy work as
+the feature set grows.
+
 - `quality`: missingness, symbol coverage, staleness, and train-to-validation PSI;
 - `predictive`: train and validation daily cross-sectional rank IC and classification
   association for every feature and fold;

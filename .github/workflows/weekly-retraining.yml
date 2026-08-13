@@ -158,7 +158,7 @@ jobs:
         run: >-
           python -m scripts.audit_feature_quality
           --target-horizon-days "$TARGET_HORIZON_DAYS"
-          --max-rows-per-date 256
+          --max-rows-per-date 64
           --membership data/processed/universe_membership.parquet
           --output-dir reports/weekly_retraining/feature_audit
 
