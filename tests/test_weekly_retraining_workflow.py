@@ -86,8 +86,8 @@ def test_weekly_retraining_audits_features_before_training():
         if step["name"] == "Audit feature quality and predictive stability"
     )
     assert audit["if"] == (
-        "env.CLASSICAL_SWEEP != 'true' && (env.LEAKAGE_STRESS_TEST != 'true' || "
-        "env.PHASE2_EVALUATION == 'true')"
+        "env.CLASSICAL_SWEEP != 'true' && env.LEAKAGE_STRESS_TEST != 'true' && "
+        "env.PHASE2_EVALUATION != 'true'"
     )
 
 

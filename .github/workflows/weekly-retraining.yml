@@ -154,7 +154,7 @@ jobs:
             "${split_args[@]}"
 
       - name: Audit feature quality and predictive stability
-        if: env.CLASSICAL_SWEEP != 'true' && (env.LEAKAGE_STRESS_TEST != 'true' || env.PHASE2_EVALUATION == 'true')
+        if: env.CLASSICAL_SWEEP != 'true' && env.LEAKAGE_STRESS_TEST != 'true' && env.PHASE2_EVALUATION != 'true'
         run: >-
           python -m scripts.audit_feature_quality
           --target-horizon-days "$TARGET_HORIZON_DAYS"
