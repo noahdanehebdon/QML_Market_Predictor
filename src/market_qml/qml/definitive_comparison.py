@@ -40,6 +40,8 @@ def build_definitive_comparison(
     best_resources: pd.DataFrame | None = None,
     locked_test_manifest: dict[str, object] | None = None,
     bootstrap_iterations: int = 2000,
+    return_horizon_days: int,
+    rebalance_frequency: int | None = None,
 ) -> DefinitiveComparisonResult:
     """Compare equal-input and best-available lanes without overstating evidence."""
     _validate_equal_input(equal_input_predictions)
@@ -70,7 +72,12 @@ def build_definitive_comparison(
             paired.insert(0, "lane", lane)
             paired_frames.append(paired)
         portfolio = summarize_portfolio_risk(
-            run_portfolio_backtest(predictions, top_fraction=0.1)
+            run_portfolio_backtest(
+                predictions,
+                top_fraction=0.1,
+                return_horizon_days=return_horizon_days,
+                rebalance_frequency=rebalance_frequency or return_horizon_days,
+            )
         )
         portfolio = portfolio.loc[portfolio["scope"].eq("overall")].copy()
         portfolio.insert(0, "lane", lane)

@@ -179,7 +179,8 @@ jobs:
           python -m scripts.build_definitive_qml_comparison \
             --equal-dir reports/weekly_retraining/qml_tuned_full \
             --best-classical-dir reports/weekly_retraining/classical_full \
-            --best-qml-dir reports/weekly_retraining/qml_tuned_full
+            --best-qml-dir reports/weekly_retraining/qml_tuned_full \
+            --target-horizon-days "$TARGET_HORIZON_DAYS"
 
       - name: Write run summary
         if: success()

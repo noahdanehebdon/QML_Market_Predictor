@@ -60,6 +60,10 @@ PORTFOLIO_RISK_COLUMNS = [
     "gross_max_drawdown",
     "net_max_drawdown",
     "benchmark_max_drawdown",
+    "minimum_net_return",
+    "maximum_net_return",
+    "period_returns_over_100pct",
+    "plausibility_status",
     "hit_rate",
     "excess_hit_rate",
     "average_turnover",
@@ -90,11 +94,11 @@ def run_portfolio_backtest(
         )
 
     rows = []
-    grouped = predictions.groupby(["model_name", "split_id"], sort=True)
-    for (model_name, split_id), model_split_predictions in grouped:
+    grouped = predictions.groupby("model_name", sort=True)
+    for model_name, model_predictions in grouped:
         previous_weights: dict[str, float] = {}
-        date_groups = list(model_split_predictions.groupby("date", sort=True))
-        for date_index, (date, group) in enumerate(date_groups):
+        period_groups = list(model_predictions.groupby(["date", "split_id"], sort=True))
+        for date_index, ((date, split_id), group) in enumerate(period_groups):
             if date_index % rebalance_frequency != 0:
                 continue
 
@@ -297,6 +301,12 @@ def _risk_row(
         "gross_max_drawdown": _max_drawdown(gross),
         "net_max_drawdown": _max_drawdown(net),
         "benchmark_max_drawdown": _max_drawdown(benchmark),
+        "minimum_net_return": float(net.min()),
+        "maximum_net_return": float(net.max()),
+        "period_returns_over_100pct": int((net.abs() > 1).sum()),
+        "plausibility_status": "invalid_extreme_period_return"
+        if (net.abs() > 1).any()
+        else "passed",
         "hit_rate": float((net > 0).mean()),
         "excess_hit_rate": float((net_excess > 0).mean()),
         "average_turnover": float(ordered["turnover"].mean()),

@@ -114,6 +114,32 @@ def test_run_portfolio_backtest_supports_multiple_models():
     ]
 
 
+def test_rebalance_cadence_does_not_reset_at_split_boundaries():
+    dates = pd.bdate_range("2024-01-01", periods=12)
+    predictions = pd.DataFrame(
+        {
+            "symbol": ["A"] * len(dates),
+            "date": dates,
+            "y_true": [1] * len(dates),
+            "y_score": [1.0] * len(dates),
+            "forward_return": [0.01] * len(dates),
+            "forward_excess_return": [0.005] * len(dates),
+            "model_name": ["model_a"] * len(dates),
+            "split_id": [0] * 6 + [1] * 6,
+        }
+    )
+
+    result = run_portfolio_backtest(
+        predictions,
+        top_k=1,
+        rebalance_frequency=5,
+        return_horizon_days=5,
+    )
+
+    assert result["date"].tolist() == [dates[0], dates[5], dates[10]]
+    assert result["split_id"].tolist() == [0, 0, 1]
+
+
 def test_summarize_portfolio_risk_reports_split_and_overall_metrics():
     returns = run_portfolio_backtest(
         _predictions(),
@@ -138,11 +164,29 @@ def test_summarize_portfolio_risk_reports_split_and_overall_metrics():
     )
     assert risk.loc[0, "net_volatility"] >= 0
     assert risk.loc[0, "net_max_drawdown"] <= 0
+    assert risk.loc[0, "minimum_net_return"] == pytest.approx(0.034)
+    assert risk.loc[0, "maximum_net_return"] == pytest.approx(0.0395)
+    assert risk.loc[0, "period_returns_over_100pct"] == 0
+    assert risk.loc[0, "plausibility_status"] == "passed"
     assert risk.loc[0, "hit_rate"] == pytest.approx(1.0)
     assert risk.loc[0, "excess_hit_rate"] == pytest.approx(1.0)
     assert risk.loc[0, "average_turnover"] == pytest.approx(0.75)
     assert risk.loc[0, "total_transaction_cost"] == pytest.approx(0.0015)
     assert pd.isna(risk.loc[1, "split_id"])
+
+
+def test_portfolio_summary_flags_extreme_period_returns():
+    returns = run_portfolio_backtest(
+        _predictions().assign(forward_return=2.0, forward_excess_return=1.99),
+        top_k=2,
+        rebalance_frequency=1,
+        return_horizon_days=1,
+    )
+
+    risk = summarize_portfolio_risk(returns)
+
+    assert risk.loc[0, "period_returns_over_100pct"] == 2
+    assert risk.loc[0, "plausibility_status"] == "invalid_extreme_period_return"
 
 
 def test_run_portfolio_backtest_rejects_invalid_selection():
