@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from market_qml.features.audit import audit_features
+from market_qml.features.audit import audit_features, deterministic_cross_section_sample
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,6 +34,12 @@ def parse_args() -> argparse.Namespace:
         default=5,
         help="Forward target horizon used by the label table.",
     )
+    parser.add_argument(
+        "--max-rows-per-date",
+        type=int,
+        default=None,
+        help="Deterministically bound each audit cross-section; modeling is unaffected.",
+    )
     return parser.parse_args()
 
 
@@ -45,8 +51,11 @@ def main() -> None:
     labels = pd.read_parquet(args.labels)
     if "return_integrity_valid" in labels:
         labels = labels.loc[labels["return_integrity_valid"].eq(True)].copy()
+    features = deterministic_cross_section_sample(
+        pd.read_parquet(args.features), args.max_rows_per_date
+    )
     result = audit_features(
-        pd.read_parquet(args.features),
+        features,
         labels,
         pd.read_parquet(args.splits),
         return_target=f"forward_excess_return_{horizon}d",
@@ -64,6 +73,7 @@ def main() -> None:
             result.stability.get("stable_evidence", pd.Series(dtype=bool)).sum()
         ),
         "target_horizon_days": horizon,
+        "max_rows_per_date": args.max_rows_per_date,
         "artifacts": sorted(f"{name}.parquet" for name in tables),
     }
     (args.output_dir / "manifest.json").write_text(
