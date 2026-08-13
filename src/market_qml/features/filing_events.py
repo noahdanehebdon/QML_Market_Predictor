@@ -36,6 +36,8 @@ def build_filing_event_features(submissions: pd.DataFrame) -> pd.DataFrame:
         )
 
     events = submissions.copy()
+    if "earliest_tradable_date" in events:
+        events["filing_date"] = events["earliest_tradable_date"]
     events["symbol"] = events["symbol"].astype(str).str.upper()
     events["form"] = events["form"].astype(str).str.upper()
     events["filing_date"] = pd.to_datetime(

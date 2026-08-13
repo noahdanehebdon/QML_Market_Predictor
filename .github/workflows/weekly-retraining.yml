@@ -123,6 +123,7 @@ jobs:
             --endpoint-url "$endpoint" \
             --only-show-errors
           python -m scripts.data_manifest verify
+          python -m scripts.verify_data_quality_report
           echo "Using verified private R2 snapshot from run $run_id."
 
       - name: Build features and walk-forward splits

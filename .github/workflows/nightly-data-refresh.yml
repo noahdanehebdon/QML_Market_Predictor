@@ -88,6 +88,11 @@ jobs:
       - name: Pull latest SEC company facts
         run: python -m scripts.ingest_sec_company_facts
 
+      - name: Validate and quarantine snapshot data
+        run: >-
+          python -m scripts.validate_data_snapshot
+          --output-dir data/processed/data_quality
+
       - name: Create processed-data manifest
         run: python -m scripts.data_manifest create
 
