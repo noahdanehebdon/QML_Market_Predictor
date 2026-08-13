@@ -135,6 +135,7 @@ jobs:
             --embargo-days "$TARGET_HORIZON_DAYS"
 
       - name: Audit feature quality and predictive stability
+        if: env.CLASSICAL_SWEEP != 'true'
         run: >-
           python -m scripts.audit_feature_quality
           --target-horizon-days "$TARGET_HORIZON_DAYS"
@@ -218,6 +219,7 @@ jobs:
             echo "- Baseline: \`$BASELINE_MODEL\`"
             echo "- QML enabled: \`$RUN_QML\`"
             echo "- Classical development sweep: \`$CLASSICAL_SWEEP\`"
+            echo "- Full feature audit: \`$([[ \"$CLASSICAL_SWEEP\" == \"true\" ]] && echo skipped || echo completed)\`"
             echo "- Full nested-tuning experiment: \`$FULL_EXPERIMENT\`"
             echo "- Reports are stored in the private R2 bucket under \`reports/runs/${GITHUB_RUN_ID}/\`."
           } >> "$GITHUB_STEP_SUMMARY"
