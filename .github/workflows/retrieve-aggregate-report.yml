@@ -7,6 +7,14 @@ on:
         description: Successful weekly retraining run ID
         required: true
         type: string
+      report_scope:
+        description: Aggregate report layout to retrieve
+        required: true
+        default: definitive_private
+        type: choice
+        options:
+          - definitive_private
+          - run_root
 
 permissions:
   contents: read
@@ -34,15 +42,20 @@ jobs:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
           REPORT_RUN_ID: ${{ inputs.run_id }}
+          REPORT_SCOPE: ${{ inputs.report_scope }}
         run: |
           if [[ ! "$REPORT_RUN_ID" =~ ^[0-9]+$ ]]; then
             echo "::error title=Invalid run ID::run_id must contain digits only."
             exit 1
           fi
           endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          report_prefix="definitive_private/"
+          if [[ "$REPORT_SCOPE" == "run_root" ]]; then
+            report_prefix=""
+          fi
           mkdir -p private-aggregate
           aws s3 sync \
-            "s3://${R2_BUCKET_NAME}/reports/runs/${REPORT_RUN_ID}/definitive_private/" \
+            "s3://${R2_BUCKET_NAME}/reports/runs/${REPORT_RUN_ID}/${report_prefix}" \
             private-aggregate/ \
             --endpoint-url "$endpoint" \
             --only-show-errors
