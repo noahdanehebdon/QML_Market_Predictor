@@ -27,6 +27,39 @@ DEFAULT_RAW_DIR = Path("data/raw/sec")
 DEFAULT_OUTPUT_PATH = Path("data/processed/fundamentals.parquet")
 
 
+def resolve_fundamental_collisions(
+    fundamentals: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Choose one deterministic monetary fact per accession/concept/period."""
+    key = ["symbol", "accession_number", "concept", "end_date"]
+    missing = set(key + ["unit", "sec_concept"]) - set(fundamentals)
+    if missing:
+        raise ValueError("Fundamentals are missing: " + ", ".join(sorted(missing)))
+    ordered = fundamentals.copy()
+    ordered["_unit_priority"] = ordered["unit"].eq("USD").map({True: 0, False: 1})
+    if {"start_date", "end_date"}.issubset(ordered):
+        duration = (
+            pd.to_datetime(ordered["end_date"], errors="coerce")
+            - pd.to_datetime(ordered["start_date"], errors="coerce")
+        ).dt.days
+        flow = ordered["concept"].isin({"revenue", "net_income"})
+        ordered["_period_priority"] = duration.where(flow, 0).fillna(float("inf"))
+    else:
+        ordered["_period_priority"] = 0
+    ordered = ordered.sort_values(
+        key + ["_unit_priority", "_period_priority", "sec_concept"]
+    )
+    duplicate = ordered.duplicated(key, keep="first")
+    helper_columns = ["_unit_priority", "_period_priority"]
+    quarantine = ordered.loc[duplicate].drop(columns=helper_columns).copy()
+    if not quarantine.empty:
+        quarantine.insert(0, "reason", "alternate_xbrl_fact")
+    resolved = (
+        ordered.loc[~duplicate].drop(columns=helper_columns).reset_index(drop=True)
+    )
+    return resolved, quarantine.reset_index(drop=True)
+
+
 def _load_yaml(path: Path) -> dict:
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
@@ -163,6 +196,15 @@ def main() -> None:
     normalized["earliest_tradable_date"] = normalized["filing_date"] + pd.offsets.BDay(
         1
     )
+    normalized, collision_quarantine = resolve_fundamental_collisions(normalized)
+    if not collision_quarantine.empty:
+        quarantine_path = args.output.with_name("fundamentals_quarantine.parquet")
+        collision_quarantine.to_parquet(quarantine_path, index=False)
+        LOGGER.warning(
+            "Quarantined %s alternate SEC XBRL facts to %s.",
+            len(collision_quarantine),
+            quarantine_path,
+        )
     save_fundamentals(normalized, args.output)
 
     LOGGER.info("Saved raw SEC companyfacts to: %s", args.raw_dir)
