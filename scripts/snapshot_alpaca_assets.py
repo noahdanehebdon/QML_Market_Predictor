@@ -39,6 +39,7 @@ def main() -> None:
     args = parse_args()
     load_dotenv()
     snapshot = fetch_alpaca_asset_snapshot(snapshot_date=args.snapshot_date)
+    snapshot["ingested_at_utc"] = pd.Timestamp.now(tz="UTC")
     history = append_asset_snapshot(snapshot, args.output)
     print(f"Saved {len(snapshot):,} current asset states to private history.")
     print(f"History rows: {len(history):,}; path: {args.output}")

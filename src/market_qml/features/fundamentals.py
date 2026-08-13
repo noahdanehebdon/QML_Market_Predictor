@@ -39,6 +39,8 @@ def build_filing_fundamental_features(fundamentals: pd.DataFrame) -> pd.DataFram
         )
 
     facts = fundamentals.copy()
+    if "earliest_tradable_date" in facts:
+        facts["filing_date"] = facts["earliest_tradable_date"]
     facts["symbol"] = facts["symbol"].astype(str).str.upper()
     facts["filing_date"] = pd.to_datetime(
         facts["filing_date"], errors="coerce"

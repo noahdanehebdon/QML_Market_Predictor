@@ -151,6 +151,7 @@ def main() -> None:
     LOGGER.info("Feed: %s", request.feed or "account default")
 
     prices, raw_pages = fetch_alpaca_bars(request)
+    prices["ingested_at_utc"] = pd.Timestamp.now(tz="UTC")
 
     if prices.empty:
         LOGGER.warning(

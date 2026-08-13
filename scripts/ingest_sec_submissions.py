@@ -147,6 +147,10 @@ def main() -> None:
     normalized = normalize_submissions(
         submissions=submissions, ticker_cik_lookup=lookup
     )
+    normalized["ingested_at_utc"] = pd.Timestamp.now(tz="UTC")
+    normalized["earliest_tradable_date"] = normalized["filing_date"] + pd.offsets.BDay(
+        1
+    )
     save_submissions(normalized, args.output)
 
     LOGGER.info("Saved raw SEC submissions to: %s", args.raw_dir)

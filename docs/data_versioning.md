@@ -29,6 +29,19 @@ examines tracked files, so `git add -f` cannot silently bypass the policy.
 ## Automated snapshot identity
 
 Each successful nightly refresh creates `data/processed/data_manifest.json`.
+Before that manifest is created, the refresh runs a fail-closed data-quality
+contract over prices, the asset master, SEC submissions/company facts, and raw
+macro observations. The versioned result lives under
+`data/processed/data_quality/`; critical schema, key, timestamp, OHLCV, SEC
+availability, or numeric failures prevent publication. Suspicious but
+potentially legitimate adjusted returns are preserved and listed in the
+quarantine artifact rather than clipped.
+
+New provider rows record an ingestion timestamp. SEC rows also record an
+`earliest_tradable_date` one business day after filing, and downstream SEC
+features align on that conservative date. Legacy rows predating provenance
+capture remain identifiable through the report's coverage warning.
+
 The manifest records the workflow run ID, Git commit, creation time, byte size,
 and SHA-256 digest of every processed file. The snapshot is uploaded to:
 
@@ -59,6 +72,7 @@ ingest-prices
 python -m scripts.pull_macro --config configs/data_sources.yaml --start-year 2020
 python -m scripts.build_macro_daily --prices data/processed/prices.parquet
 ingest-sec
+python -m scripts.validate_data_snapshot --output-dir data/processed/data_quality
 build-features
 python -m scripts.data_manifest create
 python -m scripts.data_manifest verify
