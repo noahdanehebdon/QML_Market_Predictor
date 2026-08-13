@@ -32,3 +32,21 @@ def test_render_report_only_includes_allowlisted_aggregate_columns(tmp_path):
     assert "PRIVATE" not in report
     assert "2024-01-01" not in report
     assert "Classical remains default." in report
+
+
+def test_render_report_supports_classical_promotion_without_conclusion(tmp_path):
+    pd.DataFrame(
+        {
+            "model_name": ["ranker"],
+            "rank_information_coefficient": [0.03],
+            "eligible_for_locked_test": [True],
+            "decision": ["eligible_to_freeze_for_locked_test"],
+            "symbol": ["PRIVATE"],
+        }
+    ).to_parquet(tmp_path / "research_promotion.parquet", index=False)
+
+    report = render_report(tmp_path)
+
+    assert "eligible_to_freeze_for_locked_test" in report
+    assert "Locked test accessed: `false`" in report
+    assert "PRIVATE" not in report

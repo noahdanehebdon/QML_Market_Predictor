@@ -53,20 +53,44 @@ TABLE_COLUMNS = {
         "runtime_seconds",
         "peak_memory_mb",
     ],
+    "research_promotion": [
+        "model_name",
+        "rank_information_coefficient",
+        "positive_split_share",
+        "cumulative_net_excess_return",
+        "net_max_drawdown",
+        "average_turnover",
+        "plausibility_status",
+        "neutralization",
+        "beats_naive",
+        "empirical_p_value",
+        "passes_rank_ic",
+        "passes_stability",
+        "passes_permutation",
+        "passes_naive",
+        "passes_economics",
+        "eligible_for_locked_test",
+        "decision",
+    ],
 }
 
 
 def render_report(input_dir: Path) -> str:
     """Render allowlisted aggregate columns without row-level predictions."""
-    conclusion = json.loads((input_dir / "conclusion.json").read_text(encoding="utf-8"))
-    sections = [
-        "# Aggregate classical-versus-quantum results",
-        "",
-        f"**Decision:** {conclusion['decision']}",
-        "",
-        f"Locked test accessed: `{conclusion['locked_test_accessed']}`",
-        "",
-    ]
+    conclusion_path = input_dir / "conclusion.json"
+    sections = ["# Aggregate development results", ""]
+    if conclusion_path.exists():
+        conclusion = json.loads(conclusion_path.read_text(encoding="utf-8"))
+        sections.extend(
+            [
+                f"**Decision:** {conclusion['decision']}",
+                "",
+                f"Locked test accessed: `{conclusion['locked_test_accessed']}`",
+                "",
+            ]
+        )
+    else:
+        sections.extend(["Locked test accessed: `false`", ""])
     for name, allowed in TABLE_COLUMNS.items():
         path = input_dir / f"{name}.parquet"
         if not path.exists():
