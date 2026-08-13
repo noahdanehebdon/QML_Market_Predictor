@@ -11,10 +11,13 @@ def rank_ic_permutation_evidence(
     *,
     iterations: int = 200,
     random_state: int = 42,
+    block_days: int = 1,
 ) -> pd.DataFrame:
-    """Compare mean daily rank IC with within-date score permutations."""
+    """Test mean daily rank IC with block sign permutations and Holm correction."""
     if iterations <= 0:
         raise ValueError("iterations must be positive.")
+    if block_days <= 0:
+        raise ValueError("block_days must be positive.")
     rng = np.random.default_rng(random_state)
     rows = []
     for model, frame in predictions.groupby("model_name", sort=True):
@@ -35,17 +38,16 @@ def rank_ic_permutation_evidence(
                 }
             )
             continue
-        null = np.empty(iterations)
-        for index in range(iterations):
-            null[index] = _finite_mean(
-                [
-                    _rank_ic(
-                        rng.permutation(group.y_score.to_numpy()),
-                        group.forward_excess_return,
-                    )
-                    for group in groups
-                ]
-            )
+        daily = np.asarray(observed_values, dtype=float)
+        daily = daily[np.isfinite(daily)]
+        blocks = np.asarray(
+            [
+                _finite_mean(daily[start : start + block_days])
+                for start in range(0, len(daily), block_days)
+            ]
+        )
+        signs = rng.choice((-1.0, 1.0), size=(iterations, len(blocks)))
+        null = (signs * blocks).mean(axis=1)
         rows.append(
             {
                 "model_name": model,
@@ -56,9 +58,12 @@ def rank_ic_permutation_evidence(
                     (1 + np.sum(null >= observed)) / (iterations + 1)
                 ),
                 "iterations": iterations,
+                "block_days": block_days,
             }
         )
-    return pd.DataFrame(rows)
+    result = pd.DataFrame(rows)
+    result["holm_adjusted_p_value"] = _holm_adjust(result["empirical_p_value"])
+    return result
 
 
 def build_research_promotion_table(
@@ -72,6 +77,7 @@ def build_research_promotion_table(
     maximum_p_value: float = 0.05,
     maximum_turnover: float = 0.75,
     maximum_drawdown: float = 0.3,
+    minimum_validation_splits: int = 5,
 ) -> pd.DataFrame:
     """Require concordant development evidence before locked-test eligibility."""
     overall_rank = ranking_metrics.loc[
@@ -81,9 +87,11 @@ def build_research_promotion_table(
     split_rank = ranking_metrics.loc[ranking_metrics.scope.eq("split")]
     positive = (
         split_rank.assign(_positive=split_rank.rank_information_coefficient.gt(0))
-        .groupby("model_name", as_index=False)["_positive"]
-        .mean()
-        .rename(columns={"_positive": "positive_split_share"})
+        .groupby("model_name", as_index=False)
+        .agg(
+            positive_split_share=("_positive", "mean"),
+            validation_splits=("split_id", "nunique"),
+        )
     )
     portfolio = portfolio_metrics.loc[
         portfolio_metrics.scope.eq("overall"),
@@ -102,7 +110,9 @@ def build_research_promotion_table(
         .merge(portfolio, on="model_name", how="left")
         .merge(naive, on="model_name", how="left")
         .merge(
-            permutation_evidence[["model_name", "empirical_p_value"]],
+            permutation_evidence[
+                ["model_name", "empirical_p_value", "holm_adjusted_p_value"]
+            ],
             on="model_name",
             how="left",
         )
@@ -111,7 +121,10 @@ def build_research_promotion_table(
     result["passes_stability"] = result.positive_split_share.ge(
         minimum_positive_split_share
     )
-    result["passes_permutation"] = result.empirical_p_value.le(maximum_p_value)
+    result["passes_split_count"] = result.validation_splits.ge(
+        minimum_validation_splits
+    )
+    result["passes_permutation"] = result.holm_adjusted_p_value.le(maximum_p_value)
     result["passes_naive"] = result.beats_naive.eq(True)
     result["passes_economics"] = (
         result.cumulative_net_excess_return.gt(0)
@@ -123,6 +136,7 @@ def build_research_promotion_table(
     gates = [
         "passes_rank_ic",
         "passes_stability",
+        "passes_split_count",
         "passes_permutation",
         "passes_naive",
         "passes_economics",
@@ -137,6 +151,17 @@ def build_research_promotion_table(
         ["eligible_for_locked_test", "rank_information_coefficient"],
         ascending=[False, False],
     )
+
+
+def _holm_adjust(values: pd.Series) -> pd.Series:
+    result = pd.Series(np.nan, index=values.index, dtype=float)
+    valid = values.dropna().sort_values()
+    running = 0.0
+    count = len(valid)
+    for rank, (index, value) in enumerate(valid.items()):
+        running = max(running, min(1.0, float(value) * (count - rank)))
+        result.loc[index] = running
+    return result
 
 
 def _rank_ic(scores, returns) -> float:

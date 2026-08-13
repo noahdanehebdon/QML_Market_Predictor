@@ -30,6 +30,7 @@ def test_promotion_fails_closed_when_portfolio_is_implausible():
     ranking = pd.DataFrame(
         {
             "model_name": ["model", "model", "model"],
+            "split_id": [0, 1, pd.NA],
             "scope": ["split", "split", "overall"],
             "rank_information_coefficient": [0.05, 0.04, 0.045],
         }
@@ -46,7 +47,13 @@ def test_promotion_fails_closed_when_portfolio_is_implausible():
         }
     )
     baseline = pd.DataFrame({"model_name": ["model"], "beats_naive": [True]})
-    permutation = pd.DataFrame({"model_name": ["model"], "empirical_p_value": [0.01]})
+    permutation = pd.DataFrame(
+        {
+            "model_name": ["model"],
+            "empirical_p_value": [0.01],
+            "holm_adjusted_p_value": [0.01],
+        }
+    )
 
     result = build_research_promotion_table(ranking, portfolio, baseline, permutation)
 

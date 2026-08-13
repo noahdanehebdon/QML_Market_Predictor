@@ -18,6 +18,7 @@ def test_weekly_retraining_supports_manual_and_scheduled_runs():
     assert inputs["baseline_model"]["default"] == "tuned_gradient_boosting_regressor"
     assert inputs["run_qml"]["default"] == "false"
     assert inputs["classical_sweep"]["default"] == "false"
+    assert inputs["leakage_stress_test"]["default"] == "false"
     assert inputs["full_experiment"]["default"] == "false"
     assert inputs["quantum_sample_rows"]["default"] == "512"
     assert inputs["quantum_iterations"]["default"] == "30"
@@ -51,7 +52,13 @@ def test_weekly_retraining_builds_features_and_gates_qml():
     assert 'if [[ "$CLASSICAL_SWEEP" == "true" ]]' in commands
     assert "residualized_xgboost_ranker" in commands
     assert "random_rank" in commands
-    assert 'if [[ "$RUN_QML" == "true" && "$CLASSICAL_SWEEP" != "true" ]]' in commands
+    assert "--feature-lag-days 1" in commands
+    assert "--permutation-iterations 2000" in commands
+    assert "--train-window-days 504" in commands
+    assert (
+        'if [[ "$RUN_QML" == "true" && "$CLASSICAL_SWEEP" != "true" '
+        '&& "$LEAKAGE_STRESS_TEST" != "true" ]]' in commands
+    )
     assert "models+=(vqc)" in commands
     assert "--disable-mlflow" in commands
 
@@ -77,7 +84,9 @@ def test_weekly_retraining_audits_features_before_training():
         for step in steps
         if step["name"] == "Audit feature quality and predictive stability"
     )
-    assert audit["if"] == "env.CLASSICAL_SWEEP != 'true'"
+    assert audit["if"] == (
+        "env.CLASSICAL_SWEEP != 'true' && env.LEAKAGE_STRESS_TEST != 'true'"
+    )
 
 
 def test_weekly_retraining_materializes_selected_horizon_before_audit():
