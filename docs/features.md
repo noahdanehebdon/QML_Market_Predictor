@@ -172,6 +172,12 @@ without looking forward in time.
 
 ## Macro Features
 
+Macro levels are common to every stock on a date, so the canonical table also creates
+conditional features that interact rates, curve changes, inflation, and market stress
+with point-in-time beta, leverage, profitability, liquidity, and residual momentum.
+These interactions can rank securities without pretending that a common macro level
+is itself a cross-sectional signal.
+
 Macro level features include:
 
 - `treasury_10y`

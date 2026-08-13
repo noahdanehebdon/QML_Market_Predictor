@@ -10,6 +10,7 @@ from pandas.api.types import is_bool_dtype, is_numeric_dtype
 
 KEYS = ["symbol", "date"]
 FAMILY_PREFIXES = {
+    "conditional": ("rate_", "curve_", "inflation_", "stress_"),
     "benchmark": ("spy_", "benchmark_", "beta_", "excess_", "relative_"),
     "macro": ("treasury_", "fed_", "cpi_", "unemployment_", "industrial_", "yield_"),
     "fundamentals": (

@@ -6,6 +6,11 @@ is SPY. A row is missing when either future stock or same-date benchmark return
 is unavailable. Neutral-zone labels are additionally missing when absolute
 excess return is at or below 0.5%.
 
+The scheduled development workflow defaults to the 20-day horizon. It augments the
+market-relative label with a same-date residualized target controlling for beta,
+volatility, liquidity, sector, and size. Other horizons remain explicit research
+comparators and retain horizon-specific purge and embargo periods.
+
 The workflow compares benchmark-relative binary, neutral-zone binary,
 continuous excess return, trailing-volatility-normalized excess return,
 same-date cross-sectional rank, and—when point-in-time sector membership is

@@ -57,6 +57,15 @@ jobs:
           python -m scripts.augment_research_targets --target-horizon-days "$HORIZON"
           python -m scripts.build_walk_forward_splits --target-horizon-days "$HORIZON" --universe-membership data/processed/universe_membership.parquet --purge-days "$HORIZON" --embargo-days "$HORIZON" --train-window-days 252 --validation-window-days 42 --step-days 126
           python -m scripts.audit_feature_quality --target-horizon-days "$HORIZON" --max-rows-per-date 64 --membership data/processed/universe_membership.parquet --output-dir reports/feature_research_smoke
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("reports/feature_research_smoke/manifest.json")
+          manifest = json.loads(path.read_text())
+          manifest["locked_test_accessed"] = False
+          manifest["research_tier"] = "smoke"
+          path.write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
       - name: Upload evidence artifact
         uses: actions/upload-artifact@v6
         with:

@@ -22,7 +22,7 @@ def test_weekly_retraining_supports_manual_and_scheduled_runs():
     assert inputs["full_experiment"]["default"] == "false"
     assert inputs["quantum_sample_rows"]["default"] == "512"
     assert inputs["quantum_iterations"]["default"] == "30"
-    assert inputs["target_horizon_days"]["default"] == "10"
+    assert inputs["target_horizon_days"]["default"] == "20"
 
 
 def test_weekly_retraining_downloads_and_verifies_latest_r2_snapshot():
