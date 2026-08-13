@@ -128,3 +128,20 @@ def test_vqc_training_is_reproducible_for_the_same_seed():
     assert first.predictions["y_score"].to_numpy() == pytest.approx(
         second.predictions["y_score"].to_numpy()
     )
+
+
+def test_vqc_uses_same_date_continuous_ranking_targets_when_available():
+    sample = _qml_sample()
+    sample["date"] = (
+        sample.groupby("sample_role")
+        .cumcount()
+        .floordiv(2)
+        .map(lambda index: pd.Timestamp("2024-01-01") + pd.Timedelta(days=index))
+    )
+    sample["ranking_target"] = sample["forward_excess_return_5d"]
+    data = build_qml_train_validation(sample, split_id=0)
+
+    result = train_vqc(data, max_iter=3, random_state=5)
+
+    assert len(result.training_loss) == 3
+    assert result.training_loss["loss"].notna().all()

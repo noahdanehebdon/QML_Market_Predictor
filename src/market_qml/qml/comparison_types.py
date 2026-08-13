@@ -57,6 +57,7 @@ class ComparisonConfig:
     vqc_ansatz_depths: tuple[int, ...] = (1, 2)
     vqc_learning_rates: tuple[float, ...] = (0.05, 0.1)
     vqc_optimizers: tuple[str, ...] = ("spsa", "finite_difference")
+    vqc_seeds: tuple[int, ...] = (42, 43, 44)
     qcnn_learning_rates: tuple[float, ...] = (0.03, 0.05, 0.1)
     qcnn_initialization_scales: tuple[float, ...] = (0.05, 0.1)
     qsvm_c_values: tuple[float, ...] = (0.01, 0.1, 1.0, 10.0)

@@ -27,6 +27,11 @@ def main() -> None:
     parser.add_argument("--model", type=Path)
     parser.add_argument("--sample", type=Path)
     parser.add_argument("--deterministic-fixture", action="store_true")
+    parser.add_argument(
+        "--qualification-report",
+        type=Path,
+        help="Simulator qualification JSON required for trained-model hardware inference.",
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--backend", default=None)
     parser.add_argument("--split-id", type=int, default=0)
@@ -44,6 +49,17 @@ def main() -> None:
         if args.model is None or args.sample is None:
             parser.error(
                 "--model and --sample are required without --deterministic-fixture"
+            )
+        if args.qualification_report is None:
+            parser.error(
+                "--qualification-report is required for trained-model hardware inference"
+            )
+        qualification = json.loads(
+            args.qualification_report.read_text(encoding="utf-8")
+        )
+        if qualification.get("qualified_for_hardware") is not True:
+            raise RuntimeError(
+                "Simulator candidate is not qualified for IBM inference."
             )
         with args.model.open("rb") as handle:
             model = pickle.load(handle)
@@ -92,10 +108,26 @@ def main() -> None:
     ]
     comparison_path = args.output_dir / "simulator_hardware_comparison.json"
     comparison_path.write_text(json.dumps(comparison, indent=2), encoding="utf-8")
+    rank_preservation = float(
+        pd.Series(exact_scores).corr(pd.Series(result.scores), method="spearman")
+    )
+    qualification_path = args.output_dir / "hardware_rank_preservation.json"
+    qualification_path.write_text(
+        json.dumps(
+            {
+                "spearman_rank_preservation": rank_preservation,
+                "rows": len(exact_scores),
+                "qualified": bool(rank_preservation >= 0.5),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     print(f"IBM Runtime job: {result.job_id}")
     for name, path in paths.items():
         print(f"{name}: {path}")
     print(f"comparison: {comparison_path}")
+    print(f"rank preservation: {qualification_path}")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -39,15 +40,15 @@ def main() -> None:
     parser.add_argument(
         "--output-dir", type=Path, default=Path("reports/qml_comparison")
     )
-    parser.add_argument("--train-rows", type=int, default=256)
-    parser.add_argument("--validation-rows", type=int, default=256)
-    parser.add_argument("--iterations", type=int, default=10)
+    parser.add_argument("--train-rows", type=int, default=512)
+    parser.add_argument("--validation-rows", type=int, default=512)
+    parser.add_argument("--iterations", type=int, default=30)
     parser.add_argument("--max-splits", type=int, default=None)
     parser.add_argument("--transaction-cost-bps", type=float, default=10.0)
     parser.add_argument(
         "--target-horizon-days",
         type=int,
-        default=5,
+        default=20,
         help="Forward target horizon; selects matching label and return columns.",
     )
     parser.add_argument("--rebalance-frequency", type=int, default=None)
@@ -98,7 +99,41 @@ def main() -> None:
     selected_input_path = args.output_dir / "selected_qml_inputs.parquet"
     selected.manifest.to_parquet(selected_feature_path, index=False)
     selected.features.to_parquet(selected_input_path, index=False)
+    _write_hardware_qualification(result.ranking_metrics, args.output_dir)
     print(paths["report"])
+
+
+def _write_hardware_qualification(metrics: pd.DataFrame, output_dir: Path) -> Path:
+    split = metrics.loc[metrics["scope"].eq("split")].copy()
+    candidate = split.loc[split["model_name"].eq("vqc_stable_rank")]
+    controls = split.loc[split["model_name"].isin(["linear_svm", "rbf_svm"])]
+    candidate_ic = float(candidate["rank_information_coefficient"].mean())
+    positive_share = float(candidate["rank_information_coefficient"].gt(0).mean())
+    best_control_ic = float(
+        controls.groupby("model_name")["rank_information_coefficient"].mean().max()
+    )
+    qualified = (
+        len(candidate) >= 2
+        and candidate_ic > 0
+        and positive_share >= 2 / 3
+        and candidate_ic > best_control_ic
+    )
+    report = {
+        "candidate": "vqc_stable_rank",
+        "rank_information_coefficient": candidate_ic,
+        "positive_split_share": positive_share,
+        "best_matched_classical_ic": best_control_ic,
+        "qualified_for_hardware": bool(qualified),
+        "locked_test_accessed": False,
+        "criteria": {
+            "minimum_splits": 2,
+            "minimum_positive_split_share": 2 / 3,
+            "must_beat_matched_classical": True,
+        },
+    }
+    path = output_dir / "hardware_qualification.json"
+    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return path
 
 
 if __name__ == "__main__":

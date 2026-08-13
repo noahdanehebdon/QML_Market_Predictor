@@ -28,6 +28,7 @@ def _inputs():
                     "forward_return_10d": excess * 2 + 0.002,
                     "forward_excess_return_10d": excess * 2,
                     "outperform_spy_10d": int(excess > 0),
+                    "residualized_forward_excess_return_10d": excess * 1.5,
                 }
             )
     splits = pd.DataFrame(
@@ -88,5 +89,12 @@ def test_selected_qml_features_support_development_selected_horizon():
 
     assert "forward_return_10d" in result.features
     assert "forward_excess_return_10d" in result.features
-    assert set(result.manifest["target_column"]) == {"outperform_spy_10d"}
+    assert set(result.manifest["target_column"]) == {
+        "residualized_forward_excess_return_10d"
+    }
+    assert set(result.manifest["classification_target"]) == {"outperform_spy_10d"}
     assert set(result.manifest["target_horizon_days"]) == {10}
+    selected = result.features.filter(like="selected_feature_")
+    assert selected.min().min() >= -1
+    assert selected.max().max() <= 1
+    assert "ranking_target" in result.features
