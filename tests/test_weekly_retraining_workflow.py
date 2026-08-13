@@ -72,6 +72,12 @@ def test_weekly_retraining_audits_features_before_training():
     )
     assert '--target-horizon-days "$TARGET_HORIZON_DAYS"' in commands
     assert "reports/weekly_retraining/feature_audit" in commands
+    audit = next(
+        step
+        for step in steps
+        if step["name"] == "Audit feature quality and predictive stability"
+    )
+    assert audit["if"] == "env.CLASSICAL_SWEEP != 'true'"
 
 
 def test_weekly_retraining_materializes_selected_horizon_before_audit():
