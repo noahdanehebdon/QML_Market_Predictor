@@ -27,6 +27,11 @@ on:
         required: true
         default: false
         type: boolean
+      phase2_evaluation:
+        description: Run the frozen Phase 2 development-only candidate contract
+        required: true
+        default: false
+        type: boolean
       full_experiment:
         description: Run every classical model plus nested-tuned QML comparison
         required: true
@@ -69,6 +74,7 @@ jobs:
       RUN_QML: ${{ inputs.run_qml || 'false' }}
       CLASSICAL_SWEEP: ${{ inputs.classical_sweep || 'false' }}
       LEAKAGE_STRESS_TEST: ${{ inputs.leakage_stress_test || 'false' }}
+      PHASE2_EVALUATION: ${{ inputs.phase2_evaluation || 'false' }}
       FULL_EXPERIMENT: ${{ inputs.full_experiment || 'false' }}
       QUANTUM_SAMPLE_ROWS: ${{ inputs.quantum_sample_rows || '512' }}
       QUANTUM_ITERATIONS: ${{ inputs.quantum_iterations || '30' }}
@@ -133,7 +139,7 @@ jobs:
         shell: bash
         run: |
           split_args=()
-          if [[ "$LEAKAGE_STRESS_TEST" == "true" ]]; then
+          if [[ "$LEAKAGE_STRESS_TEST" == "true" || "$PHASE2_EVALUATION" == "true" ]]; then
             split_args+=(--train-window-days 504 --validation-window-days 63 --step-days 63)
           fi
           python -m scripts.build_forward_return_labels \
@@ -148,7 +154,7 @@ jobs:
             "${split_args[@]}"
 
       - name: Audit feature quality and predictive stability
-        if: env.CLASSICAL_SWEEP != 'true' && env.LEAKAGE_STRESS_TEST != 'true'
+        if: env.CLASSICAL_SWEEP != 'true' && (env.LEAKAGE_STRESS_TEST != 'true' || env.PHASE2_EVALUATION == 'true')
         run: >-
           python -m scripts.audit_feature_quality
           --target-horizon-days "$TARGET_HORIZON_DAYS"
@@ -160,7 +166,14 @@ jobs:
         if: env.FULL_EXPERIMENT != 'true'
         shell: bash
         run: |
-          if [[ "$LEAKAGE_STRESS_TEST" == "true" ]]; then
+          if [[ "$PHASE2_EVALUATION" == "true" ]]; then
+            models=(
+              tuned_gradient_boosting_regressor xgboost_ranker
+              residualized_xgboost_ranker huber_regression
+              residualized_huber_regression momentum_rank sector_neutral_rank
+              random_rank
+            )
+          elif [[ "$LEAKAGE_STRESS_TEST" == "true" ]]; then
             models=(
               logistic_regression random_forest gradient_boosting
               random_forest_regressor gradient_boosting_regressor
@@ -187,7 +200,7 @@ jobs:
             --output-dir reports/weekly_retraining \
             --universe-membership data/processed/universe_membership.parquet \
             --target-horizon-days "$TARGET_HORIZON_DAYS" \
-            $([[ "$LEAKAGE_STRESS_TEST" == "true" ]] && echo "--feature-lag-days 1 --permutation-iterations 2000 --permutation-block-days $TARGET_HORIZON_DAYS") \
+            $([[ "$LEAKAGE_STRESS_TEST" == "true" || "$PHASE2_EVALUATION" == "true" ]] && echo "--feature-lag-days 1 --permutation-iterations 2000 --permutation-block-days $TARGET_HORIZON_DAYS") \
             --disable-mlflow
 
       - name: Run full classical and tuned quantum experiment
@@ -241,6 +254,7 @@ jobs:
             echo "- QML enabled: \`$RUN_QML\`"
             echo "- Classical development sweep: \`$CLASSICAL_SWEEP\`"
             echo "- Leakage stress test: \`$LEAKAGE_STRESS_TEST\`"
+            echo "- Frozen Phase 2 evaluation: \`$PHASE2_EVALUATION\`"
             echo "- Full feature audit: \`$([[ \"$CLASSICAL_SWEEP\" == \"true\" ]] && echo skipped || echo completed)\`"
             echo "- Full nested-tuning experiment: \`$FULL_EXPERIMENT\`"
             echo "- Reports are stored in the private R2 bucket under \`reports/runs/${GITHUB_RUN_ID}/\`."
