@@ -40,7 +40,10 @@ and plan for private research use. It does not grant redistribution rights.
 
 The builder emits daily observed/member coverage, entries, exits, membership turnover,
 sector and size coverage, and flags for dates capable of stable deciles and sector
-controls. Its manifest records the rules and known limitations.
+controls. Every row also carries its effective-dated or legacy membership basis and a
+single deterministic exclusion reason. Diagnostics quantify asset-state coverage,
+metadata coverage, legacy-period exposure, and exits associated with inactive or
+untradable states. Its manifest records the rules and known limitations.
 
 Alpaca's asset endpoint is a current security master, not a historical one. Consequently:
 

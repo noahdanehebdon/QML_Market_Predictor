@@ -76,6 +76,14 @@ def build_point_in_time_universe(
     panel["has_price"] = panel["close"].notna() & panel["volume"].notna()
     panel["dollar_volume"] = panel["close"] * panel["volume"]
     panel["history_days"] = panel.groupby("symbol", sort=False)["has_price"].cumsum()
+    panel["first_observed_date"] = panel["date"].where(panel["has_price"])
+    panel["first_observed_date"] = panel.groupby("symbol", sort=False)[
+        "first_observed_date"
+    ].transform("min")
+    panel["last_observed_through_date"] = panel["date"].where(panel["has_price"])
+    panel["last_observed_through_date"] = panel.groupby("symbol", sort=False)[
+        "last_observed_through_date"
+    ].ffill()
     panel["trailing_median_dollar_volume"] = panel.groupby("symbol", sort=False)[
         "dollar_volume"
     ].transform(
@@ -84,11 +92,16 @@ def build_point_in_time_universe(
         ).median()
     )
     panel = _merge_effective_history(panel, assets)
+    panel = panel.rename(columns={"effective_date": "asset_effective_date"})
 
     if metadata_history is not None:
         metadata = _normalize_effective_history(metadata_history, "Metadata history")
         metadata = metadata.loc[metadata["symbol"].isin(symbols)].reset_index(drop=True)
         panel = _merge_effective_history(panel, metadata)
+        panel = panel.rename(columns={"effective_date": "metadata_effective_date"})
+    # Retain the original public column while preventing metadata merges from
+    # obscuring which effective date controls tradability.
+    panel["effective_date"] = panel["asset_effective_date"]
     for column in ["sector", "industry", "market_cap"]:
         if column not in panel:
             panel[column] = pd.NA
@@ -116,6 +129,11 @@ def build_point_in_time_universe(
     ].isin(legacy_symbols)
     panel.loc[panel["legacy_seed_period"], "eligible_tradability"] = True
     panel.loc[panel["legacy_seed_period"], "eligible_security_type"] = True
+    panel["asset_state_known"] = panel["asset_effective_date"].notna()
+    panel["membership_basis"] = "effective_dated_asset_state"
+    panel.loc[panel["legacy_seed_period"], "membership_basis"] = (
+        "legacy_static_seed_survivorship_limited"
+    )
     panel["is_benchmark"] = panel["symbol"].eq(benchmark_symbol)
     panel["is_member"] = (
         panel["eligible_price"]
@@ -125,6 +143,7 @@ def build_point_in_time_universe(
         & panel["eligible_security_type"]
         & ~panel["is_benchmark"]
     )
+    panel["exclusion_reason"] = _exclusion_reason(panel)
     panel["size_bucket"] = pd.NA
     member_market_caps = panel["is_member"] & panel["market_cap"].notna()
     panel.loc[member_market_caps, "size_bucket"] = (
@@ -152,7 +171,18 @@ def universe_diagnostics(
     ordered["exited"] = ~ordered["is_member"] & previous
     transitions = ordered.loc[
         ordered["entered"] | ordered["exited"],
-        ["date", "symbol", "entered", "exited", "sector", "size_bucket"],
+        [
+            "date",
+            "symbol",
+            "entered",
+            "exited",
+            "sector",
+            "size_bucket",
+            "exclusion_reason",
+            "membership_basis",
+            "status",
+            "tradable",
+        ],
     ].reset_index(drop=True)
 
     daily = (
@@ -162,6 +192,8 @@ def universe_diagnostics(
             member_count=("is_member", "sum"),
             entries=("entered", "sum"),
             exits=("exited", "sum"),
+            known_asset_states=("asset_state_known", "sum"),
+            legacy_rows=("legacy_seed_period", "sum"),
         )
         .reset_index()
     )
@@ -187,6 +219,19 @@ def universe_diagnostics(
     daily["stable_sector_controls"] = (daily["sector_count"] >= rules.min_sectors) & (
         daily["smallest_sector_names"] >= rules.min_sector_names
     )
+    rows_per_date = ordered.groupby("date").size()
+    daily["asset_state_coverage"] = daily["known_asset_states"] / daily["date"].map(
+        rows_per_date
+    )
+    daily["legacy_row_share"] = daily["legacy_rows"] / daily["date"].map(rows_per_date)
+    metadata_known = ordered["sector"].notna() | ordered["market_cap"].notna()
+    metadata_counts = metadata_known.groupby(ordered["date"]).sum()
+    daily["metadata_coverage"] = daily["date"].map(metadata_counts) / daily["date"].map(
+        rows_per_date
+    )
+    inactive_exits = transitions["exited"] & (
+        transitions["status"].ne("active") | transitions["tradable"].ne(True)
+    )
     summary = {
         "start_date": daily["date"].min(),
         "end_date": daily["date"].max(),
@@ -197,6 +242,13 @@ def universe_diagnostics(
         "exits": int(transitions["exited"].sum()),
         "stable_decile_date_share": float(daily["stable_deciles"].mean()),
         "stable_sector_date_share": float(daily["stable_sector_controls"].mean()),
+        "asset_state_coverage": float(daily["asset_state_coverage"].mean()),
+        "metadata_coverage": float(daily["metadata_coverage"].mean()),
+        "legacy_row_share": float(daily["legacy_row_share"].mean()),
+        "inactive_or_untradable_exits": int(inactive_exits.sum()),
+        "prospective_start_date": ordered.loc[
+            ordered["asset_state_known"], "date"
+        ].min(),
     }
     return daily, transitions, summary
 
@@ -245,6 +297,22 @@ def _size_bucket(values: pd.Series) -> pd.Series:
         labels=["small", "mid", "large"],
         include_lowest=True,
     ).astype("string")
+
+
+def _exclusion_reason(panel: pd.DataFrame) -> pd.Series:
+    reason = pd.Series("eligible", index=panel.index, dtype="string")
+    ordered_rules = [
+        (panel["is_benchmark"], "benchmark"),
+        (~panel["has_price"], "missing_price"),
+        (~panel["eligible_tradability"], "inactive_or_untradable"),
+        (~panel["eligible_security_type"], "unsupported_security_type"),
+        (~panel["eligible_history"], "insufficient_history"),
+        (~panel["eligible_liquidity"], "insufficient_liquidity"),
+        (~panel["eligible_price"], "price_below_minimum"),
+    ]
+    for excluded, label in reversed(ordered_rules):
+        reason.loc[excluded] = label
+    return reason
 
 
 def _require_columns(data: pd.DataFrame, required: set[str], name: str) -> None:

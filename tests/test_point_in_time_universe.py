@@ -104,6 +104,14 @@ def test_membership_uses_only_effective_dated_and_trailing_information():
     ].iloc[0]
     assert not after_inactive["is_member"]
     assert after_inactive["status"] == "inactive"
+    assert after_inactive["exclusion_reason"] == "inactive_or_untradable"
+    assert {
+        "first_observed_date",
+        "last_observed_through_date",
+        "membership_basis",
+        "asset_state_known",
+    } <= set(result)
+    assert result.loc[result["is_member"], "exclusion_reason"].eq("eligible").all()
 
 
 def test_future_asset_changes_do_not_modify_past_membership():
@@ -137,6 +145,11 @@ def test_diagnostics_report_coverage_entries_exits_and_controls():
     assert not stable["stable_deciles"]
     assert stable["stable_sector_controls"]
     assert stable["sector_count"] == 2
+    assert {"asset_state_coverage", "metadata_coverage", "legacy_row_share"} <= set(
+        coverage
+    )
+    assert summary["inactive_or_untradable_exits"] == 1
+    assert "exclusion_reason" in transitions
 
 
 def test_missing_asset_snapshot_never_backfills_tradability():
