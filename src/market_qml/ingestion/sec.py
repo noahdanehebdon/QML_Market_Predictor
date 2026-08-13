@@ -34,6 +34,18 @@ SEC_FUNDAMENTAL_CONCEPTS = {
         "StockholdersEquity",
         "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
     ],
+    "operating_income": ["OperatingIncomeLoss"],
+    "operating_cash_flow": ["NetCashProvidedByUsedInOperatingActivities"],
+    "capital_expenditure": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    "cash": ["CashAndCashEquivalentsAtCarryingValue"],
+    "current_assets": ["AssetsCurrent"],
+    "current_liabilities": ["LiabilitiesCurrent"],
+    "debt": ["LongTermDebt", "LongTermDebtAndFinanceLeaseObligations"],
+    "gross_profit": ["GrossProfit"],
+    "interest_expense": ["InterestExpenseNonOperating", "InterestExpense"],
+    "research_and_development": ["ResearchAndDevelopmentExpense"],
+    "stock_based_compensation": ["ShareBasedCompensation"],
+    "shares_outstanding": ["EntityCommonStockSharesOutstanding"],
 }
 
 

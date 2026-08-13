@@ -50,6 +50,35 @@ def _fundamental_rows() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _add_expanded_facts(frame: pd.DataFrame) -> pd.DataFrame:
+    aliases = {
+        "operating_income": 15,
+        "operating_cash_flow": 25,
+        "capital_expenditure": 5,
+        "cash": 30,
+        "current_assets": 80,
+        "current_liabilities": 40,
+        "debt": 50,
+        "gross_profit": 45,
+        "interest_expense": 2,
+        "research_and_development": 8,
+        "stock_based_compensation": 3,
+        "shares_outstanding": 10,
+    }
+    extra = []
+    for filing in (
+        frame.groupby(["symbol", "accession_number"], sort=False)
+        .first()
+        .reset_index()
+        .to_dict("records")
+    ):
+        for concept, value in aliases.items():
+            row = filing.copy()
+            row.update({"concept": concept, "sec_concept": concept, "value": value})
+            extra.append(row)
+    return pd.concat([frame, pd.DataFrame(extra)], ignore_index=True)
+
+
 def _market_features() -> pd.DataFrame:
     return pd.DataFrame(
         {
@@ -64,7 +93,7 @@ def _market_features() -> pd.DataFrame:
 
 
 def test_build_filing_fundamental_features_pivots_and_derives_ratios():
-    result = build_filing_fundamental_features(_fundamental_rows())
+    result = build_filing_fundamental_features(_add_expanded_facts(_fundamental_rows()))
     aapl = result[result["symbol"] == "AAPL"].reset_index(drop=True)
 
     assert len(aapl) == 2
@@ -73,7 +102,12 @@ def test_build_filing_fundamental_features_pivots_and_derives_ratios():
     assert aapl.loc[0, "liability_ratio"] == pytest.approx(0.60)
     assert aapl.loc[0, "equity_ratio"] == pytest.approx(0.40)
     assert pd.isna(aapl.loc[0, "revenue_growth"])
-    assert aapl.loc[1, "revenue_growth"] == pytest.approx(0.10)
+    # FY and Q1 values are not comparable; growth requires the same fiscal period.
+    assert pd.isna(aapl.loc[1, "revenue_growth"])
+    assert aapl.loc[0, "gross_margin"] == pytest.approx(0.45)
+    assert aapl.loc[0, "free_cash_flow_margin"] == pytest.approx(0.20)
+    assert aapl.loc[0, "current_ratio"] == pytest.approx(2.0)
+    assert aapl.loc[0, "accrual_ratio"] == pytest.approx(-0.025)
 
 
 def test_merge_fundamental_features_uses_filing_date_asof_without_leakage():

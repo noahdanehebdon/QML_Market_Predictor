@@ -26,6 +26,18 @@ FUNDAMENTAL_CONCEPTS = [
     "assets",
     "liabilities",
     "stockholders_equity",
+    "operating_income",
+    "operating_cash_flow",
+    "capital_expenditure",
+    "cash",
+    "current_assets",
+    "current_liabilities",
+    "debt",
+    "gross_profit",
+    "interest_expense",
+    "research_and_development",
+    "stock_based_compensation",
+    "shares_outstanding",
 ]
 
 
@@ -92,6 +104,18 @@ def build_filing_fundamental_features(fundamentals: pd.DataFrame) -> pd.DataFram
             "assets": "fundamental_assets",
             "liabilities": "fundamental_liabilities",
             "stockholders_equity": "fundamental_stockholders_equity",
+            **{
+                concept: f"fundamental_{concept}"
+                for concept in FUNDAMENTAL_CONCEPTS
+                if concept
+                not in {
+                    "revenue",
+                    "net_income",
+                    "assets",
+                    "liabilities",
+                    "stockholders_equity",
+                }
+            },
         }
     )
 
@@ -99,10 +123,20 @@ def build_filing_fundamental_features(fundamentals: pd.DataFrame) -> pd.DataFram
         ["symbol", "filing_date", "end_date", "accession_number"]
     ).reset_index(drop=True)
 
-    filing_features["revenue_growth"] = filing_features.groupby(
-        "symbol",
-        group_keys=False,
-    )["fundamental_revenue"].apply(_pct_change_non_null)
+    comparison_groups = ["symbol", "fiscal_period"]
+    for concept in [
+        "revenue",
+        "net_income",
+        "operating_income",
+        "operating_cash_flow",
+        "assets",
+        "debt",
+        "shares_outstanding",
+    ]:
+        column = f"fundamental_{concept}"
+        filing_features[f"{concept}_growth"] = filing_features.groupby(
+            comparison_groups, dropna=False, group_keys=False
+        )[column].apply(_pct_change_non_null)
     filing_features["net_income_margin"] = (
         filing_features["fundamental_net_income"]
         / filing_features["fundamental_revenue"]
@@ -114,6 +148,41 @@ def build_filing_fundamental_features(fundamentals: pd.DataFrame) -> pd.DataFram
     filing_features["equity_ratio"] = (
         filing_features["fundamental_stockholders_equity"]
         / filing_features["fundamental_assets"]
+    )
+    filing_features["gross_margin"] = (
+        filing_features["fundamental_gross_profit"]
+        / filing_features["fundamental_revenue"]
+    )
+    filing_features["operating_margin"] = (
+        filing_features["fundamental_operating_income"]
+        / filing_features["fundamental_revenue"]
+    )
+    filing_features["free_cash_flow_margin"] = (
+        filing_features["fundamental_operating_cash_flow"]
+        - filing_features["fundamental_capital_expenditure"]
+    ) / filing_features["fundamental_revenue"]
+    filing_features["cash_flow_quality"] = (
+        filing_features["fundamental_operating_cash_flow"]
+        / filing_features["fundamental_net_income"]
+    )
+    filing_features["accrual_ratio"] = (
+        filing_features["fundamental_net_income"]
+        - filing_features["fundamental_operating_cash_flow"]
+    ) / filing_features["fundamental_assets"]
+    filing_features["current_ratio"] = (
+        filing_features["fundamental_current_assets"]
+        / filing_features["fundamental_current_liabilities"]
+    )
+    filing_features["debt_ratio"] = (
+        filing_features["fundamental_debt"] / filing_features["fundamental_assets"]
+    )
+    filing_features["research_and_development_intensity"] = (
+        filing_features["fundamental_research_and_development"]
+        / filing_features["fundamental_revenue"]
+    )
+    filing_features["stock_based_compensation_intensity"] = (
+        filing_features["fundamental_stock_based_compensation"]
+        / filing_features["fundamental_revenue"]
     )
 
     return filing_features[_filing_feature_columns()]
@@ -243,10 +312,37 @@ def _filing_feature_columns() -> list[str]:
         "fundamental_assets",
         "fundamental_liabilities",
         "fundamental_stockholders_equity",
+        "fundamental_operating_income",
+        "fundamental_operating_cash_flow",
+        "fundamental_capital_expenditure",
+        "fundamental_cash",
+        "fundamental_current_assets",
+        "fundamental_current_liabilities",
+        "fundamental_debt",
+        "fundamental_gross_profit",
+        "fundamental_interest_expense",
+        "fundamental_research_and_development",
+        "fundamental_stock_based_compensation",
+        "fundamental_shares_outstanding",
         "revenue_growth",
+        "net_income_growth",
+        "operating_income_growth",
+        "operating_cash_flow_growth",
+        "assets_growth",
+        "debt_growth",
+        "shares_outstanding_growth",
         "net_income_margin",
         "liability_ratio",
         "equity_ratio",
+        "gross_margin",
+        "operating_margin",
+        "free_cash_flow_margin",
+        "cash_flow_quality",
+        "accrual_ratio",
+        "current_ratio",
+        "debt_ratio",
+        "research_and_development_intensity",
+        "stock_based_compensation_intensity",
     ]
 
 
@@ -256,6 +352,6 @@ def _empty_filing_features() -> pd.DataFrame:
 
 def _pct_change_non_null(values: pd.Series) -> pd.Series:
     result = pd.Series(index=values.index, dtype="float64")
-    valid = values.dropna()
+    valid = pd.to_numeric(values, errors="coerce").dropna().astype(float)
     result.loc[valid.index] = valid.pct_change(fill_method=None)
     return result
