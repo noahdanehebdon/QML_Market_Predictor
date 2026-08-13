@@ -27,6 +27,14 @@ meaningful regression while allowing small platform-specific differences.
 Each matrix job writes its coverage table to the GitHub Actions job summary;
 generated coverage files are not published as repository artifacts.
 
+## Frozen Phase 2 development evaluation
+
+`configs/phase2_candidate.yaml` registers the Phase 2 target, models, folds, lag,
+costs, permutation inference, and promotion thresholds before results are observed.
+The `phase2_evaluation` workflow mode runs that contract against development splits
+only. It does not authorize locked-test access; failure to meet every registered gate
+leaves all candidates in development.
+
 ## Incremental typing
 
 Strict mypy checking begins with the package CLI, tracked-data policy, and

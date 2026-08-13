@@ -19,6 +19,7 @@ def test_weekly_retraining_supports_manual_and_scheduled_runs():
     assert inputs["run_qml"]["default"] == "false"
     assert inputs["classical_sweep"]["default"] == "false"
     assert inputs["leakage_stress_test"]["default"] == "false"
+    assert inputs["phase2_evaluation"]["default"] == "false"
     assert inputs["full_experiment"]["default"] == "false"
     assert inputs["quantum_sample_rows"]["default"] == "512"
     assert inputs["quantum_iterations"]["default"] == "30"
@@ -85,8 +86,26 @@ def test_weekly_retraining_audits_features_before_training():
         if step["name"] == "Audit feature quality and predictive stability"
     )
     assert audit["if"] == (
-        "env.CLASSICAL_SWEEP != 'true' && env.LEAKAGE_STRESS_TEST != 'true'"
+        "env.CLASSICAL_SWEEP != 'true' && (env.LEAKAGE_STRESS_TEST != 'true' || "
+        "env.PHASE2_EVALUATION == 'true')"
     )
+
+
+def test_frozen_phase2_contract_is_development_only():
+    config = yaml.safe_load(
+        Path("configs/phase2_candidate.yaml").read_text(encoding="utf-8")
+    )
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert config["registered_before_results"]
+    assert not config["locked_test_accessed"]
+    assert config["target"]["horizon_days"] == 20
+    assert config["validation"]["feature_lag_days"] == 1
+    assert config["validation"]["permutation_iterations"] == 2000
+    assert config["promotion"]["minimum_rank_ic"] == 0.03
+    for model in config["models"]:
+        assert model in workflow
+    assert "PHASE2_EVALUATION" in workflow
 
 
 def test_weekly_retraining_materializes_selected_horizon_before_audit():

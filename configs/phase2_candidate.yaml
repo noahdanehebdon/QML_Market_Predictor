@@ -1,0 +1,33 @@
+candidate_id: phase2_20d_residual_v1
+registered_before_results: true
+locked_test_accessed: false
+target:
+  horizon_days: 20
+  primary: residualized_forward_excess_return_20d
+  benchmark: SPY
+validation:
+  train_window_days: 504
+  validation_window_days: 63
+  step_days: 63
+  purge_days: 20
+  embargo_days: 20
+  feature_lag_days: 1
+  permutation_iterations: 2000
+  permutation_block_days: 20
+  transaction_cost_bps: 10
+models:
+  - tuned_gradient_boosting_regressor
+  - xgboost_ranker
+  - residualized_xgboost_ranker
+  - huber_regression
+  - residualized_huber_regression
+  - momentum_rank
+  - sector_neutral_rank
+  - random_rank
+promotion:
+  minimum_rank_ic: 0.03
+  minimum_positive_split_share: 0.6666666667
+  maximum_empirical_p_value: 0.05
+  maximum_holm_adjusted_p_value: 0.10
+  must_beat_naive: true
+  must_pass_economics: true
