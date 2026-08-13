@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from market_qml.ingestion.data_quality import validate_snapshot
+from scripts.ingest_sec_company_facts import resolve_fundamental_collisions
 
 NOW = pd.Timestamp("2026-01-10", tz="UTC")
 
@@ -114,3 +115,17 @@ def test_extreme_adjusted_return_is_quarantined_but_not_silently_clipped():
 
     assert result.passed
     assert result.quarantine["reason"].tolist() == ["absolute_daily_return_over_100pct"]
+
+
+def test_sec_fact_collisions_prefer_usd_and_are_quarantined():
+    _, _, _, fundamentals, _ = _valid_inputs()
+    alternate = fundamentals.assign(unit="EUR", value=90.0, sec_concept="Revenues")
+    fundamentals = fundamentals.assign(sec_concept="SalesRevenueNet")
+    resolved, quarantine = resolve_fundamental_collisions(
+        pd.concat([alternate, fundamentals], ignore_index=True)
+    )
+
+    assert resolved[["unit", "value"]].to_dict("records") == [
+        {"unit": "USD", "value": 100.0}
+    ]
+    assert quarantine["reason"].tolist() == ["alternate_xbrl_fact"]
