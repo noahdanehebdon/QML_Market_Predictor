@@ -12,6 +12,12 @@ DEFAULT_RANK_FEATURES = (
     "volume_shock_20d",
     "relative_momentum_20d_vs_spy",
     "relative_momentum_60d_vs_spy",
+    "residual_momentum_20d",
+    "residual_momentum_60d",
+    "reversal_5d",
+    "drawdown_60d",
+    "amihud_illiquidity_20d",
+    "positive_day_share_20d",
 )
 
 

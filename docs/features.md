@@ -124,6 +124,14 @@ Missing values are expected at the start of each rolling window.
 
 ## Benchmark-Relative Features
 
+## Price-path and liquidity signals
+
+The canonical builder adds trailing-only reversal, drawdown, downside-risk,
+positive/zero-return share, range-volatility, volume-confirmation, Amihud
+illiquidity, and rolling market-residual momentum signals. Selected signals also
+receive same-date robust ranks. These quantities are stationary ratios or returns;
+future rows never participate in their rolling windows.
+
 Benchmark-relative features compare each symbol with the configured benchmark,
 currently `SPY`:
 

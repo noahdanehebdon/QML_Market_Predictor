@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from market_qml.features.cross_sectional import add_cross_sectional_features
+from market_qml.features.market_signals import add_market_signal_features
 
 REQUIRED_KEY_COLUMNS = {"symbol", "date"}
 LABEL_COLUMN_MARKERS = (
@@ -42,6 +43,9 @@ def build_canonical_features(
 
     if result["date"].isna().any():
         raise ValueError("Feature table contains invalid dates.")
+
+    if {"close", "high", "low", "volume", "return_1d"}.issubset(result):
+        result = add_market_signal_features(result)
 
     if add_cross_sectional:
         result = add_cross_sectional_features(result)
