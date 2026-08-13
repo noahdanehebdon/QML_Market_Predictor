@@ -3,7 +3,27 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from market_qml.features.audit import audit_features, feature_family
+from market_qml.features.audit import (
+    audit_features,
+    deterministic_cross_section_sample,
+    feature_family,
+)
+
+
+def test_deterministic_cross_section_sample_is_bounded_and_stable():
+    frame = pd.DataFrame(
+        {
+            "symbol": ["C", "A", "B", "C", "A", "B"],
+            "date": pd.to_datetime(["2024-01-02"] * 3 + ["2024-01-03"] * 3),
+            "value": range(6),
+        }
+    )
+
+    first = deterministic_cross_section_sample(frame, 2)
+    second = deterministic_cross_section_sample(frame.sample(frac=1, random_state=7), 2)
+
+    assert first.groupby("date").size().eq(2).all()
+    pd.testing.assert_frame_equal(first, second)
 
 
 def _inputs():

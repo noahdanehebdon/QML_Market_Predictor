@@ -37,6 +37,30 @@ class FeatureAuditResult:
     exposures: pd.DataFrame
 
 
+def deterministic_cross_section_sample(
+    frame: pd.DataFrame, max_rows_per_date: int | None
+) -> pd.DataFrame:
+    """Bound audit cost with a stable symbol sample inside each date."""
+    if max_rows_per_date is None:
+        return frame.copy()
+    if max_rows_per_date <= 0:
+        raise ValueError("max_rows_per_date must be positive.")
+    if not set(KEYS).issubset(frame):
+        raise ValueError("Sampled frames require symbol and date columns.")
+    sampled = frame.copy()
+    stable_key = sampled["symbol"].astype(str).str.upper()
+    sampled["_audit_order"] = pd.util.hash_pandas_object(
+        stable_key, index=False
+    ).to_numpy()
+    sampled = (
+        sampled.sort_values(["date", "_audit_order", "symbol"])
+        .groupby("date", sort=False, group_keys=False)
+        .head(max_rows_per_date)
+        .drop(columns="_audit_order")
+    )
+    return sampled.sort_values(KEYS).reset_index(drop=True)
+
+
 def audit_features(
     features: pd.DataFrame,
     labels: pd.DataFrame,
