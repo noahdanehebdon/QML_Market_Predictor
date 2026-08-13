@@ -17,6 +17,11 @@ on:
         required: true
         default: false
         type: boolean
+      classical_sweep:
+        description: Run all classical development candidates and controls (no QML)
+        required: true
+        default: false
+        type: boolean
       full_experiment:
         description: Run every classical model plus nested-tuned QML comparison
         required: true
@@ -57,6 +62,7 @@ jobs:
     env:
       BASELINE_MODEL: ${{ inputs.baseline_model || 'tuned_gradient_boosting_regressor' }}
       RUN_QML: ${{ inputs.run_qml || 'false' }}
+      CLASSICAL_SWEEP: ${{ inputs.classical_sweep || 'false' }}
       FULL_EXPERIMENT: ${{ inputs.full_experiment || 'false' }}
       QUANTUM_SAMPLE_ROWS: ${{ inputs.quantum_sample_rows || '512' }}
       QUANTUM_ITERATIONS: ${{ inputs.quantum_iterations || '30' }}
@@ -139,8 +145,19 @@ jobs:
         if: env.FULL_EXPERIMENT != 'true'
         shell: bash
         run: |
-          models=("$BASELINE_MODEL")
-          if [[ "$RUN_QML" == "true" ]]; then
+          if [[ "$CLASSICAL_SWEEP" == "true" ]]; then
+            models=(
+              logistic_regression elastic_net ridge_regression huber_regression
+              random_forest random_forest_regressor gradient_boosting
+              gradient_boosting_regressor tuned_gradient_boosting_regressor
+              vol_normalized_gradient_boosting_regressor xgboost_ranker
+              residualized_xgboost_ranker residualized_huber_regression
+              momentum_rank random_rank sector_neutral_rank
+            )
+          else
+            models=("$BASELINE_MODEL")
+          fi
+          if [[ "$RUN_QML" == "true" && "$CLASSICAL_SWEEP" != "true" ]]; then
             models+=(vqc)
           fi
           python -m scripts.run_walk_forward_backtest \
@@ -199,6 +216,7 @@ jobs:
             echo "## Weekly model retraining"
             echo "- Baseline: \`$BASELINE_MODEL\`"
             echo "- QML enabled: \`$RUN_QML\`"
+            echo "- Classical development sweep: \`$CLASSICAL_SWEEP\`"
             echo "- Full nested-tuning experiment: \`$FULL_EXPERIMENT\`"
             echo "- Reports are stored in the private R2 bucket under \`reports/runs/${GITHUB_RUN_ID}/\`."
           } >> "$GITHUB_STEP_SUMMARY"
