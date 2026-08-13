@@ -35,6 +35,7 @@ class FeatureAuditResult:
     redundancy: pd.DataFrame
     ablations: pd.DataFrame
     exposures: pd.DataFrame
+    decisions: pd.DataFrame
 
 
 def deterministic_cross_section_sample(
@@ -104,15 +105,100 @@ def audit_features(
             )
         )
     predictive = pd.DataFrame(predictive_rows)
+    quality = pd.DataFrame(quality_rows)
+    ablations = pd.DataFrame(ablation_rows)
+    stability = _stability_summary(predictive)
+    redundancy = _redundancy_report(data, splits, feature_columns, redundancy_threshold)
+    exposures = _exposure_report(data, feature_columns)
     return FeatureAuditResult(
-        quality=pd.DataFrame(quality_rows),
+        quality=quality,
         predictive=predictive,
-        stability=_stability_summary(predictive),
-        redundancy=_redundancy_report(
-            data, splits, feature_columns, redundancy_threshold
+        stability=stability,
+        redundancy=redundancy,
+        ablations=ablations,
+        exposures=exposures,
+        decisions=_feature_decisions(
+            quality, stability, redundancy, ablations, exposures
         ),
-        ablations=pd.DataFrame(ablation_rows),
-        exposures=_exposure_report(data, feature_columns),
+    )
+
+
+def _feature_decisions(quality, stability, redundancy, ablations, exposures):
+    """Create an auditable research disposition from development-only evidence."""
+    if stability.empty:
+        return pd.DataFrame(
+            columns=[
+                "feature",
+                "family",
+                "decision",
+                "reason",
+                "validation_median_ic",
+                "sign_agreement",
+                "validation_missing_rate",
+                "median_psi",
+                "redundant_pair_count",
+            ]
+        )
+    quality_summary = quality.groupby(["feature", "family"], as_index=False).agg(
+        validation_missing_rate=("validation_missing_rate", "median"),
+        median_psi=("distribution_psi", "median"),
+    )
+    pair_counts: dict[str, int] = {}
+    for column in ["feature_a", "feature_b"]:
+        if column in redundancy:
+            for feature, count in redundancy[column].value_counts().items():
+                pair_counts[str(feature)] = pair_counts.get(str(feature), 0) + int(
+                    count
+                )
+    family_value = (
+        ablations.groupby("family")["drop_family_delta_ic"].median()
+        if not ablations.empty
+        else pd.Series(dtype=float)
+    )
+    exposure_summary = (
+        exposures.groupby("feature")["mean_exposure_range"].max()
+        if not exposures.empty
+        else pd.Series(dtype=float)
+    )
+    decisions = stability.merge(quality_summary, on=["feature", "family"], how="left")
+    decisions["redundant_pair_count"] = (
+        decisions["feature"].map(pair_counts).fillna(0).astype(int)
+    )
+    decisions["family_delta_ic"] = decisions["family"].map(family_value)
+    decisions["max_group_exposure_range"] = decisions["feature"].map(exposure_summary)
+
+    def classify(row):
+        if row.validation_missing_rate > 0.5:
+            return "insufficient_coverage", "median validation missingness exceeds 50%"
+        if row.stable_evidence and row.redundant_pair_count == 0:
+            return "retain", "stable validation evidence without high redundancy"
+        if row.stable_evidence:
+            return "transform", "stable evidence but materially redundant"
+        if row.sign_agreement >= 0.6 and abs(row.validation_median_ic) >= 0.005:
+            return "conditional", "weak evidence merits regime or interaction testing"
+        return "remove", "no stable incremental development evidence"
+
+    classified = decisions.apply(classify, axis=1)
+    decisions["decision"] = classified.map(lambda value: value[0])
+    decisions["reason"] = classified.map(lambda value: value[1])
+    return (
+        decisions[
+            [
+                "feature",
+                "family",
+                "decision",
+                "reason",
+                "validation_median_ic",
+                "sign_agreement",
+                "validation_missing_rate",
+                "median_psi",
+                "redundant_pair_count",
+                "family_delta_ic",
+                "max_group_exposure_range",
+            ]
+        ]
+        .sort_values(["decision", "family", "feature"])
+        .reset_index(drop=True)
     )
 
 
