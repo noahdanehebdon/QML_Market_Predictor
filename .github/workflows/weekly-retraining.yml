@@ -201,6 +201,10 @@ jobs:
               residualized_xgboost_ranker residualized_huber_regression
               momentum_rank random_rank sector_neutral_rank
             )
+          elif [[ "$QML_VALIDATION" == "true" ]]; then
+            # The bounded QML selector consumes this model's train-only
+            # selection_diagnostics.parquet feature-budget contract.
+            models=(tuned_gradient_boosting_regressor)
           else
             models=("$BASELINE_MODEL")
           fi
