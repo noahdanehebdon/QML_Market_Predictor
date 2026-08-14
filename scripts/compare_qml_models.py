@@ -119,9 +119,7 @@ def _write_hardware_qualification(metrics: pd.DataFrame, output_dir: Path) -> Pa
         split["model_name"].isin(qml_models)
     ].groupby("model_name"):
         candidate_ic = float(candidate["rank_information_coefficient"].mean())
-        positive_share = float(
-            candidate["rank_information_coefficient"].gt(0).mean()
-        )
+        positive_share = float(candidate["rank_information_coefficient"].gt(0).mean())
         candidate_advantages = _matched_ic_advantages(
             candidate,
             controls.loc[controls["model_name"].eq(best_control_model)],
@@ -150,17 +148,13 @@ def _write_hardware_qualification(metrics: pd.DataFrame, output_dir: Path) -> Pa
                 ),
             }
         )
-    candidates.sort(
-        key=lambda row: row["rank_information_coefficient"], reverse=True
-    )
+    candidates.sort(key=lambda row: row["rank_information_coefficient"], reverse=True)
     simulator_winner = candidates[0] if candidates else None
     hardware_candidate = next(
         (row for row in candidates if row["qualified_for_hardware"]), None
     )
     report = {
-        "candidate": (
-            hardware_candidate["model_name"] if hardware_candidate else None
-        ),
+        "candidate": (hardware_candidate["model_name"] if hardware_candidate else None),
         "simulator_winner": (
             simulator_winner["model_name"] if simulator_winner else None
         ),
@@ -170,9 +164,7 @@ def _write_hardware_qualification(metrics: pd.DataFrame, output_dir: Path) -> Pa
             else None
         ),
         "positive_split_share": (
-            hardware_candidate["positive_split_share"]
-            if hardware_candidate
-            else None
+            hardware_candidate["positive_split_share"] if hardware_candidate else None
         ),
         "best_matched_classical_ic": best_control_ic,
         "qualified_for_hardware": hardware_candidate is not None,

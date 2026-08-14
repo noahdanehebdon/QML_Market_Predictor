@@ -226,9 +226,7 @@ def test_hardware_qualification_reports_unsupported_simulator_winner(tmp_path):
         {
             "scope": ["split"] * 9,
             "model_name": (
-                ["qsvm_tuned"] * 3
-                + ["vqc_stable_rank"] * 3
-                + ["rbf_svm"] * 3
+                ["qsvm_tuned"] * 3 + ["vqc_stable_rank"] * 3 + ["rbf_svm"] * 3
             ),
             "rank_information_coefficient": [
                 0.10,
@@ -321,9 +319,7 @@ def test_qsvm_bounded_sweep_covers_feature_map_and_regularization_grid():
     sampled = comparison._sample_split(data, 0, config)
     folds = comparison._prepared_inner_folds(sampled, 0, config)
 
-    selected, trials = comparison._select_qsvm(
-        sampled, 0, config, prepared_folds=folds
-    )
+    selected, trials = comparison._select_qsvm(sampled, 0, config, prepared_folds=folds)
 
     candidates_per_fold = 2 * 2 * 2
     assert len(trials) == sum(
