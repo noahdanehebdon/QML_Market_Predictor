@@ -56,3 +56,36 @@ def test_render_report_supports_classical_promotion_without_conclusion(tmp_path)
     assert "eligible_to_freeze_for_locked_test" in report
     assert "Locked test accessed: `false`" in report
     assert "PRIVATE" not in report
+
+
+def test_render_report_allowlists_nested_hardware_qualification(tmp_path):
+    qml = tmp_path / "qml_validation"
+    qml.mkdir()
+    (qml / "hardware_qualification.json").write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "model_name": "qsvm",
+                        "rank_information_coefficient": 0.0341594,
+                        "positive_split_share": 2 / 3,
+                        "validation_splits": 3,
+                        "beats_matched_classical": True,
+                        "ic_advantage_ci_lower": -0.01,
+                        "statistically_eligible": False,
+                        "hardware_execution_path": None,
+                        "qualified_for_hardware": False,
+                        "private_row_identifier": "DO_NOT_RENDER",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = render_report(tmp_path)
+
+    assert "## Hardware Qualification" in report
+    assert "0.034159" in report
+    assert "ic_advantage_ci_lower" in report
+    assert "DO_NOT_RENDER" not in report
