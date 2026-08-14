@@ -208,3 +208,9 @@ def test_weekly_retraining_has_bounded_qml_validation_mode():
     assert "scripts.build_definitive_qml_comparison" in validation["run"]
     assert "--qualification-report" in validation["run"]
     assert "classical_full" not in validation["run"]
+    retrain = next(
+        step for step in job["steps"] if step["name"] == "Retrain selected models"
+    )
+    assert 'elif [[ "$QML_VALIDATION" == "true" ]]' in retrain["run"]
+    assert "models=(tuned_gradient_boosting_regressor)" in retrain["run"]
+    assert "selection_diagnostics.parquet feature-budget contract" in retrain["run"]
