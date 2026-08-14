@@ -289,7 +289,7 @@ jobs:
             --transaction-cost-bps 10
           python -m scripts.build_definitive_qml_comparison \
             --equal-dir reports/weekly_retraining/qml_validation \
-            --best-classical-dir reports/weekly_retraining \
+            --best-classical-dir reports/weekly_retraining/qml_validation \
             --best-qml-dir reports/weekly_retraining/qml_validation \
             --qualification-report \
               reports/weekly_retraining/qml_validation/hardware_qualification.json \

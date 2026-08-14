@@ -208,6 +208,10 @@ def test_weekly_retraining_has_bounded_qml_validation_mode():
     assert "scripts.build_definitive_qml_comparison" in validation["run"]
     assert "--qualification-report" in validation["run"]
     assert "classical_full" not in validation["run"]
+    assert (
+        "--best-classical-dir reports/weekly_retraining/qml_validation"
+        in validation["run"]
+    )
     retrain = next(
         step for step in job["steps"] if step["name"] == "Retrain selected models"
     )
