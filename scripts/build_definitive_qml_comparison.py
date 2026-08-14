@@ -37,7 +37,9 @@ def main():
     )
     args = parser.parse_args()
     equal = pd.read_parquet(args.equal_dir / "predictions.parquet")
-    classical = pd.read_parquet(args.best_classical_dir / "predictions.parquet")
+    classical = _only_classical_predictions(
+        pd.read_parquet(args.best_classical_dir / "predictions.parquet")
+    )
     qml = pd.read_parquet(args.best_qml_dir / "predictions.parquet")
     qml = qml.loc[qml["model_name"].isin(QML_MODELS)]
     best = pd.concat([classical, qml], ignore_index=True)
@@ -75,6 +77,11 @@ def main():
         )
     save_definitive_comparison(result, args.private_output, args.public_output)
     print(result.conclusion["decision"])
+
+
+def _only_classical_predictions(predictions: pd.DataFrame) -> pd.DataFrame:
+    """Prevent QML rows from leaking through a directory used as a control lane."""
+    return predictions.loc[~predictions["model_name"].isin(QML_MODELS)].copy()
 
 
 if __name__ == "__main__":
