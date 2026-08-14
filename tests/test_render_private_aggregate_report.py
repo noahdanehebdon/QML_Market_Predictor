@@ -11,6 +11,10 @@ def test_render_report_only_includes_allowlisted_aggregate_columns(tmp_path):
             {
                 "decision": "Classical remains default.",
                 "locked_test_accessed": False,
+                "simulator_winner": "qsvm_tuned",
+                "hardware_candidate": None,
+                "qualified_for_hardware": False,
+                "hardware_execution_path": None,
             }
         ),
         encoding="utf-8",
@@ -32,6 +36,8 @@ def test_render_report_only_includes_allowlisted_aggregate_columns(tmp_path):
     assert "PRIVATE" not in report
     assert "2024-01-01" not in report
     assert "Classical remains default." in report
+    assert "Simulator winner: `qsvm_tuned`" in report
+    assert "Qualified for hardware: `False`" in report
 
 
 def test_render_report_supports_classical_promotion_without_conclusion(tmp_path):

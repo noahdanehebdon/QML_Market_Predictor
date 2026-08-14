@@ -37,6 +37,16 @@ on:
         required: true
         default: false
         type: boolean
+      qml_validation:
+        description: Run bounded QML validation with matched controls
+        required: true
+        default: false
+        type: boolean
+      qml_validation_splits:
+        description: Chronological splits used by bounded QML validation
+        required: true
+        default: "3"
+        type: string
       quantum_sample_rows:
         description: Train and validation rows per split for full QML experiment
         required: true
@@ -76,6 +86,8 @@ jobs:
       LEAKAGE_STRESS_TEST: ${{ inputs.leakage_stress_test || 'false' }}
       PHASE2_EVALUATION: ${{ inputs.phase2_evaluation || 'false' }}
       FULL_EXPERIMENT: ${{ inputs.full_experiment || 'false' }}
+      QML_VALIDATION: ${{ inputs.qml_validation || 'false' }}
+      QML_VALIDATION_SPLITS: ${{ inputs.qml_validation_splits || '3' }}
       QUANTUM_SAMPLE_ROWS: ${{ inputs.quantum_sample_rows || '512' }}
       QUANTUM_ITERATIONS: ${{ inputs.quantum_iterations || '30' }}
       TARGET_HORIZON_DAYS: ${{ inputs.target_horizon_days || '20' }}
@@ -154,7 +166,7 @@ jobs:
             "${split_args[@]}"
 
       - name: Audit feature quality and predictive stability
-        if: env.CLASSICAL_SWEEP != 'true' && env.LEAKAGE_STRESS_TEST != 'true' && env.PHASE2_EVALUATION != 'true' && env.FULL_EXPERIMENT != 'true'
+        if: env.CLASSICAL_SWEEP != 'true' && env.LEAKAGE_STRESS_TEST != 'true' && env.PHASE2_EVALUATION != 'true' && env.FULL_EXPERIMENT != 'true' && env.QML_VALIDATION != 'true'
         run: >-
           python -m scripts.audit_feature_quality
           --target-horizon-days "$TARGET_HORIZON_DAYS"
@@ -244,6 +256,41 @@ jobs:
             --best-qml-dir reports/weekly_retraining/qml_tuned_full \
             --target-horizon-days "$TARGET_HORIZON_DAYS"
 
+      - name: Run bounded tuned quantum validation
+        if: env.QML_VALIDATION == 'true' && env.FULL_EXPERIMENT != 'true'
+        shell: bash
+        run: |
+          if [[ ! "$QML_VALIDATION_SPLITS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error title=Invalid QML split count::qml_validation_splits must be positive."
+            exit 1
+          fi
+          if [[ ! "$QUANTUM_SAMPLE_ROWS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error title=Invalid quantum sample::quantum_sample_rows must be positive."
+            exit 1
+          fi
+          if [[ ! "$QUANTUM_ITERATIONS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error title=Invalid quantum iterations::quantum_iterations must be positive."
+            exit 1
+          fi
+          python scripts/compare_qml_models.py \
+            --classical-selection \
+              reports/weekly_retraining/selection_diagnostics.parquet \
+            --output-dir reports/weekly_retraining/qml_validation \
+            --universe-membership data/processed/universe_membership.parquet \
+            --train-rows "$QUANTUM_SAMPLE_ROWS" \
+            --validation-rows "$QUANTUM_SAMPLE_ROWS" \
+            --iterations "$QUANTUM_ITERATIONS" \
+            --max-splits "$QML_VALIDATION_SPLITS" \
+            --target-horizon-days "$TARGET_HORIZON_DAYS" \
+            --transaction-cost-bps 10
+          python -m scripts.build_definitive_qml_comparison \
+            --equal-dir reports/weekly_retraining/qml_validation \
+            --best-classical-dir reports/weekly_retraining \
+            --best-qml-dir reports/weekly_retraining/qml_validation \
+            --qualification-report \
+              reports/weekly_retraining/qml_validation/hardware_qualification.json \
+            --target-horizon-days "$TARGET_HORIZON_DAYS"
+
       - name: Write run summary
         if: success()
         shell: bash
@@ -255,8 +302,10 @@ jobs:
             echo "- Classical development sweep: \`$CLASSICAL_SWEEP\`"
             echo "- Leakage stress test: \`$LEAKAGE_STRESS_TEST\`"
             echo "- Frozen Phase 2 evaluation: \`$PHASE2_EVALUATION\`"
-            echo "- Full feature audit: \`$([[ \"$CLASSICAL_SWEEP\" == \"true\" ]] && echo skipped || echo completed)\`"
+            echo "- Full feature audit: \`$([[ \"$CLASSICAL_SWEEP\" == \"true\" || \"$QML_VALIDATION\" == \"true\" ]] && echo skipped || echo completed)\`"
             echo "- Full nested-tuning experiment: \`$FULL_EXPERIMENT\`"
+            echo "- Bounded QML validation: \`$QML_VALIDATION\`"
+            echo "- Bounded QML splits: \`$QML_VALIDATION_SPLITS\`"
             echo "- Reports are stored in the private R2 bucket under \`reports/runs/${GITHUB_RUN_ID}/\`."
           } >> "$GITHUB_STEP_SUMMARY"
 

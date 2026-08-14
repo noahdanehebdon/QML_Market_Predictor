@@ -13,6 +13,11 @@ def test_ci_enforces_coverage_typing_security_and_distribution_gates() -> None:
     assert "GITHUB_STEP_SUMMARY" in WORKFLOW
 
 
+def test_ci_does_not_duplicate_push_and_pull_request_runs() -> None:
+    assert "branches: [main]" in WORKFLOW
+    assert "pull_request:" in WORKFLOW
+
+
 def test_quality_tooling_is_development_only_and_threshold_is_documented() -> None:
     runtime, development = PROJECT.split("[project.optional-dependencies]", maxsplit=1)
     assert "pytest-cov" not in runtime
