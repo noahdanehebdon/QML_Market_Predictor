@@ -92,6 +92,20 @@ def render_report(input_dir: Path) -> str:
                 "",
             ]
         )
+        if "simulator_winner" in conclusion:
+            sections.extend(
+                [
+                    f"Simulator winner: `{conclusion['simulator_winner']}`",
+                    "",
+                    f"Hardware candidate: `{conclusion['hardware_candidate']}`",
+                    "",
+                    f"Qualified for hardware: `{conclusion['qualified_for_hardware']}`",
+                    "",
+                    "Hardware execution path: "
+                    f"`{conclusion['hardware_execution_path']}`",
+                    "",
+                ]
+            )
     else:
         sections.extend(["Locked test accessed: `false`", ""])
     for name, allowed in TABLE_COLUMNS.items():

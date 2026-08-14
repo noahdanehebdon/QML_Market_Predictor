@@ -21,6 +21,8 @@ def test_weekly_retraining_supports_manual_and_scheduled_runs():
     assert inputs["leakage_stress_test"]["default"] == "false"
     assert inputs["phase2_evaluation"]["default"] == "false"
     assert inputs["full_experiment"]["default"] == "false"
+    assert inputs["qml_validation"]["default"] == "false"
+    assert inputs["qml_validation_splits"]["default"] == "3"
     assert inputs["quantum_sample_rows"]["default"] == "512"
     assert inputs["quantum_iterations"]["default"] == "30"
     assert inputs["target_horizon_days"]["default"] == "20"
@@ -87,7 +89,8 @@ def test_weekly_retraining_audits_features_before_training():
     )
     assert audit["if"] == (
         "env.CLASSICAL_SWEEP != 'true' && env.LEAKAGE_STRESS_TEST != 'true' && "
-        "env.PHASE2_EVALUATION != 'true' && env.FULL_EXPERIMENT != 'true'"
+        "env.PHASE2_EVALUATION != 'true' && env.FULL_EXPERIMENT != 'true' && "
+        "env.QML_VALIDATION != 'true'"
     )
 
 
@@ -182,3 +185,26 @@ def test_weekly_retraining_full_experiment_is_explicit_and_private():
     assert '--train-rows "$QUANTUM_SAMPLE_ROWS"' in experiment["run"]
     assert '--iterations "$QUANTUM_ITERATIONS"' in experiment["run"]
     assert "actions/upload-artifact" not in WORKFLOW_PATH.read_text(encoding="utf-8")
+
+
+def test_weekly_retraining_has_bounded_qml_validation_mode():
+    workflow = _workflow()
+    job = workflow["jobs"]["retrain"]
+    validation = next(
+        step
+        for step in job["steps"]
+        if step["name"] == "Run bounded tuned quantum validation"
+    )
+
+    assert job["env"]["QML_VALIDATION"] == ("${{ inputs.qml_validation || 'false' }}")
+    assert validation["if"] == (
+        "env.QML_VALIDATION == 'true' && env.FULL_EXPERIMENT != 'true'"
+    )
+    assert '--max-splits "$QML_VALIDATION_SPLITS"' in validation["run"]
+    assert (
+        "reports/weekly_retraining/selection_diagnostics.parquet" in validation["run"]
+    )
+    assert "reports/weekly_retraining/qml_validation" in validation["run"]
+    assert "scripts.build_definitive_qml_comparison" in validation["run"]
+    assert "--qualification-report" in validation["run"]
+    assert "classical_full" not in validation["run"]

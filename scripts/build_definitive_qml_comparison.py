@@ -19,6 +19,7 @@ def main():
     parser.add_argument("--best-classical-dir", type=Path, required=True)
     parser.add_argument("--best-qml-dir", type=Path, required=True)
     parser.add_argument("--target-horizon-days", type=int, required=True)
+    parser.add_argument("--qualification-report", type=Path, default=None)
     parser.add_argument(
         "--locked-manifest",
         type=Path,
@@ -60,6 +61,18 @@ def main():
         return_horizon_days=args.target_horizon_days,
         rebalance_frequency=args.target_horizon_days,
     )
+    if args.qualification_report and args.qualification_report.exists():
+        qualification = json.loads(args.qualification_report.read_text())
+        result.conclusion.update(
+            {
+                "simulator_winner": qualification.get("simulator_winner"),
+                "hardware_candidate": qualification.get("candidate"),
+                "qualified_for_hardware": bool(
+                    qualification.get("qualified_for_hardware", False)
+                ),
+                "hardware_execution_path": qualification.get("hardware_execution_path"),
+            }
+        )
     save_definitive_comparison(result, args.private_output, args.public_output)
     print(result.conclusion["decision"])
 
