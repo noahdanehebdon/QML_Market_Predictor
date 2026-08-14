@@ -108,6 +108,33 @@ def render_report(input_dir: Path) -> str:
             )
     else:
         sections.extend(["Locked test accessed: `false`", ""])
+    qualification_paths = sorted(input_dir.rglob("hardware_qualification.json"))
+    if qualification_paths:
+        qualification = json.loads(qualification_paths[0].read_text(encoding="utf-8"))
+        candidates = pd.DataFrame(qualification.get("candidates", []))
+        allowed = [
+            "model_name",
+            "rank_information_coefficient",
+            "positive_split_share",
+            "validation_splits",
+            "beats_matched_classical",
+            "ic_advantage_ci_lower",
+            "statistically_eligible",
+            "hardware_execution_path",
+            "qualified_for_hardware",
+        ]
+        safe_candidates = candidates.loc[
+            :, [column for column in allowed if column in candidates]
+        ].copy()
+        numeric = safe_candidates.select_dtypes(include="number").columns
+        safe_candidates[numeric] = safe_candidates[numeric].round(6)
+        sections.extend(["## Hardware Qualification", ""])
+        sections.append(
+            _to_markdown(safe_candidates)
+            if not safe_candidates.empty
+            else "No QML candidates."
+        )
+        sections.append("")
     for name, allowed in TABLE_COLUMNS.items():
         path = input_dir / f"{name}.parquet"
         if not path.exists():
