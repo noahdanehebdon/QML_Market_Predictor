@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from market_qml.qml.comparison import (
@@ -105,35 +106,125 @@ def main() -> None:
 
 def _write_hardware_qualification(metrics: pd.DataFrame, output_dir: Path) -> Path:
     split = metrics.loc[metrics["scope"].eq("split")].copy()
-    candidate = split.loc[split["model_name"].eq("vqc_stable_rank")]
+    qml_models = {"vqc", "vqc_stable_rank", "qcnn", "qsvm", "qsvm_tuned"}
+    hardware_execution_paths = {"vqc": "ibm_vqc"}
     controls = split.loc[split["model_name"].isin(["linear_svm", "rbf_svm"])]
-    candidate_ic = float(candidate["rank_information_coefficient"].mean())
-    positive_share = float(candidate["rank_information_coefficient"].gt(0).mean())
-    best_control_ic = float(
-        controls.groupby("model_name")["rank_information_coefficient"].mean().max()
+    control_means = controls.groupby("model_name")[
+        "rank_information_coefficient"
+    ].mean()
+    best_control_model = str(control_means.idxmax())
+    best_control_ic = float(control_means.max())
+    candidates = []
+    for model_name, candidate in split.loc[
+        split["model_name"].isin(qml_models)
+    ].groupby("model_name"):
+        candidate_ic = float(candidate["rank_information_coefficient"].mean())
+        positive_share = float(
+            candidate["rank_information_coefficient"].gt(0).mean()
+        )
+        candidate_advantages = _matched_ic_advantages(
+            candidate,
+            controls.loc[controls["model_name"].eq(best_control_model)],
+        )
+        advantage_ci_lower = _bootstrap_mean_lower_bound(candidate_advantages)
+        statistically_eligible = bool(
+            len(candidate) >= 2
+            and candidate_ic > 0
+            and positive_share >= 2 / 3
+            and candidate_ic > best_control_ic
+            and advantage_ci_lower > 0
+        )
+        execution_path = hardware_execution_paths.get(str(model_name))
+        candidates.append(
+            {
+                "model_name": str(model_name),
+                "rank_information_coefficient": candidate_ic,
+                "positive_split_share": positive_share,
+                "validation_splits": len(candidate),
+                "beats_matched_classical": bool(candidate_ic > best_control_ic),
+                "ic_advantage_ci_lower": advantage_ci_lower,
+                "statistically_eligible": statistically_eligible,
+                "hardware_execution_path": execution_path,
+                "qualified_for_hardware": bool(
+                    statistically_eligible and execution_path is not None
+                ),
+            }
+        )
+    candidates.sort(
+        key=lambda row: row["rank_information_coefficient"], reverse=True
     )
-    qualified = (
-        len(candidate) >= 2
-        and candidate_ic > 0
-        and positive_share >= 2 / 3
-        and candidate_ic > best_control_ic
+    simulator_winner = candidates[0] if candidates else None
+    hardware_candidate = next(
+        (row for row in candidates if row["qualified_for_hardware"]), None
     )
     report = {
-        "candidate": "vqc_stable_rank",
-        "rank_information_coefficient": candidate_ic,
-        "positive_split_share": positive_share,
+        "candidate": (
+            hardware_candidate["model_name"] if hardware_candidate else None
+        ),
+        "simulator_winner": (
+            simulator_winner["model_name"] if simulator_winner else None
+        ),
+        "rank_information_coefficient": (
+            hardware_candidate["rank_information_coefficient"]
+            if hardware_candidate
+            else None
+        ),
+        "positive_split_share": (
+            hardware_candidate["positive_split_share"]
+            if hardware_candidate
+            else None
+        ),
         "best_matched_classical_ic": best_control_ic,
-        "qualified_for_hardware": bool(qualified),
+        "qualified_for_hardware": hardware_candidate is not None,
+        "hardware_execution_path": (
+            hardware_candidate["hardware_execution_path"]
+            if hardware_candidate
+            else None
+        ),
         "locked_test_accessed": False,
+        "candidates": candidates,
         "criteria": {
             "minimum_splits": 2,
             "minimum_positive_split_share": 2 / 3,
             "must_beat_matched_classical": True,
+            "minimum_ic_advantage_ci_lower": 0.0,
+            "requires_supported_execution_path": True,
         },
     }
     path = output_dir / "hardware_qualification.json"
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def _matched_ic_advantages(
+    candidate: pd.DataFrame, control: pd.DataFrame
+) -> np.ndarray:
+    if "split_id" in candidate and "split_id" in control:
+        paired = candidate[["split_id", "rank_information_coefficient"]].merge(
+            control[["split_id", "rank_information_coefficient"]],
+            on="split_id",
+            suffixes=("_candidate", "_control"),
+            validate="one_to_one",
+        )
+        return (
+            paired["rank_information_coefficient_candidate"]
+            - paired["rank_information_coefficient_control"]
+        ).to_numpy(float)
+    count = min(len(candidate), len(control))
+    return (
+        candidate["rank_information_coefficient"].to_numpy(float)[:count]
+        - control["rank_information_coefficient"].to_numpy(float)[:count]
+    )
+
+
+def _bootstrap_mean_lower_bound(values: np.ndarray) -> float:
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size < 2:
+        return float("-inf")
+    rng = np.random.default_rng(42)
+    samples = rng.choice(values, size=(2000, values.size), replace=True).mean(axis=1)
+    return float(np.quantile(samples, 0.025))
 
 
 if __name__ == "__main__":

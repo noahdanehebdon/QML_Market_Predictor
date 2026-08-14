@@ -566,11 +566,28 @@ def _vqc_seed_ensemble_predictions(data, chosen, config):
         ).predictions
         for seed in config.vqc_seeds
     ]
-    result = frames[0].copy()
-    result["y_score"] = np.mean(
-        [frame["y_score"].to_numpy(float) for frame in frames], axis=0
+    seed_scores = np.vstack(
+        [frame["y_score"].to_numpy(dtype=float) for frame in frames]
     )
-    result.attrs = _non_kernel_resource_attrs() | {"seed_count": len(config.vqc_seeds)}
+    row_dispersion = np.std(seed_scores, axis=0)
+    maximum_dispersion = float(row_dispersion.max())
+    if len(frames) > 1 and maximum_dispersion <= 1e-12:
+        raise RuntimeError(
+            "VQC seed ensemble collapsed: distinct seeds produced identical scores."
+        )
+    correlations = np.corrcoef(seed_scores) if len(frames) > 1 else np.array([[1.0]])
+    off_diagonal = correlations[np.triu_indices(len(frames), k=1)]
+    finite_correlations = off_diagonal[np.isfinite(off_diagonal)]
+    result = frames[0].copy()
+    result["y_score"] = seed_scores.mean(axis=0)
+    result.attrs = _non_kernel_resource_attrs() | {
+        "seed_count": len(config.vqc_seeds),
+        "seed_score_dispersion_mean": float(row_dispersion.mean()),
+        "seed_score_dispersion_max": maximum_dispersion,
+        "seed_min_pairwise_correlation": (
+            float(finite_correlations.min()) if finite_correlations.size else np.nan
+        ),
+    }
     return result
 
 

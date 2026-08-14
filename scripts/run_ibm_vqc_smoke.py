@@ -61,6 +61,13 @@ def main() -> None:
             raise RuntimeError(
                 "Simulator candidate is not qualified for IBM inference."
             )
+        if (
+            qualification.get("candidate") != "vqc"
+            or qualification.get("hardware_execution_path") != "ibm_vqc"
+        ):
+            raise RuntimeError(
+                "Qualification report does not authorize the IBM VQC execution path."
+            )
         with args.model.open("rb") as handle:
             model = pickle.load(handle)
         if (

@@ -65,3 +65,17 @@ def test_equal_input_lane_rejects_different_outer_rows():
             bootstrap_iterations=10,
             return_horizon_days=5,
         )
+
+
+def test_stable_vqc_is_attributed_to_qml_family():
+    predictions = _predictions(models=("logistic_regression", "vqc_stable_rank"))
+
+    result = build_definitive_comparison(
+        predictions,
+        predictions,
+        bootstrap_iterations=10,
+        return_horizon_days=5,
+    )
+
+    families = result.aggregate_metrics.set_index("model_name")["model_family"]
+    assert families.loc["vqc_stable_rank"].eq("qml").all()
