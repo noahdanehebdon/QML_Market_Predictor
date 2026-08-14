@@ -14,7 +14,7 @@ on:
         type: choice
         options:
           - definitive_private
-          - run_root
+          - qml_qualification
 
 permissions:
   contents: read
@@ -49,16 +49,21 @@ jobs:
             exit 1
           fi
           endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          report_prefix="definitive_private/"
-          if [[ "$REPORT_SCOPE" == "run_root" ]]; then
-            report_prefix=""
-          fi
           mkdir -p private-aggregate
-          aws s3 sync \
-            "s3://${R2_BUCKET_NAME}/reports/runs/${REPORT_RUN_ID}/${report_prefix}" \
-            private-aggregate/ \
-            --endpoint-url "$endpoint" \
-            --only-show-errors
+          if [[ "$REPORT_SCOPE" == "qml_qualification" ]]; then
+            mkdir -p private-aggregate/qml_validation
+            aws s3 cp \
+              "s3://${R2_BUCKET_NAME}/reports/runs/${REPORT_RUN_ID}/qml_validation/hardware_qualification.json" \
+              private-aggregate/qml_validation/hardware_qualification.json \
+              --endpoint-url "$endpoint" \
+              --only-show-errors
+          else
+            aws s3 sync \
+              "s3://${R2_BUCKET_NAME}/reports/runs/${REPORT_RUN_ID}/definitive_private/" \
+              private-aggregate/ \
+              --endpoint-url "$endpoint" \
+              --only-show-errors
+          fi
 
       - name: Render allowlisted aggregate report
         run: >-

@@ -15,8 +15,10 @@ def test_retrieval_workflow_only_publishes_rendered_markdown():
 
     assert workflow["permissions"] == {"contents": "read"}
     assert "definitive_private/" in text
-    assert "run_root" in text
-    assert 'report_prefix=""' in text
+    assert "qml_qualification" in text
+    assert "qml_validation/hardware_qualification.json" in text
+    assert "run_root" not in text
+    assert 'report_prefix=""' not in text
     assert "predictions.parquet" not in text
     assert upload["with"]["path"] == "aggregate-report.md"
     assert "private-aggregate" not in upload["with"]["path"]
