@@ -20,7 +20,7 @@ from market_qml.backtest.validation import (
     prediction_date_block_metrics,
 )
 
-QML_MODELS = {"vqc", "qcnn", "qsvm", "qsvm_tuned"}
+QML_MODELS = {"vqc", "vqc_stable_rank", "qcnn", "qsvm", "qsvm_tuned"}
 
 
 @dataclass(frozen=True)

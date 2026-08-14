@@ -1,5 +1,8 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
+import pytest
 
 import market_qml.qml.comparison as comparison
 from market_qml.qml.comparison import (
@@ -199,11 +202,11 @@ def test_qsvm_tuning_reuses_feature_map_states_across_c_values(monkeypatch):
     assert calls == len(folds["broad_market"]) * 2
 
 
-def test_hardware_qualification_requires_stable_vqc_to_beat_controls(tmp_path):
+def test_hardware_qualification_requires_executable_vqc_to_beat_controls(tmp_path):
     metrics = pd.DataFrame(
         {
             "scope": ["split"] * 6,
-            "model_name": ["vqc_stable_rank"] * 3 + ["linear_svm"] * 3,
+            "model_name": ["vqc"] * 3 + ["linear_svm"] * 3,
             "rank_information_coefficient": [0.1, 0.2, 0.1, 0.01, 0.02, 0.03],
         }
     )
@@ -211,4 +214,119 @@ def test_hardware_qualification_requires_stable_vqc_to_beat_controls(tmp_path):
 
     import json
 
-    assert json.loads(path.read_text())["qualified_for_hardware"] is True
+    report = json.loads(path.read_text())
+    assert report["qualified_for_hardware"] is True
+    assert report["candidate"] == "vqc"
+    assert report["hardware_execution_path"] == "ibm_vqc"
+    assert report["candidates"][0]["ic_advantage_ci_lower"] > 0
+
+
+def test_hardware_qualification_reports_unsupported_simulator_winner(tmp_path):
+    metrics = pd.DataFrame(
+        {
+            "scope": ["split"] * 9,
+            "model_name": (
+                ["qsvm_tuned"] * 3 + ["vqc_stable_rank"] * 3 + ["rbf_svm"] * 3
+            ),
+            "rank_information_coefficient": [
+                0.10,
+                0.12,
+                0.11,
+                -0.02,
+                0.01,
+                -0.01,
+                0.02,
+                0.03,
+                0.01,
+            ],
+        }
+    )
+
+    report = __import__("json").loads(
+        _write_hardware_qualification(metrics, tmp_path).read_text()
+    )
+
+    assert report["simulator_winner"] == "qsvm_tuned"
+    assert report["qualified_for_hardware"] is False
+    qsvm = next(
+        row for row in report["candidates"] if row["model_name"] == "qsvm_tuned"
+    )
+    assert qsvm["statistically_eligible"] is True
+    assert qsvm["hardware_execution_path"] is None
+
+
+def test_vqc_seed_ensemble_records_prediction_diversity(monkeypatch):
+    calls = []
+
+    def fake_train(_data, *, random_state, **_kwargs):
+        calls.append(random_state)
+        scores = np.array([0.2, 0.8]) + (random_state - 42) * 0.01
+        return SimpleNamespace(
+            predictions=pd.DataFrame(
+                {"model_name": ["vqc_stable_rank"] * 2, "y_score": scores}
+            )
+        )
+
+    monkeypatch.setattr(comparison, "train_vqc", fake_train)
+    config = SimpleNamespace(
+        vqc_iterations=1,
+        vqc_seeds=(42, 43, 44),
+    )
+    result = comparison._vqc_seed_ensemble_predictions(
+        object(),
+        {"ansatz_depth": 1, "learning_rate": 0.1, "optimizer": "spsa"},
+        config,
+    )
+
+    assert calls == [42, 43, 44]
+    assert result.attrs["seed_count"] == 3
+    assert result.attrs["seed_score_dispersion_max"] > 0
+    np.testing.assert_allclose(result["y_score"], [0.21, 0.81])
+
+
+def test_vqc_seed_ensemble_rejects_identical_predictions(monkeypatch):
+    monkeypatch.setattr(
+        comparison,
+        "train_vqc",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            predictions=pd.DataFrame(
+                {"model_name": ["vqc_stable_rank"] * 2, "y_score": [0.2, 0.8]}
+            )
+        ),
+    )
+    config = SimpleNamespace(vqc_iterations=1, vqc_seeds=(42, 43))
+
+    with pytest.raises(RuntimeError, match="seed ensemble collapsed"):
+        comparison._vqc_seed_ensemble_predictions(
+            object(),
+            {"ansatz_depth": 1, "learning_rate": 0.1, "optimizer": "spsa"},
+            config,
+        )
+
+
+def test_qsvm_bounded_sweep_covers_feature_map_and_regularization_grid():
+    data = _comparison_data().query("split_id == 0")
+    config = ComparisonConfig(
+        train_rows=16,
+        validation_rows=16,
+        qsvm_c_values=(0.1, 1.0),
+        qsvm_repetitions=(1, 2),
+        interaction_scales=(0.0, 0.25),
+        feature_selection_names=("broad_market", "market_dynamics"),
+        inner_purge_days=0,
+        max_workers=1,
+    )
+    sampled = comparison._sample_split(data, 0, config)
+    folds = comparison._prepared_inner_folds(sampled, 0, config)
+
+    selected, trials = comparison._select_qsvm(sampled, 0, config, prepared_folds=folds)
+
+    candidates_per_fold = 2 * 2 * 2
+    assert len(trials) == sum(
+        len(folds[name]) * candidates_per_fold
+        for name in config.feature_selection_names
+    )
+    assert selected["C"] in config.qsvm_c_values
+    assert selected["repetitions"] in config.qsvm_repetitions
+    assert selected["interaction_scale"] in config.interaction_scales
+    assert selected["feature_selection"] in config.feature_selection_names

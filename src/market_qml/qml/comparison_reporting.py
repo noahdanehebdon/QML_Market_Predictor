@@ -49,7 +49,12 @@ def render_comparison_report(result: ComparisonResult) -> str:
     )
     ranked = pivot.sort_values("roc_auc", ascending=False)
     best = ranked.index[0]
-    best_qml = pivot.loc[["vqc", "qcnn", "qsvm", "qsvm_tuned"], "roc_auc"].idxmax()
+    qml_models = [
+        model
+        for model in ("vqc", "vqc_stable_rank", "qcnn", "qsvm", "qsvm_tuned")
+        if model in pivot.index
+    ]
+    best_qml = pivot.loc[qml_models, "roc_auc"].idxmax()
     best_classical = pivot.loc[
         ["logistic_regression", "gradient_boosting"], "roc_auc"
     ].idxmax()
