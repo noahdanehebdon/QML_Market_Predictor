@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 from market_qml.features.audit import feature_family
@@ -48,6 +49,10 @@ def build_selected_qml_features(
 
     output_frames: list[pd.DataFrame] = []
     manifest_rows: list[dict[str, object]] = []
+    selection_counts: dict[str, int] = {}
+    selection_signs: dict[str, list[float]] = {}
+    score_history: dict[str, list[float]] = {}
+    observed_splits = 0
     for split in splits.sort_values("split_id").itertuples(index=False):
         split_id = int(split.split_id)
         best = selection_diagnostics[
@@ -79,16 +84,46 @@ def build_selected_qml_features(
         data = fit_transform_train_validation(datasets)
         target = pd.to_numeric(data.train.y, errors="coerce")
         train_dates = pd.to_datetime(data.train.metadata["date"])
+        profiles = {
+            column: _stable_daily_profile(data.train.X[column], target, train_dates)
+            for column in data.train.X
+        }
         correlations = pd.Series(
-            {
-                column: _stable_daily_score(data.train.X[column], target, train_dates)
-                for column in data.train.X
-            }
+            {column: profile[0] for column, profile in profiles.items()}
         ).sort_values(ascending=False)
         candidates = correlations.head(candidate_count).index.tolist()
-        selected = _select_diverse(
-            data.train.X[candidates],
+        observed_splits += 1
+        for feature in candidates:
+            selection_counts[feature] = selection_counts.get(feature, 0) + 1
+            selection_signs.setdefault(feature, []).append(profiles[feature][1])
+            score_history.setdefault(feature, []).append(profiles[feature][0])
+        stable_candidates = sorted(
             candidates,
+            key=lambda feature: (
+                selection_counts[feature] / observed_splits,
+                _sign_consistency(selection_signs[feature]),
+                float(pd.Series(score_history[feature]).median()),
+                feature,
+            ),
+            reverse=True,
+        )
+        stable_eligible = [
+            feature
+            for feature in stable_candidates
+            if selection_counts[feature] / observed_splits >= 0.6
+            and _sign_consistency(selection_signs[feature]) >= 2 / 3
+        ]
+        core_target = min(6, n_qubits)
+        core = _select_diverse(
+            data.train.X[candidates],
+            stable_eligible or stable_candidates,
+            n_qubits=core_target,
+            threshold=correlation_threshold,
+        )
+        selected = _complete_diverse_selection(
+            data.train.X[candidates],
+            core,
+            stable_candidates,
             n_qubits=n_qubits,
             threshold=correlation_threshold,
         )
@@ -131,6 +166,12 @@ def build_selected_qml_features(
                     "qml_feature": qml_columns[qubit],
                     "source_feature": source,
                     "target_abs_correlation": float(correlations[source]),
+                    "stable_core_feature": source in core,
+                    "historical_selection_frequency": selection_counts[source]
+                    / observed_splits,
+                    "historical_sign_consistency": _sign_consistency(
+                        selection_signs[source]
+                    ),
                     "target_column": selection_target,
                     "classification_target": target_column,
                     "return_column": excess_column,
@@ -177,6 +218,33 @@ def _select_diverse(
     return selected
 
 
+def _complete_diverse_selection(
+    X: pd.DataFrame,
+    core: list[str],
+    ranked: list[str],
+    *,
+    n_qubits: int,
+    threshold: float,
+) -> list[str]:
+    correlations = absolute_correlation_matrix(X)
+    selected = list(core)
+    for feature in ranked:
+        if feature in selected:
+            continue
+        if all(
+            correlations.loc[feature, existing] < threshold for existing in selected
+        ):
+            selected.append(feature)
+        if len(selected) == n_qubits:
+            return selected
+    for feature in ranked:
+        if feature not in selected:
+            selected.append(feature)
+        if len(selected) == n_qubits:
+            break
+    return selected
+
+
 def _order_by_relationship(X: pd.DataFrame, selected: list[str]) -> list[str]:
     """Order selected features so ring neighbors have meaningful relationships."""
     correlations = absolute_correlation_matrix(X)
@@ -207,6 +275,12 @@ def _order_by_family(X: pd.DataFrame, selected: list[str]) -> list[str]:
 def _stable_daily_score(
     feature: pd.Series, target: pd.Series, dates: pd.Series
 ) -> float:
+    return _stable_daily_profile(feature, target, dates)[0]
+
+
+def _stable_daily_profile(
+    feature: pd.Series, target: pd.Series, dates: pd.Series
+) -> tuple[float, float]:
     daily = []
     frame = pd.DataFrame({"feature": feature, "target": target, "date": dates})
     for _, day in frame.groupby("date", sort=False):
@@ -214,11 +288,18 @@ def _stable_daily_score(
         if pd.notna(correlation):
             daily.append(float(correlation))
     if not daily:
-        return 0.0
+        return 0.0, 0.0
     median = float(pd.Series(daily).median())
     sign_share = float((pd.Series(daily) * median >= 0).mean()) if median else 0.0
     coverage = float(pd.to_numeric(feature, errors="coerce").notna().mean())
-    return abs(median) * sign_share * coverage
+    return abs(median) * sign_share * coverage, float(np.sign(median))
+
+
+def _sign_consistency(signs: list[float]) -> float:
+    nonzero = pd.Series(signs).loc[lambda values: values.ne(0)]
+    if nonzero.empty:
+        return 0.0
+    return float(nonzero.value_counts(normalize=True).max())
 
 
 def _cross_sectional_rank_encode(

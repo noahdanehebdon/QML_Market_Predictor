@@ -12,7 +12,10 @@ from market_qml.qml.comparison import (
     run_model_comparison,
     save_comparison_result,
 )
-from scripts.compare_qml_models import _write_hardware_qualification
+from scripts.compare_qml_models import (
+    _write_hardware_qualification,
+    _write_qsvm_stability_promotion,
+)
 
 
 def _comparison_data():
@@ -330,3 +333,67 @@ def test_qsvm_bounded_sweep_covers_feature_map_and_regularization_grid():
     assert selected["repetitions"] in config.qsvm_repetitions
     assert selected["interaction_scale"] in config.interaction_scales
     assert selected["feature_selection"] in config.feature_selection_names
+    assert isinstance(selected["used_fixed_fallback"], bool)
+    assert np.isfinite(selected["tuning_improvement"])
+    assert {
+        "inner_rank_ic",
+        "positive_inner_fold_share",
+        "robust_selection_score",
+        "kernel_off_diagonal_mean",
+        "kernel_effective_rank",
+        "kernel_target_alignment",
+        "support_vector_fraction",
+    } <= set(trials)
+
+
+def test_kernel_diagnostics_measure_concentration_rank_and_alignment():
+    diagnostics = comparison._kernel_diagnostics(np.eye(4), pd.Series([0, 1, 0, 1]))
+
+    assert diagnostics["kernel_off_diagonal_mean"] == 0
+    assert diagnostics["kernel_effective_rank"] == pytest.approx(4)
+    assert np.isfinite(diagnostics["kernel_target_alignment"])
+
+
+def test_qsvm_stability_promotion_requires_every_registered_gate(tmp_path):
+    ranking = pd.DataFrame(
+        {
+            "scope": ["split"] * 6,
+            "split_id": [0, 1, 2] * 2,
+            "model_name": ["qsvm"] * 3 + ["qsvm_tuned"] * 3,
+            "rank_information_coefficient": [
+                0.01,
+                0.02,
+                0.01,
+                0.08,
+                0.09,
+                0.07,
+            ],
+        }
+    )
+    split_metrics = pd.DataFrame(
+        {
+            "model_name": ["qsvm", "qsvm_tuned"] * 3,
+            "log_loss": [0.70, 0.69] * 3,
+            "brier_score": [0.25, 0.245] * 3,
+        }
+    )
+    selected = pd.DataFrame(
+        {
+            "C": [1.0, 3.0, 1.0],
+            "repetitions": [2, 1, 2],
+            "interaction_scale": [0.0, 0.25, 0.0],
+        }
+    )
+    result = SimpleNamespace(
+        ranking_metrics=ranking,
+        split_metrics=split_metrics,
+        qsvm_selected_configs=selected,
+    )
+
+    report = __import__("json").loads(
+        _write_qsvm_stability_promotion(result, tmp_path).read_text()
+    )
+
+    assert report["eligible_for_promotion"] is True
+    assert report["ic_advantage_ci_lower"] > 0
+    assert all(report["criteria"].values())

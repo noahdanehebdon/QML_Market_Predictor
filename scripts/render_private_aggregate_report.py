@@ -135,6 +135,30 @@ def render_report(input_dir: Path) -> str:
             else "No QML candidates."
         )
         sections.append("")
+    promotion_paths = sorted(input_dir.rglob("qsvm_stability_promotion.json"))
+    if promotion_paths:
+        promotion = json.loads(promotion_paths[0].read_text(encoding="utf-8"))
+        allowed = [
+            "candidate",
+            "baseline",
+            "candidate_rank_information_coefficient",
+            "baseline_rank_information_coefficient",
+            "positive_split_share",
+            "validation_splits",
+            "ic_advantage_ci_lower",
+            "maximum_positive_gain_contribution",
+            "selected_configuration_count",
+            "eligible_for_promotion",
+            "locked_test_accessed",
+        ]
+        safe_promotion = pd.DataFrame(
+            [{column: promotion.get(column) for column in allowed}]
+        )
+        numeric = safe_promotion.select_dtypes(include="number").columns
+        safe_promotion[numeric] = safe_promotion[numeric].round(6)
+        sections.extend(
+            ["## QSVM Stability Promotion", "", _to_markdown(safe_promotion), ""]
+        )
     for name, allowed in TABLE_COLUMNS.items():
         path = input_dir / f"{name}.parquet"
         if not path.exists():
