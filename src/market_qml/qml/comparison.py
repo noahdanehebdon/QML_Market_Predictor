@@ -861,17 +861,70 @@ def _sample_split(data, split_id, config):
         ("train", config.train_rows),
         ("validation", config.validation_rows),
     ]:
-        group = data[(data.split_id == split_id) & (data.sample_role == role)]
-        per_class = limit // 2
+        group = data[(data.split_id == split_id) & (data.sample_role == role)].copy()
+        seed = config.random_state + split_id * 100
+        frames.append(
+            _sample_role_cross_sections(
+                group,
+                limit=limit,
+                max_dates=config.sample_dates_per_role,
+                random_state=seed,
+            )
+        )
+    return pd.concat(frames, ignore_index=True)
+
+
+def _sample_role_cross_sections(
+    group: pd.DataFrame, *, limit: int, max_dates: int, random_state: int
+) -> pd.DataFrame:
+    """Sample bounded rows while retaining usable same-date cross-sections."""
+    ordered = group.assign(date=pd.to_datetime(group["date"])).sort_values(
+        ["date", "symbol"]
+    )
+    unique_dates = ordered["date"].drop_duplicates().to_numpy()
+    if len(unique_dates) >= min(limit, len(ordered)) / 2:
+        per_class = limit // max(1, ordered["target"].nunique())
         chosen = [
             part.sample(
                 n=min(per_class, len(part)),
-                random_state=config.random_state + split_id * 100 + int(target),
+                random_state=random_state + int(target),
             )
-            for target, part in group.groupby("target", sort=True)
+            for target, part in ordered.groupby("target", sort=True)
         ]
-        frames.append(pd.concat(chosen).sort_values(["date", "symbol"]))
-    return pd.concat(frames, ignore_index=True)
+        return pd.concat(chosen).sort_values(["date", "symbol"])
+    date_count = min(max_dates, len(unique_dates), max(1, limit // 4))
+    positions = np.linspace(0, len(unique_dates) - 1, date_count).round().astype(int)
+    selected_dates = unique_dates[np.unique(positions)]
+    base_budget, remainder = divmod(limit, len(selected_dates))
+    sampled = []
+    for date_index, date in enumerate(selected_dates):
+        day = ordered.loc[ordered["date"].eq(date)]
+        budget = base_budget + int(date_index < remainder)
+        class_count = max(1, day["target"].nunique())
+        per_class = max(1, budget // class_count)
+        pieces = [
+            part.sample(
+                n=min(per_class, len(part)),
+                random_state=random_state + date_index * 10 + int(target),
+            )
+            for target, part in day.groupby("target", sort=True)
+        ]
+        chosen = pd.concat(pieces)
+        remaining_budget = budget - len(chosen)
+        if remaining_budget > 0:
+            remaining = day.drop(index=chosen.index)
+            if not remaining.empty:
+                chosen = pd.concat(
+                    [
+                        chosen,
+                        remaining.sample(
+                            n=min(remaining_budget, len(remaining)),
+                            random_state=random_state + date_index * 10 + 9,
+                        ),
+                    ]
+                )
+        sampled.append(chosen)
+    return pd.concat(sampled).sort_values(["date", "symbol"])
 
 
 def _sample_manifest(sampled, split_id):
@@ -888,6 +941,7 @@ def _sample_manifest(sampled, split_id):
                 "rows": len(group),
                 "positive_rate": group.target.mean(),
                 "unique_symbols": group.symbol.nunique(),
+                "unique_dates": group.date.nunique(),
                 "symbols": ",".join(sorted(group.symbol.astype(str).unique())),
                 "row_key_sha256": digest,
             }
@@ -912,6 +966,8 @@ def _validate_inputs(data, config):
         raise ValueError("Comparison data is missing: " + ", ".join(sorted(missing)))
     if config.bootstrap_iterations <= 0:
         raise ValueError("bootstrap_iterations must be positive")
+    if config.sample_dates_per_role < 2:
+        raise ValueError("sample_dates_per_role must be at least 2")
     if config.inner_folds < 2:
         raise ValueError("inner_folds must be at least 2")
     if config.inner_purge_days < 0:
