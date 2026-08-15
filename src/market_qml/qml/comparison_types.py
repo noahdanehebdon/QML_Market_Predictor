@@ -60,10 +60,14 @@ class ComparisonConfig:
     vqc_seeds: tuple[int, ...] = (42, 43, 44)
     qcnn_learning_rates: tuple[float, ...] = (0.03, 0.05, 0.1)
     qcnn_initialization_scales: tuple[float, ...] = (0.05, 0.1)
-    qsvm_c_values: tuple[float, ...] = (0.01, 0.1, 1.0, 10.0)
-    qsvm_repetitions: tuple[int, ...] = (1, 2, 3)
+    qsvm_c_values: tuple[float, ...] = (0.3, 1.0, 3.0)
+    qsvm_repetitions: tuple[int, ...] = (1, 2)
     feature_selection_names: tuple[str, ...] = ("classical_selected",)
-    interaction_scales: tuple[float, ...] = (0.0, 0.5, 1.0)
+    interaction_scales: tuple[float, ...] = (0.0, 0.25, 0.5)
+    qsvm_min_positive_fold_share: float = 2 / 3
+    qsvm_min_tuning_improvement: float = 0.005
+    qsvm_kernel_concentration_threshold: float = 0.8
+    qsvm_support_fraction_threshold: float = 0.9
     bootstrap_iterations: int = 2000
     portfolio_top_fraction: float = 0.1
     transaction_cost_bps: float = DEFAULT_TRANSACTION_COST_BPS

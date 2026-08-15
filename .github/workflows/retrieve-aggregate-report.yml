@@ -57,6 +57,11 @@ jobs:
               private-aggregate/qml_validation/hardware_qualification.json \
               --endpoint-url "$endpoint" \
               --only-show-errors
+            aws s3 cp \
+              "s3://${R2_BUCKET_NAME}/reports/runs/${REPORT_RUN_ID}/qml_validation/qsvm_stability_promotion.json" \
+              private-aggregate/qml_validation/qsvm_stability_promotion.json \
+              --endpoint-url "$endpoint" \
+              --only-show-errors
           else
             aws s3 sync \
               "s3://${R2_BUCKET_NAME}/reports/runs/${REPORT_RUN_ID}/definitive_private/" \

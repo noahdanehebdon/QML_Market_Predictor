@@ -89,3 +89,33 @@ def test_render_report_allowlists_nested_hardware_qualification(tmp_path):
     assert "0.034159" in report
     assert "ic_advantage_ci_lower" in report
     assert "DO_NOT_RENDER" not in report
+
+
+def test_render_report_allowlists_qsvm_stability_promotion(tmp_path):
+    qml = tmp_path / "qml_validation"
+    qml.mkdir()
+    (qml / "qsvm_stability_promotion.json").write_text(
+        json.dumps(
+            {
+                "candidate": "qsvm_tuned",
+                "baseline": "qsvm",
+                "candidate_rank_information_coefficient": 0.05,
+                "baseline_rank_information_coefficient": 0.03,
+                "positive_split_share": 0.8,
+                "validation_splits": 5,
+                "ic_advantage_ci_lower": 0.001,
+                "maximum_positive_gain_contribution": 0.4,
+                "selected_configuration_count": 2,
+                "eligible_for_promotion": True,
+                "locked_test_accessed": False,
+                "private_row_identifier": "DO_NOT_RENDER",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = render_report(tmp_path)
+
+    assert "## QSVM Stability Promotion" in report
+    assert "qsvm_tuned" in report
+    assert "DO_NOT_RENDER" not in report

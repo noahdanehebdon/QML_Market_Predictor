@@ -17,6 +17,7 @@ def test_retrieval_workflow_only_publishes_rendered_markdown():
     assert "definitive_private/" in text
     assert "qml_qualification" in text
     assert "qml_validation/hardware_qualification.json" in text
+    assert "qml_validation/qsvm_stability_promotion.json" in text
     assert "run_root" not in text
     assert 'report_prefix=""' not in text
     assert "predictions.parquet" not in text

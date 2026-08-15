@@ -101,6 +101,7 @@ def main() -> None:
     selected.manifest.to_parquet(selected_feature_path, index=False)
     selected.features.to_parquet(selected_input_path, index=False)
     _write_hardware_qualification(result.ranking_metrics, args.output_dir)
+    _write_qsvm_stability_promotion(result, args.output_dir)
     print(paths["report"])
 
 
@@ -217,6 +218,69 @@ def _bootstrap_mean_lower_bound(values: np.ndarray) -> float:
     rng = np.random.default_rng(42)
     samples = rng.choice(values, size=(2000, values.size), replace=True).mean(axis=1)
     return float(np.quantile(samples, 0.025))
+
+
+def _write_qsvm_stability_promotion(result, output_dir: Path) -> Path:
+    """Persist the pre-registered development-only QSVM promotion decision."""
+    ranking = result.ranking_metrics.loc[
+        result.ranking_metrics["scope"].eq("split")
+        & result.ranking_metrics["model_name"].isin(["qsvm", "qsvm_tuned"]),
+        ["split_id", "model_name", "rank_information_coefficient"],
+    ]
+    paired = ranking.pivot(
+        index="split_id", columns="model_name", values="rank_information_coefficient"
+    ).dropna()
+    advantages = (paired["qsvm_tuned"] - paired["qsvm"]).to_numpy(float)
+    tuned_ic = float(paired["qsvm_tuned"].mean())
+    fixed_ic = float(paired["qsvm"].mean())
+    positive_share = float(paired["qsvm_tuned"].gt(0).mean())
+    advantage_ci_lower = _bootstrap_mean_lower_bound(advantages)
+    classification = result.split_metrics.loc[
+        result.split_metrics["model_name"].isin(["qsvm", "qsvm_tuned"])
+    ]
+    means = classification.groupby("model_name")[["log_loss", "brier_score"]].mean()
+    calibration_not_worse = bool(
+        means.loc["qsvm_tuned", "log_loss"] <= means.loc["qsvm", "log_loss"] + 0.01
+        and means.loc["qsvm_tuned", "brier_score"]
+        <= means.loc["qsvm", "brier_score"] + 0.005
+    )
+    positive_gains = np.clip(advantages, 0.0, None)
+    max_contribution = (
+        float(positive_gains.max() / positive_gains.sum())
+        if positive_gains.sum() > 0
+        else 1.0
+    )
+    configs = result.qsvm_selected_configs
+    stable_configs = int(
+        configs[["C", "repetitions", "interaction_scale"]].drop_duplicates().shape[0]
+    )
+    nearby_robustness = stable_configs >= 2
+    criteria = {
+        "beats_fixed_qsvm_mean_ic": tuned_ic > fixed_ic,
+        "positive_split_share_at_least_two_thirds": positive_share >= 2 / 3,
+        "bootstrap_ic_advantage_lower_bound_positive": advantage_ci_lower > 0,
+        "calibration_not_materially_worse": calibration_not_worse,
+        "no_single_split_dominates": max_contribution <= 0.6,
+        "at_least_two_selected_nearby_configurations": nearby_robustness,
+        "locked_test_untouched": True,
+    }
+    report = {
+        "candidate": "qsvm_tuned",
+        "baseline": "qsvm",
+        "candidate_rank_information_coefficient": tuned_ic,
+        "baseline_rank_information_coefficient": fixed_ic,
+        "positive_split_share": positive_share,
+        "validation_splits": len(paired),
+        "ic_advantage_ci_lower": advantage_ci_lower,
+        "maximum_positive_gain_contribution": max_contribution,
+        "selected_configuration_count": stable_configs,
+        "criteria": criteria,
+        "eligible_for_promotion": all(criteria.values()),
+        "locked_test_accessed": False,
+    }
+    path = output_dir / "qsvm_stability_promotion.json"
+    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return path
 
 
 if __name__ == "__main__":

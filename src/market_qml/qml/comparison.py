@@ -289,6 +289,21 @@ def _select_qsvm(
             "qsvm_candidate",
             config.random_state,
         )
+        ranking_column = (
+            "ranking_target"
+            if "ranking_target" in inner.validation.metadata
+            else next(
+                column
+                for column in inner.validation.metadata
+                if column.startswith("forward_excess_return")
+            )
+        )
+        ranking_target = pd.to_numeric(
+            inner.validation.metadata[ranking_column], errors="coerce"
+        )
+        inner_rank_ic = float(
+            pd.Series(pred.y_score).corr(ranking_target, method="spearman")
+        )
         return {
             "split_id": split_id,
             "inner_fold_id": fold_id,
@@ -297,6 +312,12 @@ def _select_qsvm(
             "C": C,
             "interaction_scale": interaction_scale,
             "inner_roc_auc": roc_auc_score(pred.y_true, pred.y_score),
+            "inner_rank_ic": inner_rank_ic,
+            "kernel_mean_similarity": pred.attrs["kernel_mean_similarity"],
+            "kernel_off_diagonal_mean": pred.attrs["kernel_off_diagonal_mean"],
+            "kernel_effective_rank": pred.attrs["kernel_effective_rank"],
+            "kernel_target_alignment": pred.attrs["kernel_target_alignment"],
+            "support_vector_fraction": pred.attrs["support_vector_fraction"],
             "runtime_seconds": time.perf_counter() - started,
             "inner_train_end": pd.to_datetime(inner.train.metadata.date).max(),
             "inner_validation_start": pd.to_datetime(
@@ -307,17 +328,69 @@ def _select_qsvm(
     trial_rows = _ordered_map(evaluate, tasks, config.max_workers)
     trials = pd.DataFrame(trial_rows)
     keys = ["feature_selection", "repetitions", "C", "interaction_scale"]
-    means = (
-        trials.groupby(keys, as_index=False)
-        .inner_roc_auc.mean()
-        .rename(columns={"inner_roc_auc": "mean_inner_roc_auc"})
+    summary = trials.groupby(keys, as_index=False).agg(
+        mean_inner_roc_auc=("inner_roc_auc", "mean"),
+        median_inner_rank_ic=("inner_rank_ic", "median"),
+        positive_inner_fold_share=("inner_rank_ic", lambda values: (values > 0).mean()),
+        mean_kernel_off_diagonal=("kernel_off_diagonal_mean", "mean"),
+        mean_kernel_effective_rank=("kernel_effective_rank", "mean"),
+        mean_kernel_target_alignment=("kernel_target_alignment", "mean"),
+        mean_support_vector_fraction=("support_vector_fraction", "mean"),
     )
-    trials = trials.merge(means, on=keys).sort_values(
-        ["mean_inner_roc_auc", *keys],
-        ascending=[False, True, True, True, True],
+    summary["stability_penalty"] = (
+        summary["mean_kernel_off_diagonal"] - config.qsvm_kernel_concentration_threshold
+    ).clip(lower=0) * 0.05 + (
+        summary["mean_support_vector_fraction"] - config.qsvm_support_fraction_threshold
+    ).clip(lower=0) * 0.02
+    summary["robust_selection_score"] = (
+        summary["median_inner_rank_ic"] - summary["stability_penalty"]
+    )
+    summary["passes_inner_stability"] = summary["positive_inner_fold_share"].ge(
+        config.qsvm_min_positive_fold_share
+    )
+    trials = trials.merge(summary, on=keys).sort_values(
+        [
+            "passes_inner_stability",
+            "robust_selection_score",
+            "repetitions",
+            "interaction_scale",
+            "C",
+            "feature_selection",
+        ],
+        ascending=[False, False, True, True, True, True],
         kind="stable",
     )
     chosen = trials.iloc[0].to_dict()
+    fixed = summary.loc[
+        summary["feature_selection"].eq(config.feature_selection_names[0])
+        & summary["repetitions"].eq(2)
+        & summary["C"].eq(1.0)
+        & summary["interaction_scale"].eq(0.0)
+    ]
+    if not fixed.empty:
+        fixed_row = fixed.iloc[0]
+        improvement = float(
+            chosen["robust_selection_score"] - fixed_row["robust_selection_score"]
+        )
+        if (
+            not bool(chosen["passes_inner_stability"])
+            or improvement < config.qsvm_min_tuning_improvement
+        ):
+            chosen = (
+                trials.loc[
+                    trials["feature_selection"].eq(config.feature_selection_names[0])
+                    & trials["repetitions"].eq(2)
+                    & trials["C"].eq(1.0)
+                    & trials["interaction_scale"].eq(0.0)
+                ]
+                .iloc[0]
+                .to_dict()
+            )
+            chosen["used_fixed_fallback"] = True
+            chosen["tuning_improvement"] = improvement
+        else:
+            chosen["used_fixed_fallback"] = False
+            chosen["tuning_improvement"] = improvement
     return chosen, trials.reset_index(drop=True)
 
 
@@ -547,7 +620,9 @@ def _qsvm_predictions(data, C, repetitions, interaction_scale, model_name, seed)
         "validation_kernel_rows": model.last_prediction_kernel_.shape[0],
         "validation_kernel_columns": model.last_prediction_kernel_.shape[1],
         "kernel_mean_similarity": float(kernel.mean()),
+        **_kernel_diagnostics(kernel, data.train.y),
         "support_vectors": model.support_vector_count,
+        "support_vector_fraction": model.support_vector_count / len(data.train.y),
     }
     return result
 
@@ -615,13 +690,50 @@ def _qsvm_predictions_from_states(
         )
     ).fit_states(train_states, data.train.y, kernel=kernel)
     scores = model.predict_state_scores(validation_states)
-    return build_prediction_table(
+    result = build_prediction_table(
         metadata=data.validation.metadata,
         y_true=data.validation.y,
         y_score=scores,
         model_name=model_name,
         split_id=data.split_id,
     )
+    train_kernel = kernel.matrix
+    result.attrs = {
+        "kernel_mean_similarity": float(train_kernel.mean()),
+        **_kernel_diagnostics(train_kernel, data.train.y),
+        "support_vectors": model.support_vector_count,
+        "support_vector_fraction": model.support_vector_count / len(data.train.y),
+    }
+    return result
+
+
+def _kernel_diagnostics(kernel: np.ndarray, targets) -> dict[str, float]:
+    """Summarize concentration, usable dimension, and label alignment."""
+    matrix = np.asarray(kernel, dtype=float)
+    off_diagonal = matrix[~np.eye(len(matrix), dtype=bool)]
+    eigenvalues = np.clip(np.linalg.eigvalsh(matrix), 0.0, None)
+    total = float(eigenvalues.sum())
+    effective_rank = (
+        float(total**2 / np.square(eigenvalues).sum())
+        if total and np.square(eigenvalues).sum()
+        else 0.0
+    )
+    labels = 2.0 * np.asarray(targets, dtype=float) - 1.0
+    label_kernel = np.outer(labels, labels)
+    denominator = np.linalg.norm(matrix) * np.linalg.norm(label_kernel)
+    alignment = (
+        float(np.sum(matrix * label_kernel) / denominator) if denominator else 0.0
+    )
+    return {
+        "kernel_off_diagonal_mean": float(off_diagonal.mean())
+        if off_diagonal.size
+        else 0.0,
+        "kernel_off_diagonal_std": float(off_diagonal.std())
+        if off_diagonal.size
+        else 0.0,
+        "kernel_effective_rank": effective_rank,
+        "kernel_target_alignment": alignment,
+    }
 
 
 def _classical_predictions(data, kernel, model_name, seed):
@@ -812,6 +924,20 @@ def _validate_inputs(data, config):
         value < 0 for value in config.interaction_scales
     ):
         raise ValueError("interaction_scales must contain non-negative values")
+    if not config.qsvm_c_values or any(value <= 0 for value in config.qsvm_c_values):
+        raise ValueError("qsvm_c_values must contain positive values")
+    if not config.qsvm_repetitions or any(
+        value <= 0 for value in config.qsvm_repetitions
+    ):
+        raise ValueError("qsvm_repetitions must contain positive values")
+    if not 0 < config.qsvm_min_positive_fold_share <= 1:
+        raise ValueError("qsvm_min_positive_fold_share must be in (0, 1]")
+    if config.qsvm_min_tuning_improvement < 0:
+        raise ValueError("qsvm_min_tuning_improvement must be non-negative")
+    if not 0 <= config.qsvm_kernel_concentration_threshold <= 1:
+        raise ValueError("qsvm_kernel_concentration_threshold must be in [0, 1]")
+    if not 0 < config.qsvm_support_fraction_threshold <= 1:
+        raise ValueError("qsvm_support_fraction_threshold must be in (0, 1]")
     if not 0 < config.portfolio_top_fraction <= 0.5:
         raise ValueError(
             "portfolio_top_fraction must be greater than 0 and at most 0.5"

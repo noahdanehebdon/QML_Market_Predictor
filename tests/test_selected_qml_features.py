@@ -58,6 +58,9 @@ def test_selected_qml_features_use_classical_budget_and_outer_training_only():
     assert set(result.manifest["classical_candidate_feature_count"]) == {10}
     assert len([c for c in result.features if c.startswith("selected_feature_")]) == 8
     assert set(result.features["sample_role"]) == {"train", "validation"}
+    assert result.manifest["stable_core_feature"].sum() == 6
+    assert set(result.manifest["historical_selection_frequency"]) == {1.0}
+    assert result.manifest["historical_sign_consistency"].between(0, 1).all()
 
     changed_labels = labels.copy()
     changed_labels.loc[
