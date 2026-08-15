@@ -397,3 +397,27 @@ def test_qsvm_stability_promotion_requires_every_registered_gate(tmp_path):
     assert report["eligible_for_promotion"] is True
     assert report["ic_advantage_ci_lower"] > 0
     assert all(report["criteria"].values())
+
+
+def test_bounded_sampler_preserves_same_date_cross_sections():
+    rows = []
+    for date in pd.date_range("2024-01-01", periods=20):
+        for symbol_index in range(20):
+            rows.append(
+                {
+                    "date": date,
+                    "symbol": f"S{symbol_index:02d}",
+                    "target": symbol_index % 2,
+                    "sample_role": "validation",
+                    "split_id": 0,
+                }
+            )
+    sampled = comparison._sample_role_cross_sections(
+        pd.DataFrame(rows), limit=80, max_dates=8, random_state=42
+    )
+
+    per_date = sampled.groupby("date").size()
+    assert len(sampled) == 80
+    assert per_date.size == 8
+    assert per_date.min() == 10
+    assert sampled.groupby("date")["target"].nunique().eq(2).all()

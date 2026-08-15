@@ -51,6 +51,7 @@ DEFAULT_SELECTED_FEATURES = [f"selected_feature_{index:02d}" for index in range(
 class ComparisonConfig:
     train_rows: int = 128
     validation_rows: int = 128
+    sample_dates_per_role: int = 8
     random_state: int = 42
     vqc_iterations: int = 10
     qcnn_iterations: int = 10
