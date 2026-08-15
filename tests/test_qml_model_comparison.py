@@ -13,9 +13,18 @@ from market_qml.qml.comparison import (
     save_comparison_result,
 )
 from scripts.compare_qml_models import (
+    _select_development_splits,
     _write_hardware_qualification,
     _write_qsvm_stability_promotion,
 )
+
+
+def test_bounded_comparison_uses_recent_development_splits():
+    splits = pd.DataFrame({"split_id": [4, 1, 3, 0, 2]})
+
+    selected = _select_development_splits(splits, max_splits=3)
+
+    assert selected["split_id"].tolist() == [2, 3, 4]
 
 
 def _comparison_data():

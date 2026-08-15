@@ -61,9 +61,9 @@ def main() -> None:
     )
     args = parser.parse_args()
     features, labels = pd.read_parquet(args.features), pd.read_parquet(args.labels)
-    splits = pd.read_parquet(args.splits).sort_values("split_id")
-    if args.max_splits is not None:
-        splits = splits.head(args.max_splits)
+    splits = _select_development_splits(
+        pd.read_parquet(args.splits), max_splits=args.max_splits
+    )
     selected = build_selected_qml_features(
         features=features,
         labels=labels,
@@ -103,6 +103,18 @@ def main() -> None:
     _write_hardware_qualification(result.ranking_metrics, args.output_dir)
     _write_qsvm_stability_promotion(result, args.output_dir)
     print(paths["report"])
+
+
+def _select_development_splits(
+    splits: pd.DataFrame, *, max_splits: int | None
+) -> pd.DataFrame:
+    """Select the most recent bounded development splits in chronological order."""
+    ordered = splits.sort_values("split_id")
+    if max_splits is None:
+        return ordered
+    if max_splits <= 0:
+        raise ValueError("max_splits must be positive")
+    return ordered.tail(max_splits)
 
 
 def _write_hardware_qualification(metrics: pd.DataFrame, output_dir: Path) -> Path:
