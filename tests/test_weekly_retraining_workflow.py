@@ -205,6 +205,16 @@ def test_weekly_retraining_has_bounded_qml_validation_mode():
         "reports/weekly_retraining/selection_diagnostics.parquet" in validation["run"]
     )
     assert "reports/weekly_retraining/qml_validation" in validation["run"]
+    align = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "Align labels and splits to selected horizon"
+    )
+    assert '"$QML_VALIDATION" == "true"' in align["run"]
+    assert (
+        "--train-window-days 504 --validation-window-days 63 --step-days 63"
+        in align["run"]
+    )
     assert "scripts.build_definitive_qml_comparison" in validation["run"]
     assert "--qualification-report" in validation["run"]
     assert "classical_full" not in validation["run"]

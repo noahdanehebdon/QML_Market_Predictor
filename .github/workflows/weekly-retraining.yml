@@ -151,7 +151,7 @@ jobs:
         shell: bash
         run: |
           split_args=()
-          if [[ "$LEAKAGE_STRESS_TEST" == "true" || "$PHASE2_EVALUATION" == "true" ]]; then
+          if [[ "$LEAKAGE_STRESS_TEST" == "true" || "$PHASE2_EVALUATION" == "true" || "$QML_VALIDATION" == "true" ]]; then
             split_args+=(--train-window-days 504 --validation-window-days 63 --step-days 63)
           fi
           python -m scripts.build_forward_return_labels \
